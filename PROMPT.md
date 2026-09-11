@@ -1,6 +1,6 @@
 # Imprint — LLM Agent System Prompt (v2.1)
 
-> Audience: any LLM Agent that integrates `imprint` (Go static binary / Go module / MCP server / Python)
+> Audience: any LLM Agent that integrates `imprint` (Go static binary / Go module / MCP server)
 > Protocol version: v2.1 · 2026-09-11
 > Core tools: `imprint_add` / `imprint_find` / `imprint_reinforce` / `imprint_supersede` / `imprint_sweep` / `imprint_list` / `imprint_get` / `imprint_forget` / `imprint_show` / `imprint_viz`
 
@@ -449,6 +449,7 @@ Regardless of whether the host LLM is OpenAI / Anthropic / Gemini / a local mode
 - If any `imprint_*` call fails, handle it per §11
 - Concurrency safety: multiple agents writing the same vault accept "last write wins" (concurrency control is done at the user / tool layer)
 - ID format: `r-YYYY-MM-DD-NNN` (human-readable)
+- On disk, many rules share an `imprint-NNNN.md` shard (concatenated YAML frontmatter documents). `path` on add/get is the **shard file**, not a per-rule filename. A new shard starts at 32768 lines or 1 MiB, whichever comes first. Legacy one-file `r-YYYY-MM-DD-NNN.md` is still read and compacted on open. `forget` removes one rule from its shard.
 
 ---
 
@@ -565,7 +566,7 @@ Every session is a **light calibration**, not "starting from zero". After 10 ses
 **Version**: v2.1
 **Last updated**: 2026-09-11
 **Changelog**:
-- v2.1: Added the `imprint_viz` tool (§21, §22.1–22.2), strengthened observability, added §22 subsections
+- v2.1: Added the `imprint_viz` tool (§21, §22.1–22.2), strengthened observability, added §22 subsections; vault packs many rules per `imprint-NNNN.md` shard
 - v2.0: Original version
 
 **Companion implementation**: [imprint](https://github.com/.../imprint) — Go static binary, 2.3MB, zero runtime dependencies

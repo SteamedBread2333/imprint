@@ -1,0 +1,26 @@
+---
+description: Use imprint as long-term memory. Find by scope before answering; write only explicit user preferences.
+alwaysApply: true
+---
+
+# imprint memory
+
+This project’s long-term memory is **imprint**, not chat history.
+
+- Vault: `./memory/` (override with `IMPRINT_VAULT` or `--vault`)
+- MCP: `imprint_add` / `imprint_find` / `imprint_reinforce` / `imprint_supersede` / `imprint_forget` / `imprint_list` / `imprint_get` / `imprint_sweep` / `imprint_show` / `imprint_viz`
+- Protocol: [PROMPT.md](PROMPT.md)
+
+## Must do
+
+1. Before coding or answering style/convention questions, `imprint_find` with a **narrow scope** (e.g. `["go","naming"]`). Cite `[r-id]` when a hit shapes behavior.
+2. Before every write, classify: ADD / REINFORCE / SUPERSEDE / IGNORE. Never add a duplicate.
+3. Record only what the user **said**. Starting confidence 0.6; corrections 0.85; “from now on always” 0.9.
+4. User says forget / don’t record → `imprint_forget` or skip the write.
+
+## Must not
+
+- Infer preferences. Don’t store secrets. Don’t archive by hand (`imprint_sweep` only).
+- Call the system “memory store” in user-facing text — it is **imprint**.
+
+If MCP tools are missing, use `./imprint --json` against the same vault and tell the user.

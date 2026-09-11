@@ -1,0 +1,21 @@
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"imprint-debug","version":"1.0.0"}}}
+{"jsonrpc":"2.0","method":"notifications/initialized"}
+{"jsonrpc":"2.0","id":2,"method":"ping"}
+{"jsonrpc":"2.0","id":3,"method":"tools/list"}
+{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"imprint_add","arguments":{"claim":"This repository is implemented in Go only; do not add Python packages or bindings","scope":["go","proj:imprint"],"text":"没有Python代码，纯Go","confidence":0.9}}}
+{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"imprint_add","arguments":{"claim":"Build with CGO_ENABLED=0 as a static binary with no runtime dependencies","scope":["go","build"],"text":"Go static binary, zero runtime","confidence":0.85}}}
+{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"imprint_add","arguments":{"claim":"Pack multiple rules into imprint-NNNN.md shards under memory/; start a new shard at 32768 lines or 1 MiB","scope":["imprint","storage"],"text":"User corrections → portable packed markdown","confidence":0.85}}}
+{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"imprint_add","arguments":{"claim":"CLI flag parsing must stay in the Go standard library; do not add Cobra","scope":["go","cli"],"text":"CLI 用标准库 + 轻量子命令解析，避免 Cobra","confidence":0.8}}}
+{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"imprint_add","arguments":{"claim":"When referring to this system, always call it imprint, never memory store","scope":["git","branding"],"text":"always call it imprint","confidence":0.7}}}
+{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"imprint_add","arguments":{"claim":"Go unexported identifiers use camelCase","scope":["go","naming"],"text":"use camelCase for unexported names","confidence":0.6}}}
+{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"imprint_find","arguments":{"scope":["go"],"top_k":5}}}
+{"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"imprint_find","arguments":{"scope":["go","naming"]}}}
+{"jsonrpc":"2.0","id":12,"method":"tools/call","params":{"name":"imprint_reinforce","arguments":{"id":"r-2026-09-11-001","evidence":"user restated: 没有Python代码，纯Go"}}}
+{"jsonrpc":"2.0","id":13,"method":"tools/call","params":{"name":"imprint_supersede","arguments":{"old_id":"r-2026-09-11-006","new_claim":"Go exported names use PascalCase; unexported names use camelCase","new_scope":["go","naming"],"reason":"narrowed to exported vs unexported","original_text":"exported PascalCase, unexported camelCase"}}}
+{"jsonrpc":"2.0","id":14,"method":"tools/call","params":{"name":"imprint_list","arguments":{"status":"active"}}}
+{"jsonrpc":"2.0","id":15,"method":"tools/call","params":{"name":"imprint_get","arguments":{"id":"r-2026-09-11-001"}}}
+{"jsonrpc":"2.0","id":16,"method":"tools/call","params":{"name":"imprint_show","arguments":{"limit":20}}}
+{"jsonrpc":"2.0","id":17,"method":"tools/call","params":{"name":"imprint_sweep","arguments":{}}}
+{"jsonrpc":"2.0","id":18,"method":"tools/call","params":{"name":"imprint_viz","arguments":{"format":"mermaid","include_archived":true}}}
+{"jsonrpc":"2.0","id":19,"method":"tools/call","params":{"name":"imprint_viz","arguments":{"format":"html","include_archived":true}}}
+{"jsonrpc":"2.0","id":20,"method":"tools/call","params":{"name":"imprint_list","arguments":{"status":"superseded"}}}

@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "imprint": {
+      "command": "/Users/derbysoft-i129/Documents/GitHub/imprint/imprint",
+      "args": [
+        "--vault",
+        "/Users/derbysoft-i129/Documents/GitHub/imprint/memory",
+        "mcp"
+      ],
+      "env": {
+        "IMPRINT_VAULT": "/Users/derbysoft-i129/Documents/GitHub/imprint/memory"
+      }
+    }
+  }
+}

@@ -1,0 +1,60 @@
+# imprint — generated from the repo shape (Go static binary + markdown vault)
+# Base: github/gitignore Go.gitignore, plus vault/release/OS noise this tree actually produces.
+
+# --- binaries (make build / go test -c) ---
+/imprint
+/imprint.exe
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+
+# --- coverage & profiles ---
+*.out
+coverage.*
+*.coverprofile
+profile.cov
+
+# --- Go toolchain ---
+vendor/
+go.work
+go.work.sum
+
+# --- secrets / local env ---
+.env
+.env.*
+!.env.example
+
+# --- vault & viz output (user data, never commit) ---
+/memory/
+/tests/loadvault/
+/tests/mcpvault/
+**/.imprint/
+dashboard.html
+!pkg/imprint/dashboard.html
+
+# --- release packages ---
+/dist/
+/bin/
+
+# --- OS & editors ---
+.DS_Store
+Thumbs.db
+*~
+*.swp
+.idea/
+.vscode/
+*.code-workspace
+.cursor/*
+!.cursor/rules/
+!.cursor/rules/**
+!.cursor/mcp.json
+
+# --- local scratch ---
+tmp/
+temp/
+*.tmp
+
+PROJECTS.md
