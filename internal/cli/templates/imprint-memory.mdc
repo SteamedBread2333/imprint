@@ -9,7 +9,8 @@ This project’s long-term memory is **imprint**, not chat history. A global `im
 
 - Vault: `./memory/` (override with `IMPRINT_VAULT` or `--vault`)
 - Protocol: https://github.com/SteamedBread2333/imprint/blob/main/PROMPT.md
-- Call the CLI with `--json` (same shapes as PROMPT §21):
+- Call the CLI with `--json` (same shapes as PROMPT §21). `path` on add/get is the shard file (`imprint-NNNN.md`), not a per-rule filename.
+- Effects: `find` tags are **AND**, `--query` optional; `add` only after ADD (`claim`, `--scope`, `--text` required); `reinforce` +0.1 (cap 0.95); `supersede` archives the old rule and writes a new one; `get` includes `evidence_log`.
 
 ```bash
 imprint --json --vault ./memory find --scope go,naming
@@ -18,6 +19,10 @@ imprint --json --vault ./memory reinforce ID --evidence "..."
 imprint --json --vault ./memory supersede ID --claim "NEW" --scope tag,tag --reason "..."
 imprint --json --vault ./memory get ID
 imprint --json --vault ./memory forget ID
+imprint --json --vault ./memory list
+imprint --json --vault ./memory show
+imprint --json --vault ./memory sweep
+imprint --json --vault ./memory viz
 ```
 
 ## Must do
@@ -26,6 +31,7 @@ imprint --json --vault ./memory forget ID
 2. Before every write, classify: ADD / REINFORCE / SUPERSEDE / IGNORE. Never add a duplicate.
 3. Record only what the user **said**. Starting confidence 0.6; corrections 0.85; “from now on always” 0.9.
 4. User says forget / don’t record → `forget` or skip the write.
+5. User asks what is recorded / to see the picture → `show`; if more than ~20 items, `viz` (HTML by default, or `--format mermaid`) and tell them the path.
 
 ## Must not
 
