@@ -13,11 +13,11 @@ Vault：`./memory/`（已 `imprint clear --confirm --yes`，压测库 `tests/loa
 | scope | 首条命中 | conf |
 |---|---|---|
 | `dsnu,thinking-process` | [r-2026-09-11-001] 先加载 thinking-process，额外最多一个 skill | 0.90 |
-| `dsnu,page-implement`（MCP find） | [r-2026-09-11-011] 未选定 ingress 不写业务代码 | 0.90 |
+| `dsnu,page-implement` | [r-2026-09-11-011] 未选定 ingress 不写业务代码 | 0.90 |
 | `dsnu,e2e-playwright` | [r-2026-09-11-008] 仅在操作者要求时跑 e2e，Loop A/B 之后不推销 | 0.90 |
 | `dsnu,ui` | [r-2026-09-11-013] 只用 `@derbysoft/neat-design`，禁止 `antd` | 0.90 |
 
-MCP `initialize` + `imprint_find` + `imprint_list` 均 `isError=false`。
+CLI `imprint find` / `imprint list` 可召回。
 
 ## Skill → 规则
 

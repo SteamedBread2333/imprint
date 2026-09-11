@@ -1,13 +1,13 @@
 package imprint
 
-// AddResult is the §21 return shape for imprint_add.
+// AddResult is the --json shape for add.
 type AddResult struct {
 	ID         string  `json:"id"`
 	Confidence float64 `json:"confidence"`
 	Path       string  `json:"path"`
 }
 
-// FindHit is one imprint_find match.
+// FindHit is one find match.
 type FindHit struct {
 	ID         string   `json:"id"`
 	Title      string   `json:"title"`
@@ -16,25 +16,25 @@ type FindHit struct {
 	Score      float64  `json:"score"`
 }
 
-// ReinforceResult is the §21 return shape for imprint_reinforce.
+// ReinforceResult is the --json shape for reinforce.
 type ReinforceResult struct {
 	ID                 string  `json:"id"`
 	Confidence         float64 `json:"confidence"`
 	ReinforcementCount int     `json:"reinforcement_count"`
 }
 
-// SupersedeResult is the §21 return shape for imprint_supersede.
+// SupersedeResult is the --json shape for supersede.
 type SupersedeResult struct {
 	ID              string `json:"id"`
 	SupersededOldID string `json:"superseded_old_id"`
 }
 
-// ForgetResult is the §21 return shape for imprint_forget.
+// ForgetResult is the --json shape for forget.
 type ForgetResult struct {
 	Success bool `json:"success"`
 }
 
-// ListItem is one imprint_list row.
+// ListItem is one list row.
 type ListItem struct {
 	ID         string   `json:"id"`
 	Title      string   `json:"title"`
@@ -43,13 +43,13 @@ type ListItem struct {
 	Scope      []string `json:"scope,omitempty"`
 }
 
-// SweepResult is the §21 return shape for imprint_sweep.
+// SweepResult is the --json shape for sweep.
 type SweepResult struct {
 	Decayed  int `json:"decayed"`
 	Archived int `json:"archived"`
 }
 
-// VizResult is the §21 return shape for imprint_viz.
+// VizResult is the --json shape for viz.
 type VizResult struct {
 	Path       string `json:"path"`
 	RulesCount int    `json:"rules_count"`

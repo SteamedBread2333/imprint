@@ -186,26 +186,21 @@ func TestCLIHelpMentionsShards(t *testing.T) {
 	}
 }
 
-func TestCLIInitWritesCursorFiles(t *testing.T) {
+func TestCLIInitWritesCursorRule(t *testing.T) {
 	dir := t.TempDir()
 	app, out, errw := testApp(t, dir)
 	if code := app.Run([]string{"--json", "init"}); code != 0 {
 		t.Fatalf("init exit %d stderr=%s stdout=%s", code, errw, out)
 	}
-	mcpPath := filepath.Join(dir, ".cursor", "mcp.json")
 	rulePath := filepath.Join(dir, ".cursor", "rules", "imprint-memory.mdc")
-	raw, err := os.ReadFile(mcpPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(raw), `"command": "imprint"`) || !strings.Contains(string(raw), "mcp") {
-		t.Fatalf("mcp.json = %s", raw)
+	if _, err := os.Stat(filepath.Join(dir, ".cursor", "mcp.json")); !os.IsNotExist(err) {
+		t.Fatal("init must not write mcp.json")
 	}
 	rule, err := os.ReadFile(rulePath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(rule), "alwaysApply") || !strings.Contains(string(rule), "imprint_find") {
+	if !strings.Contains(string(rule), "alwaysApply") || !strings.Contains(string(rule), "imprint --json") {
 		t.Fatalf("rule = %s", rule)
 	}
 	out.Reset()
@@ -213,14 +208,7 @@ func TestCLIInitWritesCursorFiles(t *testing.T) {
 	if code := app.Run([]string{"init"}); code == 0 {
 		t.Fatalf("expected refuse without --force, stdout=%s", out)
 	}
-	if code := app.Run([]string{"--json", "init", "--force", "--docker"}); code != 0 {
-		t.Fatalf("force docker init %d %s %s", code, errw, out)
-	}
-	raw, err = os.ReadFile(mcpPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(raw), `"command": "docker"`) || !strings.Contains(string(raw), "ghcr.io") {
-		t.Fatalf("docker mcp.json = %s", raw)
+	if code := app.Run([]string{"--json", "init", "--force"}); code != 0 {
+		t.Fatalf("force init %d %s %s", code, errw, out)
 	}
 }

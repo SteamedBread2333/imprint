@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/SteamedBread2333/imprint/internal/mcp"
 	"github.com/SteamedBread2333/imprint/pkg/imprint"
 )
 
@@ -201,8 +200,6 @@ func (a *App) Run(args []string) int {
 		return a.cmdShow(g, rest)
 	case "viz":
 		return a.cmdViz(g, rest)
-	case "mcp":
-		return a.cmdMCP(g, rest)
 	case "init":
 		return a.cmdInit(g, rest)
 	case "export":
@@ -217,21 +214,6 @@ func (a *App) Run(args []string) int {
 		fmt.Fprint(a.errw(), rootHelp)
 		return 2
 	}
-}
-
-func (a *App) cmdMCP(g globals, _ []string) int {
-	v, err := a.openVault(g)
-	if err != nil {
-		return a.fail(g.json, err)
-	}
-	in := a.Stdin
-	if in == nil {
-		in = os.Stdin
-	}
-	if err := mcp.Serve(v, in, a.out()); err != nil {
-		return a.fail(g.json, err)
-	}
-	return 0
 }
 
 const rootHelp = `imprint — portable markdown memory for agents
@@ -253,8 +235,7 @@ Commands:
   sweep       Decay stale rules and archive low-confidence ones
   show        User-facing listing
   viz         HTML dashboard or mermaid graph
-  mcp         Speak MCP over stdio
-  init        Write Cursor MCP config + alwaysApply rule
+  init        Write the alwaysApply Cursor rule
   export      Dump every record as JSON
   clear       Delete every rule (requires --confirm --yes)
   version     Print version
@@ -290,10 +271,8 @@ func commandHelp(cmd string) string {
 		return "Usage: imprint show [--limit N] [--format table|json]\n"
 	case "viz":
 		return "Usage: imprint viz [--out PATH] [--format html|mermaid] [--include-archived]\n"
-	case "mcp":
-		return "Usage: imprint mcp\n\nSpeaks the Model Context Protocol on stdin/stdout against the selected vault.\n"
 	case "init":
-		return "Usage: imprint init [--force] [--docker] [--image ghcr.io/steamedbread2333/imprint:latest]\n\nWrites .cursor/mcp.json and .cursor/rules/imprint-memory.mdc in the current project.\n"
+		return "Usage: imprint init [--force]\n\nWrites .cursor/rules/imprint-memory.mdc so agents run imprint --json.\n"
 	case "export":
 		return "Usage: imprint export\n"
 	case "clear":

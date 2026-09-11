@@ -96,7 +96,7 @@ if [[ "$LOCAL" -eq 0 ]]; then
   echo
   echo "tagged $TAG and pushed. GitHub Actions will attach Release assets and push GHCR."
   echo "Watch: gh run watch"
-  echo "Then install MCP: see docs/mcp.md"
+  echo "Then: go install …@${TAG} && imprint init"
   exit 0
 fi
 
@@ -157,4 +157,4 @@ echo
 echo "published $TAG"
 echo "  go install github.com/${repo}/cmd/imprint@${TAG}"
 echo "  docker pull ${image}:${VERSION}"
-echo "MCP install: docs/mcp.md"
+echo "  imprint init   # Cursor alwaysApply rule"

@@ -30,7 +30,6 @@ go.work.sum
 # --- vault & viz output (user data, never commit) ---
 /memory/
 /tests/loadvault/
-/tests/mcpvault/
 **/.imprint/
 dashboard.html
 !pkg/imprint/dashboard.html
@@ -50,7 +49,6 @@ Thumbs.db
 .cursor/*
 !.cursor/rules/
 !.cursor/rules/**
-!.cursor/mcp.json
 
 # --- local scratch ---
 tmp/

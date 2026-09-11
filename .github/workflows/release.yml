@@ -43,7 +43,7 @@ jobs:
           gh release create "$GITHUB_REF_NAME" dist/*
           --repo "$GITHUB_REPOSITORY"
           --title "imprint $GITHUB_REF_NAME"
-          --notes "Binaries attached to this release. GitHub Packages: ${{ steps.names.outputs.image }}:${{ steps.names.outputs.version }}. Go: go install github.com/${GITHUB_REPOSITORY}/cmd/imprint@${GITHUB_REF_NAME}. MCP: docs/mcp.md"
+          --notes "Binaries attached to this release. GitHub Packages: ${{ steps.names.outputs.image }}:${{ steps.names.outputs.version }}. Go: go install github.com/${GITHUB_REPOSITORY}/cmd/imprint@${GITHUB_REF_NAME}. Then: imprint init"
 
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3

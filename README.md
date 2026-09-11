@@ -32,7 +32,7 @@ make dist    # cross-compile darwin/linux/windows → dist/*.tar.gz|zip
 make publish # tag v$(VERSION) and push (CI uploads Release + GHCR)
 ```
 
-GitHub has no Go package registry. Publishing puts **binaries on the GitHub Release** and the **image on GHCR (Packages)**. See [docs/mcp.md](docs/mcp.md) for Cursor MCP after a release.
+GitHub has no Go package registry. Publishing puts **binaries on the GitHub Release** and the **image on GHCR (Packages)**.
 
 ## Vault
 
@@ -106,33 +106,26 @@ imprint sweep
 imprint viz                          # ./memory/dashboard.html
 imprint viz --format mermaid
 imprint export
-imprint init                         # Cursor MCP config + alwaysApply rule
+imprint init                         # alwaysApply Cursor rule
 imprint forget r-2026-09-11-001
 imprint clear --confirm --yes        # irreversible
 ```
 
-`--json` prints the §21 tool-contract shapes so agents and scripts can parse stdout.
+`--json` prints the §21 shapes so agents and scripts can parse stdout.
 
 Global flags: `--vault PATH`, `--global`, `--json`.
 
-## MCP
+## Cursor
 
-After `go install` (or a Release binary on `PATH`):
+Install the binary globally, then drop an `alwaysApply` rule in the project:
 
 ```bash
+go install github.com/SteamedBread2333/imprint/cmd/imprint@latest
 cd your-project
 imprint init
 ```
 
-That writes `.cursor/mcp.json` and an `alwaysApply` rule. Reload Cursor Settings → MCP. Full walkthrough (binary vs GHCR, hand-written config): [docs/mcp.md](docs/mcp.md).
-
-```bash
-imprint mcp   # stdio server; Cursor must spawn this, do not leave it in a TTY
-```
-
-Stdio JSON-RPC, tools named exactly as in PROMPT.md: `imprint_add`, `imprint_find`, `imprint_reinforce`, `imprint_supersede`, `imprint_forget`, `imprint_list`, `imprint_get`, `imprint_sweep`, `imprint_show`, `imprint_viz`.
-
-Point the vault with `"args": ["--vault", "/path/to/memory", "mcp"]` or `IMPRINT_VAULT`. `--global` uses `~/.imprint`.
+That writes `.cursor/rules/imprint-memory.mdc`. Agents run `imprint --json` against `./memory/` (or `IMPRINT_VAULT` / `--global` for `~/.imprint`). There is no MCP server.
 
 ## Release
 
