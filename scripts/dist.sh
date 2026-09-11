@@ -42,16 +42,23 @@ for spec in "${PLATFORMS[@]}"; do
 
   echo "→ ${os}/${arch}"
   CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags="$LDFLAGS" -o "${stage}/${bin}" ./cmd/imprint
-  cp LICENSE README.md PROMPT.md "$stage/"
+
+  docs=()
+  for f in LICENSE README.md PROMPT.md; do
+    if [[ -f "$f" ]]; then
+      docs+=("$f")
+      cp "$f" "$stage/"
+    fi
+  done
 
   archive_base="${NAME}-${VERSION}-${os}-${arch}"
   if [[ "$os" == windows ]]; then
     (
       cd "$stage"
-      zip -q "${OUT}/${archive_base}.zip" "$bin" LICENSE README.md PROMPT.md
+      zip -q "${OUT}/${archive_base}.zip" "$bin" "${docs[@]}"
     )
   else
-    tar -czf "${OUT}/${archive_base}.tar.gz" -C "$stage" "$bin" LICENSE README.md PROMPT.md
+    tar -czf "${OUT}/${archive_base}.tar.gz" -C "$stage" "$bin" "${docs[@]}"
   fi
   rm -rf "$stage"
 done
