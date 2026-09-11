@@ -212,3 +212,15 @@ func TestCLIInitWritesCursorRule(t *testing.T) {
 		t.Fatalf("force init %d %s %s", code, errw, out)
 	}
 }
+
+func TestCLIVersion(t *testing.T) {
+	dir := t.TempDir()
+	app, out, errw := testApp(t, dir)
+	if code := app.Run([]string{"version"}); code != 0 {
+		t.Fatalf("version exit %d stderr=%s", code, errw)
+	}
+	got := strings.TrimSpace(out.String())
+	if !strings.HasPrefix(got, "imprint ") || strings.TrimPrefix(got, "imprint ") == "" {
+		t.Fatalf("version %q", got)
+	}
+}

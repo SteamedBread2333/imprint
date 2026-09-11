@@ -41,7 +41,6 @@ const (
 	ShardFilePrefix      = "imprint-"
 	DefaultMaxShardLines = 32768
 	DefaultMaxShardBytes = 1 << 20
-	Version              = "1.0.0"
 )
 
 // Evidence is one timestamped citation backing a rule.

@@ -5,11 +5,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-VERSION="${VERSION:-$(sed -n 's/^[[:space:]]*Version[[:space:]]*=[[:space:]]*"\(.*\)".*/\1/p' pkg/imprint/record.go | head -1)}"
-VERSION="${VERSION:-0.0.0}"
+VERSION="${VERSION:-$(bash "${ROOT}/scripts/version.sh")}"
+VERSION="${VERSION:-devel}"
 NAME="imprint"
 OUT="${ROOT}/dist"
-LDFLAGS="${LDFLAGS:--s -w}"
+LDFLAGS="${LDFLAGS:--s -w} -X github.com/SteamedBread2333/imprint/pkg/imprint.Version=${VERSION}"
 
 PLATFORMS=(
   darwin/amd64
@@ -44,7 +44,7 @@ for spec in "${PLATFORMS[@]}"; do
   CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags="$LDFLAGS" -o "${stage}/${bin}" ./cmd/imprint
 
   docs=()
-  for f in LICENSE README.md PROMPT.md; do
+  for f in LICENSE README.md README.zh.md PROMPT.md; do
     if [[ -f "$f" ]]; then
       docs+=("$f")
       cp "$f" "$stage/"

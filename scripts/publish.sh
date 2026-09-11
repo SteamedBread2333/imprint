@@ -30,8 +30,9 @@ Flags:
   -h, --help      Show this help
 
 Examples:
-  scripts/publish.sh 1.0.0              # tag v1.0.0 and push (CI publishes)
-  scripts/publish.sh v1.0.0 --local     # tag, push, and upload from this machine
+  scripts/publish.sh X.Y.Z              # tag vX.Y.Z and push (CI publishes)
+  scripts/publish.sh vX.Y.Z --local     # tag, push, and upload from this machine
+  make publish V=X.Y.Z
 EOF
 }
 
@@ -55,10 +56,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$VERSION" ]]; then
-  VERSION="$(sed -n 's/^[[:space:]]*Version[[:space:]]*=[[:space:]]*"\(.*\)".*/\1/p' pkg/imprint/record.go | head -1)"
-fi
-if [[ -z "$VERSION" ]]; then
-  echo "version is empty; pass X.Y.Z" >&2
+  echo "version is empty; pass X.Y.Z (git tag is the source of truth)" >&2
+  usage >&2
   exit 1
 fi
 TAG="v${VERSION}"
@@ -147,6 +146,7 @@ run docker login ghcr.io -u "$user" --password-stdin <<<"$token"
 run docker buildx inspect --bootstrap >/dev/null
 run docker buildx build \
   --platform linux/amd64,linux/arm64 \
+  --build-arg "VERSION=${VERSION}" \
   --tag "${image}:${VERSION}" \
   --tag "${image}:latest" \
   --label "org.opencontainers.image.source=https://github.com/${repo}" \

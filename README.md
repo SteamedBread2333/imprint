@@ -1,6 +1,17 @@
-# imprint
-
-AI agent long-term memory · 智能体长期记忆.
+<div align="center">
+  <img src="docs/logo.jpg" alt="imprint" width="168" />
+  <h1>imprint</h1>
+  <p><em>AI agent long-term memory</em></p>
+  <p>
+    <strong>English</strong> ·
+    <a href="README.zh.md">中文</a>
+  </p>
+  <p>
+    <a href="https://github.com/SteamedBread2333/imprint/releases"><img src="https://img.shields.io/github/v/release/SteamedBread2333/imprint?include_prereleases&style=flat-square" alt="release" /></a>
+    <img src="https://img.shields.io/badge/go-1.23+-00ADD8?style=flat-square" alt="Go 1.23+" />
+    <img src="https://img.shields.io/badge/license-MIT-c4a574?style=flat-square" alt="MIT" />
+  </p>
+</div>
 
 User corrections → portable markdown. Go static binary, zero runtime, MIT.
 
@@ -29,10 +40,12 @@ make install
 # or
 make build   # writes ./imprint
 make dist    # cross-compile darwin/linux/windows → dist/*.tar.gz|zip
-make publish # tag v$(VERSION) and push (CI uploads Release + GHCR)
+make publish V=X.Y.Z   # tag vX.Y.Z and push (CI uploads Release + GHCR)
 ```
 
 GitHub has no Go package registry. Publishing puts **binaries on the GitHub Release** and the **image on GHCR (Packages)**.
+
+The version you type at publish time is the only one that matters: it becomes the git tag, the module version, `imprint version`, and the GHCR label. Local builds without a tag print `devel`.
 
 ## Vault
 
@@ -131,13 +144,14 @@ That writes `.cursor/rules/imprint-memory.mdc`. Agents run `imprint --json` agai
 
 ```bash
 # CI path (recommended): tests, tag, push; Actions uploads Release + GHCR
-scripts/publish.sh 1.0.0
+make publish V=X.Y.Z
+# same as: scripts/publish.sh X.Y.Z
 
 # From this machine instead of waiting for Actions
-scripts/publish.sh 1.0.0 --local
+scripts/publish.sh X.Y.Z --local
 ```
 
-Pushing tag `v1.0.0` runs [`.github/workflows/release.yml`](.github/workflows/release.yml). First GHCR image is private until you set the package to Public (GitHub → Packages → imprint → Package settings).
+Pushing tag `vX.Y.Z` runs [`.github/workflows/release.yml`](.github/workflows/release.yml). First GHCR image is private until you set the package to Public (GitHub → Packages → imprint → Package settings).
 
 ## Go module
 

@@ -2,8 +2,10 @@
 
 CGO_ENABLED ?= 0
 GOFLAGS ?= -trimpath
-LDFLAGS ?= -s -w
-VERSION ?= 1.0.0
+MODULE := github.com/SteamedBread2333/imprint
+# Git tag is the single source of truth. Override with VERSION=X.Y.Z.
+VERSION ?= $(shell bash scripts/version.sh)
+LDFLAGS ?= -s -w -X $(MODULE)/pkg/imprint.Version=$(VERSION)
 
 build:
 	CGO_ENABLED=$(CGO_ENABLED) go build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o imprint ./cmd/imprint
@@ -18,7 +20,8 @@ dist:
 	VERSION=$(VERSION) LDFLAGS="$(LDFLAGS)" bash scripts/dist.sh
 
 publish:
-	bash scripts/publish.sh $(VERSION)
+	@if [ -z "$(V)" ]; then echo "usage: make publish V=X.Y.Z"; exit 2; fi
+	bash scripts/publish.sh $(V)
 
 clean:
 	rm -rf imprint imprint.exe dist
