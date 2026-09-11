@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="imprint">
+  <rect width="128" height="128" rx="28" fill="#14120f"/>
+  <rect x="10" y="10" width="108" height="108" rx="22" fill="none" stroke="#c4a574" stroke-width="2"/>
+  <g fill="#c4a574">
+    <rect x="42" y="30" width="44" height="5" rx="1.5"/>
+    <rect x="46" y="40" width="36" height="28" rx="7"/>
+    <rect x="46" y="78" width="36" height="3.5" rx="1.75"/>
+    <rect x="52" y="87" width="24" height="3.5" rx="1.75"/>
+    <rect x="58" y="96" width="12" height="3.5" rx="1.75"/>
+  </g>
+</svg>

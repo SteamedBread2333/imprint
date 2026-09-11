@@ -8,8 +8,7 @@ alwaysApply: true
 This project’s long-term memory is **imprint**, not chat history. A global `imprint` on PATH plus this rule is enough.
 
 - Vault: `./memory/` (override with `IMPRINT_VAULT` or `--vault`)
-- Protocol: https://github.com/SteamedBread2333/imprint/blob/main/PROMPT.md
-- Call the CLI with `--json` (same shapes as PROMPT §21). `path` on add/get is the shard file (`imprint-NNNN.md`), not a per-rule filename.
+- Call the CLI with `--json`. `path` on add/get is the shard file (`imprint-NNNN.md`), not a per-rule filename.
 - Effects: `find` tags are **AND**, `--query` optional; `add` only after ADD (`claim`, `--scope`, `--text` required); `reinforce` +0.1 (cap 0.95); `supersede` archives the old rule and writes a new one; `get` includes `evidence_log`.
 
 ```bash

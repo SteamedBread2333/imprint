@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="docs/logo.jpg" alt="imprint" width="168" />
+  <img src="docs/logo.svg" alt="imprint" width="128" />
   <h1>imprint</h1>
   <p><em>智能体长期记忆</em></p>
   <p>
@@ -16,8 +16,6 @@
 用户纠正 → 可携带的 markdown。Go 静态二进制，零运行时依赖，MIT。
 
 智能体会忘。用户会把同一句话再说一遍。imprint 是双方共用的文件记忆：偏好、纠正、决策，写成普通 markdown，按 scope 召回，用 supersede 替换而不是叠床架屋。
-
-智能体应遵循的协议在 [PROMPT.md](PROMPT.md)。本仓库是配套实现。
 
 ## 安装
 
@@ -124,7 +122,7 @@ imprint forget r-2026-09-11-001
 imprint clear --confirm --yes        # 不可逆
 ```
 
-`--json` 打印 §21 的形状，方便智能体和脚本解析 stdout。
+`--json` 在 stdout 打印机器可读的 JSON，方便智能体和脚本解析。
 
 全局参数：`--vault PATH`、`--global`、`--json`。
 
@@ -165,7 +163,7 @@ hits, err := v.Find([]string{"go"}, "", 5)
 
 ## 这个二进制不做什么
 
-门禁分类（ADD / REINFORCE / SUPERSEDE / IGNORE）、拒绝敏感数据、以及「该不该写」的判断，是智能体的职责。见 [PROMPT.md](PROMPT.md)。imprint 是诚实的存储：写入、召回、强化、替换、衰减。
+门禁分类（ADD / REINFORCE / SUPERSEDE / IGNORE）、拒绝敏感数据、以及「该不该写」的判断，是智能体的职责。imprint 是诚实的存储：写入、召回、强化、替换、衰减。
 
 ## 许可
 

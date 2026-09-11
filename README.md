@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="docs/logo.jpg" alt="imprint" width="168" />
+  <img src="docs/logo.svg" alt="imprint" width="128" />
   <h1>imprint</h1>
   <p><em>AI agent long-term memory</em></p>
   <p>
@@ -16,8 +16,6 @@
 User corrections → portable markdown. Go static binary, zero runtime, MIT.
 
 Agents forget. Users repeat themselves. imprint is the file-backed memory they share: preferences, corrections, and decisions, stored as ordinary markdown, recalled by scope, superseded instead of stacked.
-
-The protocol an agent should follow lives in [PROMPT.md](PROMPT.md). This repository is the companion implementation.
 
 ## Install
 
@@ -124,7 +122,7 @@ imprint forget r-2026-09-11-001
 imprint clear --confirm --yes        # irreversible
 ```
 
-`--json` prints the §21 shapes so agents and scripts can parse stdout.
+`--json` prints machine-readable JSON on stdout so agents and scripts can parse it.
 
 Global flags: `--vault PATH`, `--global`, `--json`.
 
@@ -165,7 +163,7 @@ hits, err := v.Find([]string{"go"}, "", 5)
 
 ## What this binary does not do
 
-Gatekeeper classification (ADD / REINFORCE / SUPERSEDE / IGNORE), sensitive-data refusal, and “should I write this?” judgment are the agent’s job. See [PROMPT.md](PROMPT.md). imprint is the honest store: write, recall, reinforce, supersede, decay.
+Gatekeeper classification (ADD / REINFORCE / SUPERSEDE / IGNORE), sensitive-data refusal, and “should I write this?” judgment are the agent’s job. imprint is the honest store: write, recall, reinforce, supersede, decay.
 
 ## License
 

@@ -243,7 +243,7 @@ Commands:
 Global flags:
   --vault PATH   Vault directory (default: ./memory, or walk-up to memory/)
   --global       Use ~/.imprint
-  --json         Machine-readable §21 JSON on stdout
+  --json         Machine-readable JSON on stdout
 
 Environment:
   IMPRINT_VAULT  Default vault path when --vault is omitted
