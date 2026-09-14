@@ -156,7 +156,7 @@ cd your-project
 imprint init
 ```
 
-That writes `.cursor/rules/imprint-memory.mdc`. Agents run `imprint --json` against `./memory/` (or `IMPRINT_VAULT` / `--global` for `~/.imprint`). There is no MCP server. `find` keeps scope as a hard AND filter, then ranks `--query` with field-weighted BM25 (claim > scope > evidence > body), including CJK character n-grams. `get` returns `referenced_by`. The HTML dashboard is self-contained and defaults to a local graph (selected scope plus one hop). Open `dashboard.html` and press **?** for the legend: filters are match-all, labels stay off until you zoom or hover, edges are supersede / related / conflict.
+That writes `.cursor/rules/imprint-memory.mdc`. Agents run `imprint --json` against `./memory/` (or `IMPRINT_VAULT` / `--global` for `~/.imprint`). There is no MCP server. `find` keeps scope as a hard AND filter, then ranks `--query` with field-weighted BM25 (claim > scope > evidence > body), including CJK character n-grams. `get` returns `referenced_by`. The HTML dashboard is self-contained (embedded D3, no CDN) and draws a radial dandelion: fill colour is scope, rings are hops, click a node to re-root. Open `dashboard.html` and press **?** for the legend. Filters are match-all; labels stay off until you zoom or hover.
 
 ## Release
 

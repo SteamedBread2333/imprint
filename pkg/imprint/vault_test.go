@@ -428,17 +428,17 @@ func TestVizHTMLAndMermaid(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Contains(body, []byte("cytoscape")) || !bytes.Contains(body, []byte(old.ID)) {
+	if !bytes.Contains(body, []byte("dandelionLayout")) || !bytes.Contains(body, []byte(old.ID)) {
 		t.Fatalf("dashboard missing graph data")
 	}
 	if !bytes.Contains(body, []byte(`id="helpPanel"`)) || !bytes.Contains(body, []byte(`id="recipe"`)) || !bytes.Contains(body, []byte(`id="legend"`)) {
 		t.Fatalf("dashboard missing help, filter recipe, or legend")
 	}
-	if !bytes.Contains(body, []byte("Match all")) {
-		t.Fatalf("dashboard missing match-all filter copy")
+	if !bytes.Contains(body, []byte(`class="palette"`)) || !bytes.Contains(body, []byte("paintLegend")) {
+		t.Fatalf("dashboard missing scope colour palette")
 	}
-	if bytes.Contains(body, []byte("unpkg.com")) {
-		t.Fatal("dashboard still references unpkg")
+	if bytes.Contains(body, []byte("unpkg.com")) || bytes.Contains(body, []byte("cytoscape(")) {
+		t.Fatal("dashboard still references CDN or cytoscape")
 	}
 	m, err := v.Viz("", "mermaid", true)
 	if err != nil {
@@ -685,13 +685,13 @@ func TestDashboardRefreshAndOffline(t *testing.T) {
 		t.Fatal(err)
 	}
 	if bytes.Contains(body, []byte("unpkg.com")) {
-		t.Fatal("dashboard still loads cytoscape from CDN")
+		t.Fatal("dashboard still loads graph code from CDN")
 	}
 	if !bytes.Contains(body, []byte("Second rule for the map")) {
 		t.Fatalf("dashboard not refreshed after add")
 	}
-	if !bytes.Contains(body, []byte("cytoscape")) {
-		t.Fatal("embedded cytoscape missing")
+	if !bytes.Contains(body, []byte("dandelionLayout")) {
+		t.Fatal("embedded dandelion graph missing")
 	}
 	_ = added
 }

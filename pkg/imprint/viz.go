@@ -14,8 +14,8 @@ import (
 //go:embed dashboard.html
 var dashboardHTML []byte
 
-//go:embed cytoscape.min.js
-var cytoscapeJS []byte
+//go:embed d3.min.js
+var d3JS []byte
 
 type vizNode struct {
 	ID                 string     `json:"id"`
@@ -161,11 +161,11 @@ func renderHTML(data vizData) ([]byte, error) {
 	if !bytes.Contains(dashboardHTML, []byte("__IMPRINT_DATA__")) {
 		return nil, fmt.Errorf("dashboard template missing data marker")
 	}
-	if !bytes.Contains(dashboardHTML, []byte("__CYTOSCAPE_JS__")) {
-		return nil, fmt.Errorf("dashboard template missing cytoscape marker")
+	if !bytes.Contains(dashboardHTML, []byte("__D3_JS__")) {
+		return nil, fmt.Errorf("dashboard template missing d3 marker")
 	}
 	html := bytes.Replace(dashboardHTML, []byte("__IMPRINT_DATA__"), payload, 1)
-	return bytes.Replace(html, []byte("__CYTOSCAPE_JS__"), cytoscapeJS, 1), nil
+	return bytes.Replace(html, []byte("__D3_JS__"), d3JS, 1), nil
 }
 
 // Viz writes an HTML dashboard or a mermaid graph.

@@ -156,7 +156,7 @@ cd your-project
 imprint init
 ```
 
-这会写入 `.cursor/rules/imprint-memory.mdc`。智能体对 `./memory/` 执行 `imprint --json`（或用 `IMPRINT_VAULT` / `--global` 指向 `~/.imprint`）。没有 MCP 服务。`find` 的 scope 仍是硬 AND，`--query` 用字段加权 BM25（claim > scope > evidence > body），中文按字 n-gram。`get` 返回 `referenced_by`。HTML dashboard 自包含，默认画当前 scope 的局部图（再加一跳关系）。打开 `dashboard.html` 按 **?** 看图例：筛选是全部命中，标签默认缩放到近处或悬停才出现，边是 supersede / related / conflict。
+这会写入 `.cursor/rules/imprint-memory.mdc`。智能体对 `./memory/` 执行 `imprint --json`（或用 `IMPRINT_VAULT` / `--global` 指向 `~/.imprint`）。没有 MCP 服务。`find` 的 scope 仍是硬 AND，`--query` 用字段加权 BM25（claim > scope > evidence > body），中文按字 n-gram。`get` 返回 `referenced_by`。HTML dashboard 自包含（内嵌 D3，无 CDN），图画径向蒲公英：填充色是 scope，环是跳数，点击节点会重新以它为根。打开 `dashboard.html` 按 **?** 看图例。筛选是全部命中；标签默认缩放到近处或悬停才出现。
 
 ## 发布
 
