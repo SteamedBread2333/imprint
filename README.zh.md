@@ -36,9 +36,10 @@ imprint init
 | 2 | 正常写代码、正常纠正 | 智能体 `find` → ADD / REINFORCE / SUPERSEDE / IGNORE → 写入 `./memory/` |
 | 3 | 想看存了什么时打开 `memory/dashboard.html` | 列表 / 关系图审计 |
 
-<p align="center"><em>图 1 — [截图占位] <code>memory/dashboard.html</code> 首页：无筛选时的普查列表视图。</em></p>
-
-<p align="center"><em>图 2 — [截图占位] <code>memory/dashboard.html</code> 关系图：径向关系图，节点按 scope 着色。</em></p>
+<p align="center">首页：无筛选时的普查列表视图。</p>
+<img width="1920" height="958" alt="image" src="https://github.com/user-attachments/assets/7795c4bc-2405-4cae-96c1-8fe6509d76ba" />
+<p align="center">关系图：径向关系图，节点按 scope 着色。</p>
+<img width="1920" height="958" alt="image" src="https://github.com/user-attachments/assets/765d9219-464f-420c-895b-0884c1578d30" />
 
 更多细节 → [文档](#文档)（`docs/` 下全部文件）。
 
