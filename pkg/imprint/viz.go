@@ -14,6 +14,9 @@ import (
 //go:embed dashboard.html
 var dashboardHTML []byte
 
+//go:embed cytoscape.min.js
+var cytoscapeJS []byte
+
 type vizNode struct {
 	ID                 string     `json:"id"`
 	Claim              string     `json:"claim"`
@@ -26,6 +29,7 @@ type vizNode struct {
 	ConflictsWith      []string   `json:"conflicts_with"`
 	EvidenceLog        []Evidence `json:"evidence_log"`
 	LastTouchedAt      time.Time  `json:"last_touched_at"`
+	ReferencedBy       []Backlink `json:"referenced_by,omitempty"`
 }
 
 type vizEdge struct {
@@ -70,6 +74,7 @@ func (v *Vault) graph(includeArchived bool) (vizData, []*Record, error) {
 			ConflictsWith:      r.ConflictsWith,
 			EvidenceLog:        r.EvidenceLog,
 			LastTouchedAt:      r.LastTouchedAt,
+			ReferencedBy:       backlinksFrom(recs, r.ID),
 		})
 	}
 	addEdge := func(src, dst, kind string) {
@@ -156,7 +161,11 @@ func renderHTML(data vizData) ([]byte, error) {
 	if !bytes.Contains(dashboardHTML, []byte("__IMPRINT_DATA__")) {
 		return nil, fmt.Errorf("dashboard template missing data marker")
 	}
-	return bytes.Replace(dashboardHTML, []byte("__IMPRINT_DATA__"), payload, 1), nil
+	if !bytes.Contains(dashboardHTML, []byte("__CYTOSCAPE_JS__")) {
+		return nil, fmt.Errorf("dashboard template missing cytoscape marker")
+	}
+	html := bytes.Replace(dashboardHTML, []byte("__IMPRINT_DATA__"), payload, 1)
+	return bytes.Replace(html, []byte("__CYTOSCAPE_JS__"), cytoscapeJS, 1), nil
 }
 
 // Viz writes an HTML dashboard or a mermaid graph.
@@ -192,6 +201,26 @@ func (v *Vault) Viz(out, format string, includeArchived bool) (*VizResult, error
 		result.Path = abs
 		result.SizeBytes = st.Size()
 		return result, nil
+	case "notes":
+		if out == "" {
+			out = filepath.Join(v.Dir, "notes")
+		}
+		n, err := v.writeNotes(out, recs)
+		if err != nil {
+			return nil, err
+		}
+		abs, err := filepath.Abs(out)
+		if err != nil {
+			return nil, err
+		}
+		result.Path = abs
+		result.RulesCount = n
+		st, err := os.Stat(abs)
+		if err != nil {
+			return nil, err
+		}
+		result.SizeBytes = st.Size()
+		return result, nil
 	case "html":
 		if out == "" {
 			out = filepath.Join(v.Dir, "dashboard.html")
@@ -215,6 +244,6 @@ func (v *Vault) Viz(out, format string, includeArchived bool) (*VizResult, error
 		result.SizeBytes = st.Size()
 		return result, nil
 	default:
-		return nil, fmt.Errorf("unknown viz format %q (html|mermaid)", format)
+		return nil, fmt.Errorf("unknown viz format %q (html|mermaid|notes)", format)
 	}
 }

@@ -15,7 +15,23 @@
 
 User corrections → portable markdown. Go static binary, zero runtime, MIT.
 
-Agents forget. Users repeat themselves. imprint is the file-backed memory they share: preferences, corrections, and decisions, stored as ordinary markdown, recalled by scope, superseded instead of stacked.
+Agents forget. Users repeat themselves. imprint is the file-backed memory they share: preferences, corrections, and decisions, stored as ordinary markdown, recalled by scope (AND) plus BM25 keyword ranking, superseded instead of stacked.
+
+Agents never talk to a server. They run the global `imprint --json` CLI. Humans audit the same vault with `get`, `list`, `viz`, or the optional read-only `notes/` cards.
+
+```mermaid
+flowchart LR
+  U[User] -->|preferences, corrections, decisions| A[Agent]
+  A -->|ADD / REINFORCE / SUPERSEDE / IGNORE| C["imprint --json"]
+  C --> V[Vault]
+  V --> S["imprint-NNNN.md shards"]
+  V --> X[archive/]
+  A -->|find: scope AND then BM25| C
+  H[Human] -->|get / list / viz / notes| V
+  C -->|write| D["dashboard.html refreshed if present"]
+```
+
+Writes go through the CLI. `notes/` is a generated microscope; do not hand-edit it. There is no MCP server.
 
 ## Install
 
@@ -54,12 +70,14 @@ memory/
   imprint-0001.md
   archive/
     imprint-0001.md
-  dashboard.html
+  dashboard.html          # offline graph; regenerated on write if it already exists
+  notes/                  # optional: imprint viz --format notes (read-only cards)
+    r-2026-09-11-001.md
 ```
 
 Rules are packed into `imprint-NNNN.md` shards (legacy `r-YYYY-MM-DD-NNN.md` files are still read and compacted on open). A new shard starts at **32768 lines** or **1 MiB**, whichever comes first — large enough that a typical project stays in one file, small enough that reinforce still rewrites well under a millisecond on SSD.
 
-Several frontmatter documents live in one shard. `forget` removes one document, not the file.
+Several frontmatter documents live in one shard. `forget` removes one document, not the file, and strips that id from other rules’ `related` / `supersedes` / `conflicts_with`. Marshal may append a derived `See also: [[r-…]]` footer; YAML remains the source of truth.
 
 ```markdown
 <!-- imprint pack (2 rules) -->
@@ -104,18 +122,20 @@ imprint add "Python function names must always be snake_case" \
   --scope python,naming --text "use snake_case"
 
 imprint find --scope python,naming
+imprint find --scope go --query PascalCase
 imprint reinforce r-2026-09-11-001 --evidence "user confirmed again"
 imprint supersede r-2026-09-11-001 \
   --claim "All JS/Python functions must use snake_case" \
   --scope javascript,python,naming \
   --reason "extended to frontend"
 
-imprint list --status active
-imprint get r-2026-09-11-001
+imprint list --status active --scope python,naming --min-confidence 0.85
+imprint get r-2026-09-11-001          # includes evidence_log and referenced_by
 imprint show
 imprint sweep
-imprint viz                          # ./memory/dashboard.html
+imprint viz                          # ./memory/dashboard.html (no CDN)
 imprint viz --format mermaid
+imprint viz --format notes           # ./memory/notes/*.md, overwrite, do not edit
 imprint export
 imprint init                         # alwaysApply Cursor rule
 imprint forget r-2026-09-11-001
@@ -136,7 +156,7 @@ cd your-project
 imprint init
 ```
 
-That writes `.cursor/rules/imprint-memory.mdc`. Agents run `imprint --json` against `./memory/` (or `IMPRINT_VAULT` / `--global` for `~/.imprint`). There is no MCP server.
+That writes `.cursor/rules/imprint-memory.mdc`. Agents run `imprint --json` against `./memory/` (or `IMPRINT_VAULT` / `--global` for `~/.imprint`). There is no MCP server. `find` keeps scope as a hard AND filter, then ranks `--query` with field-weighted BM25 (claim > scope > evidence > body), including CJK character n-grams. `get` returns `referenced_by`. The HTML dashboard is self-contained and defaults to a local graph (selected scope plus one hop). Open `dashboard.html` and press **?** for the legend: filters are match-all, labels stay off until you zoom or hover, edges are supersede / related / conflict.
 
 ## Release
 

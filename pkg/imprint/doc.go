@@ -5,5 +5,6 @@
 // DefaultMaxShardBytes (1 MiB). Legacy one-file-per-rule r-YYYY-MM-DD-NNN.md
 // is still read and compacted on open. IDs look like r-YYYY-MM-DD-NNN.
 // The vault is a directory (default ./memory) plus an archive/ subdirectory
-// for superseded and dormant rules.
+// for superseded and dormant rules. Find ranks with scope AND then BM25.
+// Get fills ReferencedBy. Forget strips inbound relationship ids.
 package imprint

@@ -15,7 +15,23 @@
 
 用户纠正 → 可携带的 markdown。Go 静态二进制，零运行时依赖，MIT。
 
-智能体会忘。用户会把同一句话再说一遍。imprint 是双方共用的文件记忆：偏好、纠正、决策，写成普通 markdown，按 scope 召回，用 supersede 替换而不是叠床架屋。
+智能体会忘。用户会把同一句话再说一遍。imprint 是双方共用的文件记忆：偏好、纠正、决策，写成普通 markdown，按 scope **AND** 过滤，再用 BM25 给 `--query` 排序，用 supersede 替换而不是叠床架屋。
+
+智能体不连服务，只跑全局 `imprint --json`。人用 `get` / `list` / `viz` 或只读的 `notes/` 卡片审计同一份 vault。
+
+```mermaid
+flowchart LR
+  U[用户] -->|偏好、纠正、决策| A[智能体]
+  A -->|ADD / REINFORCE / SUPERSEDE / IGNORE| C["imprint --json"]
+  C --> V[Vault]
+  V --> S["imprint-NNNN.md 分片"]
+  V --> X[archive/]
+  A -->|find：scope AND 然后 BM25| C
+  H[人] -->|get / list / viz / notes| V
+  C -->|写入| D["若已有 dashboard.html 则刷新"]
+```
+
+写入只走 CLI。`notes/` 是生成出来的显微镜，不要手改。没有 MCP 服务。
 
 ## 安装
 
@@ -54,12 +70,14 @@ memory/
   imprint-0001.md
   archive/
     imprint-0001.md
-  dashboard.html
+  dashboard.html          # 离线图；若文件已存在，写入后会刷新
+  notes/                  # 可选：imprint viz --format notes（只读卡片）
+    r-2026-09-11-001.md
 ```
 
 规则打进 `imprint-NNNN.md` 分片（旧的一规则一文件 `r-YYYY-MM-DD-NNN.md` 仍会在打开时读取并压实）。新分片在 **32768 行** 或 **1 MiB** 时开始——大到一个典型项目通常只占一个文件，小到一次 reinforce 在 SSD 上仍远低于一毫秒。
 
-一个分片里是多段 YAML frontmatter 文档。`forget` 删的是其中一条，不是整个文件。
+一个分片里是多段 YAML frontmatter 文档。`forget` 删的是其中一条，不是整个文件，并会从其他规则的 `related` / `supersedes` / `conflicts_with` 清掉该 id。Marshal 可能在正文末尾加派生的 `See also: [[r-…]]`；YAML 仍是真相。
 
 ```markdown
 <!-- imprint pack (2 rules) -->
@@ -104,18 +122,20 @@ imprint add "Python function names must always be snake_case" \
   --scope python,naming --text "use snake_case"
 
 imprint find --scope python,naming
+imprint find --scope go --query PascalCase
 imprint reinforce r-2026-09-11-001 --evidence "user confirmed again"
 imprint supersede r-2026-09-11-001 \
   --claim "All JS/Python functions must use snake_case" \
   --scope javascript,python,naming \
   --reason "extended to frontend"
 
-imprint list --status active
-imprint get r-2026-09-11-001
+imprint list --status active --scope python,naming --min-confidence 0.85
+imprint get r-2026-09-11-001          # 含 evidence_log 与 referenced_by
 imprint show
 imprint sweep
-imprint viz                          # ./memory/dashboard.html
+imprint viz                          # ./memory/dashboard.html（无 CDN）
 imprint viz --format mermaid
+imprint viz --format notes           # ./memory/notes/*.md，覆盖写，不要手改
 imprint export
 imprint init                         # alwaysApply Cursor 规则
 imprint forget r-2026-09-11-001
@@ -136,7 +156,7 @@ cd your-project
 imprint init
 ```
 
-这会写入 `.cursor/rules/imprint-memory.mdc`。智能体对 `./memory/` 执行 `imprint --json`（或用 `IMPRINT_VAULT` / `--global` 指向 `~/.imprint`）。没有 MCP 服务。
+这会写入 `.cursor/rules/imprint-memory.mdc`。智能体对 `./memory/` 执行 `imprint --json`（或用 `IMPRINT_VAULT` / `--global` 指向 `~/.imprint`）。没有 MCP 服务。`find` 的 scope 仍是硬 AND，`--query` 用字段加权 BM25（claim > scope > evidence > body），中文按字 n-gram。`get` 返回 `referenced_by`。HTML dashboard 自包含，默认画当前 scope 的局部图（再加一跳关系）。打开 `dashboard.html` 按 **?** 看图例：筛选是全部命中，标签默认缩放到近处或悬停才出现，边是 supersede / related / conflict。
 
 ## 发布
 

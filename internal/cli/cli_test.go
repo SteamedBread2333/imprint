@@ -213,6 +213,25 @@ func TestCLIInitWritesCursorRule(t *testing.T) {
 	}
 }
 
+func TestCLIListFiltersJSON(t *testing.T) {
+	dir := t.TempDir()
+	app, out, errw := testApp(t, dir)
+	if code := app.Run([]string{"--json", "--vault", dir, "add", "Use gofmt", "--scope", "go,style", "--text", "gofmt", "--confidence", "0.9"}); code != 0 {
+		t.Fatalf("add %d %s", code, errw)
+	}
+	out.Reset()
+	if code := app.Run([]string{"--json", "--vault", dir, "list", "--scope", "go", "--min-confidence", "0.85"}); code != 0 {
+		t.Fatalf("list %d %s", code, errw)
+	}
+	var items []imprint.ListItem
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("list = %+v", items)
+	}
+}
+
 func TestCLIVersion(t *testing.T) {
 	dir := t.TempDir()
 	app, out, errw := testApp(t, dir)

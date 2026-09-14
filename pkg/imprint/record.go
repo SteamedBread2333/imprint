@@ -67,6 +67,55 @@ type Record struct {
 	EvidenceLog        []Evidence `yaml:"evidence_log" json:"evidence_log"`
 	Body               string     `yaml:"-" json:"body,omitempty"`
 	Path               string     `yaml:"-" json:"path,omitempty"`
+	ReferencedBy       []Backlink `yaml:"-" json:"referenced_by,omitempty"`
+}
+
+const seeAlsoMark = "<!-- imprint:see-also -->"
+
+func linkIDs(r *Record) []string {
+	seen := map[string]struct{}{}
+	var out []string
+	for _, id := range append(append(append([]string{}, r.Supersedes...), r.Related...), r.ConflictsWith...) {
+		id = strings.TrimSpace(id)
+		if id == "" || id == r.ID {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out
+}
+
+func attachSeeAlso(r *Record) string {
+	ids := linkIDs(r)
+	body := strings.TrimSpace(r.Body)
+	if len(ids) == 0 {
+		return body
+	}
+	var b strings.Builder
+	if body != "" {
+		b.WriteString(body)
+		b.WriteString("\n\n")
+	}
+	b.WriteString(seeAlsoMark)
+	b.WriteString("\nSee also:")
+	for _, id := range ids {
+		b.WriteString(" [[")
+		b.WriteString(id)
+		b.WriteString("]]")
+	}
+	b.WriteByte('\n')
+	return b.String()
+}
+
+func stripSeeAlso(body string) string {
+	if i := strings.Index(body, seeAlsoMark); i >= 0 {
+		body = body[:i]
+	}
+	return strings.TrimSpace(body)
 }
 
 func (r *Record) normalize() {
@@ -112,10 +161,11 @@ func MarshalRecord(r *Record) ([]byte, error) {
 		b.WriteByte('\n')
 	}
 	b.WriteString("---\n")
-	if dup.Body != "" {
+	body := attachSeeAlso(&dup)
+	if body != "" {
 		b.WriteByte('\n')
-		b.WriteString(dup.Body)
-		if !strings.HasSuffix(dup.Body, "\n") {
+		b.WriteString(body)
+		if !strings.HasSuffix(body, "\n") {
 			b.WriteByte('\n')
 		}
 	}
@@ -211,7 +261,7 @@ func consumeRecord(s string) (*Record, string, error) {
 	if r.ID == "" {
 		return nil, "", fmt.Errorf("frontmatter missing id")
 	}
-	r.Body = strings.TrimSpace(body)
+	r.Body = stripSeeAlso(body)
 	r.normalize()
 	return &r, leftover, nil
 }

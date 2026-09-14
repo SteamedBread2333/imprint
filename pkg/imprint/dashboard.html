@@ -6,28 +6,31 @@
 <title>imprint</title>
 <style>
   :root {
-    --bg: #14120f;
-    --bg-2: #1c1916;
-    --bg-3: #26211c;
-    --ink: #e8e0d4;
+    --bg: #100e0c;
+    --bg-2: #181511;
+    --bg-3: #242018;
+    --ink: #f0e7d8;
     --muted: #9a9084;
     --line: #3a342c;
-    --active: #6f9e72;
+    --active: #7dba82;
     --dormant: #7a736c;
-    --superseded: #6b8cae;
-    --gold: #c4a574;
+    --superseded: #7aa0c8;
+    --gold: #d4b483;
+    --gold-2: #e8c99a;
+    --super: #e07060;
+    --conflict: #e0a04a;
     --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
     --sans: ui-sans-serif, "Segoe UI", system-ui, sans-serif;
     --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   }
   * { box-sizing: border-box; }
-  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-family: var(--sans); }
-  body { display: grid; grid-template-rows: 56px 1fr; }
+  html, body { margin: 0; height: 100%; min-height: 100%; background: var(--bg); color: var(--ink); font-family: var(--sans); }
+  body { display: grid; grid-template-rows: auto auto 1fr; min-height: 100vh; }
   header {
-    display: flex; align-items: center; gap: 16px;
-    padding: 0 16px; border-bottom: 1px solid var(--line); background: var(--bg-2);
+    display: flex; align-items: center; gap: 14px;
+    padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--bg-2);
   }
-  .brand { font-family: var(--serif); font-size: 20px; letter-spacing: 0.08em; color: var(--gold); }
+  .brand { font-family: var(--serif); font-size: 22px; letter-spacing: 0.1em; color: var(--gold); }
   .brand small { color: var(--muted); letter-spacing: 0; font-size: 12px; margin-left: 8px; font-family: var(--sans); }
   .toolbar { display: flex; gap: 8px; align-items: center; flex: 1; flex-wrap: wrap; }
   input, select, button {
@@ -35,26 +38,56 @@
     border-radius: 6px; padding: 6px 10px; font: 13px var(--sans);
   }
   button { cursor: pointer; color: var(--gold); }
-  button:hover { border-color: var(--gold); }
+  button:hover, button:focus-visible { border-color: var(--gold); outline: none; }
+  button.on { background: #2a241c; border-color: var(--gold); }
   input[type="search"] { min-width: 180px; flex: 1; max-width: 280px; }
   .stats { color: var(--muted); font-size: 12px; white-space: nowrap; }
-  main { display: grid; grid-template-columns: 240px 1fr 320px; min-height: 0; }
+  #recipe {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: 8px 16px; border-bottom: 1px solid var(--line); background: #14110e;
+    font-size: 12px; color: var(--muted);
+  }
+  #recipe strong { color: var(--gold-2); font-weight: 600; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px 2px 10px;
+    color: var(--ink); background: var(--bg-3);
+  }
+  .chip button {
+    padding: 0 4px; border: 0; background: none; color: var(--muted); font-size: 14px; line-height: 1;
+  }
+  .chip button:hover { color: var(--gold); }
+  .edge-toggle { display: flex; gap: 10px; align-items: center; margin-left: auto; }
+  .edge-toggle label { display: flex; align-items: center; gap: 5px; cursor: pointer; color: var(--ink); }
+  .edge-toggle input { accent-color: var(--gold); }
+  main { display: grid; grid-template-columns: 220px minmax(0, 1fr) 340px; min-height: 0; }
   aside, .detail { background: var(--bg-2); overflow: auto; }
   aside { border-right: 1px solid var(--line); padding: 12px; }
   .detail { border-left: 1px solid var(--line); padding: 16px; }
-  #stage { position: relative; min-height: 0; }
-  #cy { position: absolute; inset: 0; }
-  #overview { position: absolute; inset: 0; overflow: auto; padding: 24px 28px; }
-  #overview.hidden, #cy.hidden { display: none; }
+  #stage { position: relative; min-height: 560px; background:
+    radial-gradient(1200px 700px at 50% 40%, #1b1712 0%, #100e0c 70%);
+  }
+  #stage::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 1; opacity: 0.35;
+    background-image:
+      linear-gradient(rgba(196,165,116,0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(196,165,116,0.05) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: radial-gradient(ellipse at center, black 40%, transparent 80%);
+  }
+  #cy { position: absolute; inset: 0; z-index: 2; }
+  #overview { position: absolute; inset: 0; overflow: auto; padding: 28px 32px; z-index: 2; }
+  #overview.hidden, #hud.hidden { display: none; }
+  #cy.hidden { visibility: hidden; pointer-events: none; }
   h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--muted); margin: 8px 0 10px; }
-  .scope-item, .legend span { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 4px 0; cursor: pointer; }
-  .scope-item:hover { color: var(--gold); }
-  .scope-item.active { color: var(--gold); }
+  .scope-item { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 5px 6px; cursor: pointer; border-radius: 6px; }
+  .scope-item:hover { background: var(--bg-3); color: var(--gold); }
+  .scope-item.active { color: var(--gold); background: #2a241c; }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--gold); flex: none; }
   .count { color: var(--muted); margin-left: auto; font-variant-numeric: tabular-nums; }
   .empty { color: var(--muted); font-size: 13px; line-height: 1.5; }
   .claim { font-family: var(--serif); font-size: 20px; line-height: 1.35; margin: 0 0 12px; }
-  .meta { display: grid; grid-template-columns: 88px 1fr; gap: 6px 10px; font-size: 13px; margin-bottom: 16px; }
+  .meta { display: grid; grid-template-columns: 96px 1fr; gap: 6px 10px; font-size: 13px; margin-bottom: 16px; }
   .meta dt { color: var(--muted); }
   .meta dd { margin: 0; word-break: break-word; }
   .id { font-family: var(--mono); font-size: 12px; color: var(--gold); }
@@ -65,26 +98,70 @@
   .pill.active { color: var(--active); border-color: var(--active); }
   .pill.dormant { color: var(--dormant); }
   .pill.superseded { color: var(--superseded); border-color: var(--superseded); }
+  .pill.btn { cursor: pointer; background: none; color: inherit; font: inherit; }
+  .pill.btn:hover { border-color: var(--gold); color: var(--gold); }
   .timeline { list-style: none; margin: 0; padding: 0; }
   .timeline li { font-size: 12px; padding: 8px 0; border-top: 1px solid var(--line); }
   .timeline time { color: var(--muted); font-family: var(--mono); display: block; margin-bottom: 4px; }
-  .legend { display: flex; gap: 14px; font-size: 11px; color: var(--muted); margin-left: auto; flex-wrap: wrap; }
-  .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
-  .swatch.line { height: 2px; width: 16px; border-radius: 0; align-self: center; }
-  .swatch.dash { background: repeating-linear-gradient(90deg, #c4a574 0 6px, transparent 6px 10px) !important; height: 2px; }
-  .ov-title { font-family: var(--serif); font-size: 28px; margin: 0 0 8px; }
-  .ov-lead { color: var(--muted); max-width: 52rem; line-height: 1.5; margin: 0 0 22px; }
+  .ov-title { font-family: var(--serif); font-size: 30px; margin: 0 0 8px; }
+  .ov-lead { color: var(--muted); max-width: 52rem; line-height: 1.55; margin: 0 0 22px; }
   .bars { display: flex; flex-direction: column; gap: 6px; max-width: 52rem; }
   .bar-row { display: grid; grid-template-columns: 120px 1fr 40px; gap: 10px; align-items: center; cursor: pointer; font-size: 13px; }
   .bar-row:hover .bar-fill { background: var(--gold); }
   .bar-track { height: 8px; background: var(--bg-3); border-radius: 99px; overflow: hidden; }
   .bar-fill { height: 100%; background: var(--active); }
   .chains { margin-top: 28px; }
-  .chain { font-family: var(--mono); font-size: 12px; padding: 6px 0; border-top: 1px solid var(--line); }
-  .warn { color: var(--gold); font-size: 12px; margin: 8px 0 0; }
+  .chain { font-family: var(--mono); font-size: 12px; padding: 6px 0; border-top: 1px solid var(--line); cursor: pointer; }
+  .chain:hover { color: var(--gold); }
+  .id-link {
+    background: none; border: 0; padding: 0; color: var(--gold);
+    font: 12px var(--mono); cursor: pointer; text-decoration: underline;
+  }
+  .id-link:hover { color: var(--ink); }
+  #hud {
+    position: absolute; left: 12px; bottom: 12px; z-index: 4;
+    display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+  }
+  #hud .row { display: flex; gap: 6px; pointer-events: auto; }
+  kbd {
+    font: 11px var(--mono); color: var(--gold-2); border: 1px solid var(--line);
+    border-radius: 4px; padding: 1px 5px; background: #1a1612;
+  }
+  #legend {
+    display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center;
+    max-width: 280px; padding: 8px 10px; border: 1px solid var(--line);
+    border-radius: 8px; background: rgba(24,21,17,0.88); backdrop-filter: blur(8px);
+    pointer-events: auto; font-size: 11px; color: var(--muted);
+  }
+  #legend b { color: var(--ink); font-weight: 500; }
+  #legend .swatch.line { width: 18px; height: 2px; border-radius: 0; }
+  #tip {
+    position: fixed; z-index: 20; max-width: 360px; padding: 10px 12px;
+    background: #1c1814; border: 1px solid var(--gold); border-radius: 8px;
+    font-size: 12px; line-height: 1.45; pointer-events: none;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.45); display: none;
+  }
+  #tip .tid { font-family: var(--mono); color: var(--gold); font-size: 11px; margin-bottom: 4px; }
+  #helpPanel {
+    display: none; position: fixed; inset: 0; z-index: 30;
+    background: rgba(8,7,6,0.62);
+  }
+  #helpPanel.open { display: grid; place-items: center; padding: 24px; }
+  .help-card {
+    width: min(720px, 100%); max-height: min(88vh, 820px); overflow: auto;
+    background: var(--bg-2); border: 1px solid var(--gold); border-radius: 12px; padding: 24px 28px;
+  }
+  .help-card h1 { font-family: var(--serif); font-size: 26px; margin: 0 0 8px; color: var(--gold-2); }
+  .help-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 28px; margin-top: 16px; }
+  .help-card dt { color: var(--gold); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 6px; }
+  .help-card dd { margin: 0 0 12px; color: var(--ink); font-size: 13px; line-height: 1.5; }
+  .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; vertical-align: middle; margin-right: 6px; }
+  .swatch.dash { width: 16px; height: 2px; background: repeating-linear-gradient(90deg, var(--gold) 0 6px, transparent 6px 10px); }
+  .keylist { font: 12px var(--mono); color: var(--muted); }
   @media (max-width: 960px) {
-    main { grid-template-columns: 1fr; grid-template-rows: 180px 1fr 240px; }
+    main { grid-template-columns: 1fr; grid-template-rows: 160px minmax(520px, 1fr) minmax(220px, auto); }
     aside, .detail { border: 0; border-top: 1px solid var(--line); }
+    .help-grid { grid-template-columns: 1fr; }
   }
 </style>
 </head>
@@ -92,52 +169,104 @@
 <header>
   <div class="brand">imprint <small id="stamp"></small></div>
   <div class="toolbar">
-    <input id="q" type="search" placeholder="Search claim or id">
-    <select id="status">
+    <input id="q" type="search" placeholder="Search claim, id, or scope" aria-label="Search">
+    <select id="status" aria-label="Status">
       <option value="">all status</option>
       <option value="active">active</option>
       <option value="dormant">dormant</option>
       <option value="superseded">superseded</option>
     </select>
-    <select id="conf">
+    <select id="conf" aria-label="Minimum confidence">
       <option value="0">any confidence</option>
       <option value="0.85">≥ 0.85</option>
       <option value="0.6">≥ 0.60</option>
       <option value="0.3">≥ 0.30</option>
     </select>
-    <select id="scopeFilter"><option value="">all scopes</option></select>
-    <button id="graphAll" type="button" hidden>graph this slice</button>
+    <select id="scopeFilter" aria-label="Scope"><option value="">all scopes</option></select>
+    <button id="graphAll" type="button" hidden>graph all</button>
+    <button id="fitBtn" type="button" title="Fit graph (F)">fit</button>
+    <button id="labelBtn" type="button" title="Cycle label mode">labels: auto</button>
+    <button id="helpBtn" type="button" title="Help (?)">?</button>
     <div class="stats" id="stats"></div>
   </div>
-  <div class="legend">
-    <span><i class="swatch" style="background:var(--active)"></i> active</span>
-    <span><i class="swatch" style="background:var(--dormant)"></i> dormant</span>
-    <span><i class="swatch" style="background:var(--superseded)"></i> superseded</span>
-    <span><i class="swatch" style="background:#c45c4a"></i> supersede</span>
-    <span><i class="swatch dash"></i> related</span>
-    <span><i class="swatch" style="background:#d4923a"></i> conflict</span>
-  </div>
 </header>
+<div id="recipe">
+  <span id="recipeText">Loading…</span>
+  <button id="clearBtn" type="button">clear filters</button>
+  <span class="edge-toggle">
+    <label><input type="checkbox" id="eRelated" checked> related</label>
+    <label><input type="checkbox" id="eSuper" checked> supersede</label>
+    <label><input type="checkbox" id="eConflict" checked> conflict</label>
+  </span>
+</div>
 <main>
   <aside>
     <h2>Scopes</h2>
+    <p class="empty">Click a tag to keep rules that include it. Filters combine with AND.</p>
     <div id="scopes"></div>
   </aside>
   <div id="stage">
     <div id="overview" class="hidden"></div>
     <div id="cy"></div>
+    <div id="hud" class="hidden">
+      <div id="legend">
+        <span><span class="swatch" style="background:var(--active)"></span><b>active</b></span>
+        <span><span class="swatch" style="background:var(--dormant)"></span>dormant</span>
+        <span><span class="swatch" style="background:var(--superseded)"></span>superseded</span>
+        <span><span class="swatch line" style="background:var(--super)"></span>supersede</span>
+        <span><span class="swatch dash"></span>related</span>
+        <span><span class="swatch line" style="background:var(--conflict)"></span>conflict</span>
+        <span>size = confidence · <kbd>?</kbd> full legend</span>
+      </div>
+      <div class="row">
+        <button type="button" id="zoomOut">−</button>
+        <button type="button" id="zoomIn">+</button>
+      </div>
+      <div class="empty"><kbd>scroll</kbd> zoom · <kbd>drag</kbd> pan · <kbd>F</kbd> fit · <kbd>L</kbd> labels</div>
+    </div>
   </div>
   <section class="detail" id="detail">
-    <p class="empty">This map is for <strong>relationships</strong> — supersede chains, related rules, conflicts — not a spreadsheet of every claim. Pick a scope on the left, then click a node.</p>
+    <p class="empty">This map is for <strong>relationships</strong>: who supersedes whom, what is related, what conflicts. It is not a spreadsheet of every claim. Pick a scope, then click a node. Press <kbd>?</kbd> for the legend.</p>
   </section>
 </main>
-<script src="https://unpkg.com/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
+<div id="tip" role="tooltip"></div>
+<div id="helpPanel" role="dialog" aria-labelledby="helpTitle" hidden>
+  <div class="help-card">
+    <h1 id="helpTitle">How to read this vault</h1>
+    <p class="empty">Each node is one rule. Size is confidence. Colour is lifecycle. Lines are relationships written in frontmatter — not inferred similarity.</p>
+    <div class="help-grid">
+      <div>
+        <dt>Filters (AND)</dt>
+        <dd>Every control must match. Scope means the rule’s tag list contains that tag. Search matches id, claim, or scope text. Clear chips or <span class="keylist">Esc</span> to widen.</dd>
+        <dt>Local graph</dt>
+        <dd>Choosing a scope shows that cluster plus one hop of linked rules. <strong>graph all</strong> is the hairball — use it after you know what a colour means.</dd>
+        <dt>Nodes</dt>
+        <dd><span class="swatch" style="background:var(--active)"></span>active &nbsp; <span class="swatch" style="background:var(--dormant)"></span>dormant &nbsp; <span class="swatch" style="background:var(--superseded)"></span>superseded<br>Bigger = higher confidence. Groups are scopes when the view is large.</dd>
+      </div>
+      <div>
+        <dt>Edges</dt>
+        <dd><span class="swatch" style="background:var(--super)"></span>supersede (arrow: new → old)<br>
+          <span class="swatch dash"></span> related<br>
+          <span class="swatch" style="background:var(--conflict)"></span>conflict<br>
+          Uncheck a kind in the filter bar to hide those lines.</dd>
+        <dt>Labels</dt>
+        <dd><strong>auto</strong> hides claim text until you zoom or hover — that stops the overlap. <strong>on</strong> always shows a short claim. Hover a node for the full sentence.</dd>
+        <dt>Keys</dt>
+        <dd class="keylist">/ search · F fit · L labels · ? help · Esc close / clear<br>scroll zoom · drag pan · click node · double-click background to fit</dd>
+      </div>
+    </div>
+    <p style="margin:18px 0 0;text-align:right"><button type="button" id="helpClose">close</button></p>
+  </div>
+</div>
+<script>__CYTOSCAPE_JS__</script>
 <script>
 const DATA = __IMPRINT_DATA__;
-const colors = { active: "#6f9e72", dormant: "#7a736c", superseded: "#6b8cae" };
+const colors = { active: "#7dba82", dormant: "#7a736c", superseded: "#7aa0c8" };
 const MAX_GRAPH = 300;
 const OVERVIEW_AT = 40;
 let forceGraph = false;
+let labelMode = "auto";
+let selectedId = null;
 
 document.getElementById("stamp").textContent = DATA.generated_at ? DATA.generated_at.slice(0, 10) : "";
 
@@ -155,8 +284,13 @@ function visible(n) {
   }
   return true;
 }
-
 function filtered() { return DATA.nodes.filter(visible); }
+function edgeOn(kind) {
+  if (kind === "related") return document.getElementById("eRelated").checked;
+  if (kind === "supersedes") return document.getElementById("eSuper").checked;
+  if (kind === "conflicts_with") return document.getElementById("eConflict").checked;
+  return true;
+}
 
 const edgeIndex = {};
 (DATA.edges || []).forEach(e => {
@@ -174,11 +308,7 @@ scopeList.forEach(s => {
   row.className = "scope-item";
   row.dataset.scope = s;
   row.innerHTML = `<span class="dot"></span><span>${s}</span><span class="count">${scopeCounts[s]}</span>`;
-  row.onclick = () => {
-    sf.value = s;
-    forceGraph = false;
-    render();
-  };
+  row.onclick = () => { sf.value = s; forceGraph = false; render(); };
   scopesEl.appendChild(row);
   const opt = document.createElement("option");
   opt.value = s; opt.textContent = `${s} (${scopeCounts[s]})`; sf.appendChild(opt);
@@ -187,23 +317,81 @@ if (!scopeList.length) scopesEl.innerHTML = '<p class="empty">No scopes yet.</p>
 
 const cy = cytoscape({
   container: document.getElementById("cy"),
+  wheelSensitivity: 0.28,
+  minZoom: 0.12,
+  maxZoom: 4,
   layout: { name: "circle", padding: 48 },
   style: [
     { selector: "node", style: {
       "background-color": "data(color)",
+      "background-opacity": 0.92,
       "width": "data(size)", "height": "data(size)",
-      "label": "data(label)", "color": "#e8e0d4",
-      "font-size": 9, "text-wrap": "wrap", "text-max-width": 88,
-      "text-valign": "bottom", "text-margin-y": 6, "font-family": "ui-sans-serif, system-ui"
+      "label": "data(label)", "color": "#f0e7d8",
+      "font-size": 10, "font-weight": 500,
+      "text-wrap": "wrap", "text-max-width": 92,
+      "text-valign": "bottom", "text-margin-y": 8,
+      "font-family": "ui-sans-serif, system-ui",
+      "text-outline-width": 3, "text-outline-color": "#100e0c",
+      "border-width": 1.5, "border-color": "rgba(240,231,216,0.22)",
+      "overlay-padding": 8, "z-index": 2
     }},
-    { selector: "node:selected", style: { "border-width": 3, "border-color": "#c4a574" } },
-    { selector: "edge", style: { "width": 1.5, "curve-style": "bezier", "opacity": 0.85 } },
-    { selector: "edge.supersedes", style: { "line-color": "#c45c4a", "target-arrow-color": "#c45c4a", "target-arrow-shape": "triangle" } },
-    { selector: "edge.related", style: { "line-color": "#c4a574", "line-style": "dashed", "width": 2, "opacity": 0.95, "target-arrow-shape": "none" } },
-    { selector: "edge.conflicts_with", style: { "line-color": "#d4923a", "width": 2, "target-arrow-shape": "none" } }
+    { selector: ":parent", style: {
+      "background-color": "#c4a574",
+      "background-opacity": 0.05,
+      "border-width": 1, "border-color": "rgba(212,180,131,0.35)",
+      "border-style": "dashed",
+      "shape": "roundrectangle",
+      "padding": 22,
+      "font-size": 11, "color": "#d4b483",
+      "text-valign": "top", "text-halign": "center",
+      "text-margin-y": -4,
+      "font-family": "Iowan Old Style, Palatino, serif",
+      "label": "data(label)",
+      "text-outline-width": 0
+    }},
+    { selector: "node:selected", style: {
+      "border-width": 3, "border-color": "#e8c99a",
+      "overlay-color": "#d4b483", "overlay-opacity": 0.18,
+      "z-index": 20
+    }},
+    { selector: "node.hot", style: {
+      "border-width": 3, "border-color": "#f0e7d8", "z-index": 15,
+      "underlay-color": "#e8c99a", "underlay-opacity": 0.28, "underlay-padding": 6
+    }},
+    { selector: ".dim", style: { "opacity": 0.14 } },
+    { selector: "edge", style: {
+      "width": 1.6, "curve-style": "bezier", "opacity": 0.7,
+      "line-color": "#c4a574", "target-arrow-color": "#c4a574",
+      "overlay-padding": 6
+    }},
+    { selector: "edge.supersedes", style: {
+      "line-color": "#e07060", "target-arrow-color": "#e07060",
+      "target-arrow-shape": "triangle", "width": 2, "opacity": 0.9
+    }},
+    { selector: "edge.related", style: {
+      "line-color": "#d4b483", "line-style": "dashed", "width": 1.8,
+      "opacity": 0.85, "target-arrow-shape": "none"
+    }},
+    { selector: "edge.conflicts_with", style: {
+      "line-color": "#e0a04a", "width": 2.4, "opacity": 0.9,
+      "target-arrow-shape": "none", "line-style": "solid"
+    }},
+    { selector: "edge.hot", style: { "opacity": 1, "width": 3, "z-index": 10 } }
   ],
   elements: []
 });
+
+function localSlice(nodes) {
+  const ids = new Set(nodes.map(n => n.id));
+  const extra = new Set();
+  (DATA.edges || []).forEach(e => {
+    if (!edgeOn(e.kind)) return;
+    if (ids.has(e.source)) extra.add(e.target);
+    if (ids.has(e.target)) extra.add(e.source);
+  });
+  if (!extra.size) return nodes;
+  return DATA.nodes.filter(n => ids.has(n.id) || extra.has(n.id));
+}
 
 function pickForGraph(nodes) {
   if (nodes.length <= MAX_GRAPH) return { nodes, truncated: 0 };
@@ -216,18 +404,27 @@ function pickForGraph(nodes) {
 }
 
 function layoutOpts(n) {
-  if (n <= 16) return { name: "circle", padding: 56, animate: false };
-  if (n <= 80) return { name: "cose", animate: false, padding: 28, nodeRepulsion: 6000 };
-  return { name: "concentric", animate: false, minNodeSpacing: 14, padding: 20 };
+  const box = { x1: 0, y1: 0, w: Math.max(280, cy.width() - 8), h: Math.max(280, cy.height() - 8) };
+  if (n <= 18) return { name: "cose", animate: false, padding: 48, boundingBox: box, nodeRepulsion: 6800, idealEdgeLength: 92, gravity: 0.4 };
+  if (n <= 90) return { name: "cose", animate: false, padding: 36, boundingBox: box, nodeRepulsion: 5200, idealEdgeLength: 70, gravity: 0.55, nestingFactor: 1.1 };
+  return { name: "concentric", animate: false, minNodeSpacing: 22, padding: 28, boundingBox: box };
 }
 
+function shortId(id) {
+  const m = (id || "").match(/(\d+)$/);
+  return m ? m[1] : (id || "").replace(/^r-/, "");
+}
 function shortLabel(n) {
-  const id = (n.id || "").replace(/^r-/, "");
   const claim = (n.claim || "").trim();
-  if (claim.length <= 28) return id + "\n" + claim;
-  return id + "\n" + claim.slice(0, 26) + "…";
+  const bit = claim.length <= 34 ? claim : claim.slice(0, 32) + "…";
+  return shortId(n.id) + "\n" + bit;
 }
-
+function parentScope(n) {
+  const sc = sf.value;
+  if (sc && (n.scope || []).includes(sc)) return sc;
+  if (n.scope && n.scope[0]) return n.scope[0];
+  return "";
+}
 function claimOf(id) {
   const n = DATA.nodes.find(x => x.id === id);
   const c = n ? (n.claim || id) : id;
@@ -238,12 +435,13 @@ function listEdges(kind, empty) {
   const rows = (DATA.edges || []).filter(e => e.kind === kind);
   if (!rows.length) return `<p class="empty">${empty}</p>`;
   return rows.slice(0, 16).map(e =>
-    `<div class="chain">${e.source} → ${e.target}<div class="empty">${claimOf(e.source)}</div></div>`
-  ).join("") + (rows.length > 16 ? `<p class="empty">+ ${rows.length - 16} more — filter a scope to see them on the graph</p>` : "");
+    `<div class="chain" data-id="${e.source}">${e.source} → ${e.target}<div class="empty">${claimOf(e.source)}</div></div>`
+  ).join("") + (rows.length > 16 ? `<p class="empty">+ ${rows.length - 16} more — pick a scope</p>` : "");
 }
 
 function showOverview(nodes) {
   document.getElementById("cy").classList.add("hidden");
+  document.getElementById("hud").classList.add("hidden");
   const ov = document.getElementById("overview");
   ov.classList.remove("hidden");
   const c = { active: 0, dormant: 0, superseded: 0 };
@@ -257,45 +455,126 @@ function showOverview(nodes) {
   }).join("");
   ov.innerHTML = `
     <h1 class="ov-title">${DATA.nodes.length} rules</h1>
-    <p class="ov-lead">The default view is a census, not the graph. Related / supersede / conflict live on the graph: click a scope on the left, or use <strong>show graph</strong> in the toolbar.</p>
-    <p>${c.active || 0} active · ${c.dormant || 0} dormant · ${c.superseded || 0} superseded · <strong>${kinds.related || 0} related</strong> · ${kinds.supersedes || 0} supersede · ${kinds.conflicts_with || 0} conflict</p>
+    <p class="ov-lead">Census first, graph second. A scope opens a <strong>local map</strong> (that tag plus one hop). Hover a node for the full claim; zoom in when labels appear. Press <strong>?</strong> for the legend.</p>
+    <p>${c.active || 0} active · ${c.dormant || 0} dormant · ${c.superseded || 0} superseded · ${kinds.related || 0} related · ${kinds.supersedes || 0} supersede · ${kinds.conflicts_with || 0} conflict</p>
     <h2>Scope mass</h2>
     <div class="bars">${bars}</div>
-    <div class="chains"><h2>Related</h2>${listEdges("related", "No related links in frontmatter.")}</div>
+    <div class="chains"><h2>Related</h2>${listEdges("related", "No related links.")}</div>
     <div class="chains"><h2>Supersede</h2>${listEdges("supersedes", "No supersede chains.")}</div>
-    <div class="chains"><h2>Conflict</h2>${listEdges("conflicts_with", "No conflicts_with links.")}</div>
+    <div class="chains"><h2>Conflict</h2>${listEdges("conflicts_with", "No conflicts.")}</div>
   `;
   ov.querySelectorAll(".bar-row").forEach(row => {
     row.onclick = () => { sf.value = row.dataset.scope; forceGraph = false; render(); };
+  });
+  ov.querySelectorAll(".chain").forEach(row => {
+    row.onclick = () => jump(row.dataset.id);
+  });
+}
+
+function applyLabelOpacity() {
+  const z = cy.zoom();
+  const n = cy.nodes().not(":parent").length;
+  cy.nodes().forEach(node => {
+    if (node.isParent()) {
+      node.style("text-opacity", 1);
+      return;
+    }
+    let on = true;
+    if (labelMode === "off") on = node.selected() || node.hasClass("hot");
+    else if (labelMode === "auto") on = n <= 14 || z >= 1.15 || node.selected() || node.hasClass("hot");
+    node.style("text-opacity", on ? 1 : 0);
   });
 }
 
 function showGraph(allFiltered) {
   document.getElementById("overview").classList.add("hidden");
   document.getElementById("cy").classList.remove("hidden");
+  document.getElementById("hud").classList.remove("hidden");
+  cy.resize();
   const picked = pickForGraph(allFiltered);
   const nodes = picked.nodes;
   const ids = new Set(nodes.map(n => n.id));
-  const edges = (DATA.edges || []).filter(e => ids.has(e.source) && ids.has(e.target));
+  const edges = (DATA.edges || []).filter(e => ids.has(e.source) && ids.has(e.target) && edgeOn(e.kind));
+  const useGroups = !sf.value && nodes.length > 12 && new Set(nodes.map(parentScope)).size > 1;
   cy.elements().remove();
+  if (useGroups) {
+    const seen = new Set();
+    nodes.forEach(n => {
+      const p = parentScope(n);
+      if (!p || seen.has(p)) return;
+      seen.add(p);
+      cy.add({ data: { id: "g:" + p, label: p }, selectable: false, grabbable: false });
+    });
+  }
   cy.add(nodes.map(n => ({
     data: {
       id: n.id,
       label: shortLabel(n),
       color: colors[n.status] || "#888",
-      size: 14 + Math.round((n.confidence || 0) * 22),
-      payload: n
-    }
+      size: 16 + Math.round((n.confidence || 0) * 26),
+      payload: n,
+      parent: useGroups && parentScope(n) ? ("g:" + parentScope(n)) : undefined
+    },
+    classes: n.status
   })));
   cy.add(edges.map((e, i) => ({
-    data: { id: "e" + i, source: e.source, target: e.target },
+    data: { id: "e" + i, source: e.source, target: e.target, kind: e.kind },
     classes: e.kind
   })));
-  cy.layout(layoutOpts(nodes.length)).run();
+  cy.resize();
+  cy.layout({
+    ...layoutOpts(nodes.length),
+    stop: () => {
+      cy.resize();
+      cy.fit(cy.nodes(), 64);
+      applyLabelOpacity();
+    }
+  }).run();
+  if (selectedId) {
+    const el = cy.$id(selectedId);
+    if (el && el.length && !el.isParent()) { el.select(); show(el.data("payload")); }
+  }
   return picked;
 }
 
+function recipe() {
+  const parts = [];
+  const q = document.getElementById("q").value.trim();
+  const st = document.getElementById("status").value;
+  const conf = parseFloat(document.getElementById("conf").value);
+  const sc = sf.value;
+  if (q) parts.push(`<span class="chip">search “${esc(q)}” <button type="button" data-clear="q" aria-label="clear search">×</button></span>`);
+  if (st) parts.push(`<span class="chip">status ${esc(st)} <button type="button" data-clear="status">×</button></span>`);
+  if (conf > 0) parts.push(`<span class="chip">confidence ≥ ${conf} <button type="button" data-clear="conf">×</button></span>`);
+  if (sc) parts.push(`<span class="chip">scope ${esc(sc)} <button type="button" data-clear="scopeFilter">×</button></span>`);
+  const off = [];
+  if (!document.getElementById("eRelated").checked) off.push("related");
+  if (!document.getElementById("eSuper").checked) off.push("supersede");
+  if (!document.getElementById("eConflict").checked) off.push("conflict");
+  if (off.length) parts.push(`<span class="chip">hiding ${off.join(", ")}</span>`);
+  const text = document.getElementById("recipeText");
+  if (!parts.length) {
+    text.innerHTML = `No filters — showing the vault census. <strong>Match-all</strong> when you add a scope, status, confidence, or search.`;
+  } else {
+    text.innerHTML = `<strong>Match all of:</strong> ` + parts.join(" ");
+  }
+  text.querySelectorAll("[data-clear]").forEach(btn => {
+    btn.onclick = () => {
+      const id = btn.getAttribute("data-clear");
+      const el = document.getElementById(id);
+      if (el) el.value = id === "conf" ? "0" : "";
+      forceGraph = false;
+      render();
+    };
+  });
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
 function render() {
+  recipe();
   const sc = sf.value;
   document.querySelectorAll(".scope-item").forEach(el => {
     el.classList.toggle("active", el.dataset.scope === sc);
@@ -306,50 +585,182 @@ function render() {
   const unfiltered = !sc && !document.getElementById("q").value.trim() && !document.getElementById("status").value && document.getElementById("conf").value === "0";
   const wantOverview = !forceGraph && unfiltered && DATA.nodes.length > OVERVIEW_AT;
   const btn = document.getElementById("graphAll");
-  btn.hidden = DATA.nodes.length <= OVERVIEW_AT;
-  btn.textContent = wantOverview ? "show graph" : "back to overview";
+  btn.hidden = DATA.nodes.length <= OVERVIEW_AT || !unfiltered;
+  btn.textContent = forceGraph ? "back to overview" : "graph all";
+  btn.classList.toggle("on", forceGraph);
 
   let extra = "";
   if (wantOverview) {
     showOverview(nodes);
   } else {
-    const picked = showGraph(nodes);
-    if (picked.truncated) extra = ` · showing ${picked.nodes.length} of ${nodes.length} (edged + highest confidence)`;
+    const graphNodes = sc ? localSlice(nodes) : nodes;
+    const picked = showGraph(graphNodes);
+    if (picked.truncated) extra = ` · showing ${picked.nodes.length} of ${graphNodes.length}`;
+    else if (sc && graphNodes.length > nodes.length) extra = ` · +${graphNodes.length - nodes.length} one-hop`;
   }
   document.getElementById("stats").textContent =
-    `${nodes.length} shown · ${c.active || 0} active · ${c.dormant || 0} dormant · ${c.superseded || 0} superseded${extra}`;
+    `${nodes.length} match · ${c.active || 0} active · ${c.dormant || 0} dormant · ${c.superseded || 0} superseded${extra}`;
+  document.getElementById("labelBtn").textContent = "labels: " + labelMode;
+}
+
+function hideTip() { document.getElementById("tip").style.display = "none"; }
+function showTip(n, node) {
+  if (!n) return;
+  const tip = document.getElementById("tip");
+  const scopes = (n.scope || []).join(", ") || "—";
+  tip.innerHTML = `<div class="tid">${esc(n.id)} · ${esc(n.status)} · ${(n.confidence || 0).toFixed(2)}</div>${esc(n.claim || "")}<div class="empty" style="margin-top:6px">${esc(scopes)}</div>`;
+  tip.style.display = "block";
+  const pos = node.renderedPosition();
+  const box = document.getElementById("cy").getBoundingClientRect();
+  tip.style.left = Math.min(box.left + pos.x + 18, window.innerWidth - 380) + "px";
+  tip.style.top = Math.min(box.top + pos.y + 18, window.innerHeight - 160) + "px";
+}
+
+function jump(id) {
+  const n = DATA.nodes.find(x => x.id === id);
+  if (!n) return;
+  selectedId = id;
+  if (n.scope && n.scope[0] && !sf.value) {
+    sf.value = n.scope[0];
+    forceGraph = false;
+    render();
+  }
+  show(n);
+  try {
+    const el = cy.$id(id);
+    if (el && el.length) {
+      cy.nodes().unselect();
+      el.select();
+      cy.animate({ center: { eles: el }, zoom: Math.max(cy.zoom(), 1.2) }, { duration: 280 });
+    }
+  } catch (e) {}
+}
+
+function idLinks(ids) {
+  if (!ids || !ids.length) return "—";
+  return ids.map(id => `<button type="button" class="id-link" data-id="${id}">${id}</button>`).join(" ");
 }
 
 function show(n) {
   if (!n) return;
+  selectedId = n.id;
   const ev = (n.evidence_log || []).slice().reverse().map(e =>
-    `<li><time>${e.at || ""}</time><strong>${e.kind}</strong> ${e.text ? "— " + e.text : ""}</li>`
+    `<li><time>${esc(e.at || "")}</time><strong>${esc(e.kind)}</strong> ${e.text ? "— " + esc(e.text) : ""}</li>`
   ).join("");
+  const back = (n.referenced_by || []).map(b =>
+    `<button type="button" class="id-link" data-id="${b.id}">${esc(b.id)}</button> <span class="empty">${esc(b.kind)}</span>`
+  ).join("<br>");
   document.getElementById("detail").innerHTML = `
-    <p class="id">${n.id}</p>
-    <h1 class="claim">${n.claim}</h1>
+    <p class="id">${esc(n.id)}</p>
+    <h1 class="claim">${esc(n.claim)}</h1>
     <dl class="meta">
-      <dt>status</dt><dd><span class="pill ${n.status}">${n.status}</span></dd>
-      <dt>confidence</dt><dd>${(n.confidence || 0).toFixed(2)}</dd>
-      <dt>scope</dt><dd>${(n.scope || []).map(s => `<span class="pill">${s}</span>`).join("") || "—"}</dd>
+      <dt>status</dt><dd><span class="pill ${esc(n.status)}">${esc(n.status)}</span></dd>
+      <dt>confidence</dt><dd>${(n.confidence || 0).toFixed(2)} <span class="empty">(node size)</span></dd>
+      <dt>scope</dt><dd>${(n.scope || []).map(s => `<button type="button" class="pill btn" data-scope="${esc(s)}">${esc(s)}</button>`).join("") || "—"}</dd>
       <dt>reinforced</dt><dd>${n.reinforcement_count || 0}</dd>
-      <dt>supersedes</dt><dd>${(n.supersedes || []).join(", ") || "—"}</dd>
-      <dt>related</dt><dd>${(n.related || []).map(id => `<span class="pill">${id}</span>`).join("") || "—"}</dd>
+      <dt>supersedes</dt><dd>${idLinks(n.supersedes)}</dd>
+      <dt>related</dt><dd>${idLinks(n.related)}</dd>
+      <dt>referenced by</dt><dd>${back || "—"}</dd>
     </dl>
     <h2>Evidence</h2>
     <ul class="timeline">${ev || "<li class='empty'>No evidence log.</li>"}</ul>
   `;
+  document.getElementById("detail").querySelectorAll(".id-link").forEach(btn => {
+    btn.onclick = () => jump(btn.dataset.id);
+  });
+  document.getElementById("detail").querySelectorAll("[data-scope]").forEach(btn => {
+    btn.onclick = () => { sf.value = btn.getAttribute("data-scope"); forceGraph = false; render(); };
+  });
 }
 
-cy.on("tap", "node", evt => show(evt.target.data("payload")));
-document.getElementById("graphAll").onclick = () => {
-  forceGraph = !forceGraph;
+function clearDim() {
+  cy.elements().removeClass("dim hot");
+}
+function spotlight(node) {
+  if (!node || node.isParent()) return;
+  const closed = node.closedNeighborhood();
+  cy.elements().addClass("dim");
+  closed.removeClass("dim");
+  node.addClass("hot");
+  closed.edges().addClass("hot");
+}
+
+cy.on("tap", "node", evt => {
+  const node = evt.target;
+  if (node.isParent()) {
+    const name = (node.id() || "").replace(/^g:/, "");
+    sf.value = name;
+    forceGraph = false;
+    render();
+    return;
+  }
+  show(node.data("payload"));
+});
+cy.on("tap", evt => {
+  if (evt.target === cy) { cy.nodes().unselect(); clearDim(); hideTip(); }
+});
+cy.on("dbltap", evt => { if (evt.target === cy) cy.fit(undefined, 42); });
+cy.on("mouseover", "node", evt => {
+  const node = evt.target;
+  if (node.isParent()) return;
+  spotlight(node);
+  showTip(node.data("payload"), node);
+  applyLabelOpacity();
+});
+cy.on("mouseout", "node", () => { clearDim(); hideTip(); applyLabelOpacity(); });
+cy.on("zoom pan", applyLabelOpacity);
+
+document.getElementById("graphAll").onclick = () => { forceGraph = !forceGraph; render(); };
+document.getElementById("clearBtn").onclick = () => {
+  document.getElementById("q").value = "";
+  document.getElementById("status").value = "";
+  document.getElementById("conf").value = "0";
+  sf.value = "";
+  document.getElementById("eRelated").checked = true;
+  document.getElementById("eSuper").checked = true;
+  document.getElementById("eConflict").checked = true;
+  forceGraph = false;
   render();
 };
-["q", "status", "conf", "scopeFilter"].forEach(id => {
-  document.getElementById(id).addEventListener("input", () => { forceGraph = false; render(); });
-  document.getElementById(id).addEventListener("change", () => { forceGraph = false; render(); });
+document.getElementById("fitBtn").onclick = () => { cy.resize(); cy.fit(undefined, 42); };
+window.addEventListener("resize", () => { cy.resize(); });
+document.getElementById("zoomIn").onclick = () => cy.zoom({ level: cy.zoom() * 1.2, renderedPosition: { x: cy.width()/2, y: cy.height()/2 } });
+document.getElementById("zoomOut").onclick = () => cy.zoom({ level: cy.zoom() / 1.2, renderedPosition: { x: cy.width()/2, y: cy.height()/2 } });
+document.getElementById("labelBtn").onclick = () => {
+  labelMode = labelMode === "auto" ? "on" : labelMode === "on" ? "off" : "auto";
+  document.getElementById("labelBtn").textContent = "labels: " + labelMode;
+  applyLabelOpacity();
+};
+function setHelp(open) {
+  const p = document.getElementById("helpPanel");
+  p.classList.toggle("open", open);
+  p.hidden = !open;
+}
+document.getElementById("helpBtn").onclick = () => setHelp(true);
+document.getElementById("helpClose").onclick = () => setHelp(false);
+document.getElementById("helpPanel").onclick = e => { if (e.target.id === "helpPanel") setHelp(false); };
+
+["q", "status", "conf", "scopeFilter", "eRelated", "eSuper", "eConflict"].forEach(id => {
+  const el = document.getElementById(id);
+  el.addEventListener("input", () => { forceGraph = false; render(); });
+  el.addEventListener("change", () => { forceGraph = false; render(); });
 });
+
+document.addEventListener("keydown", e => {
+  if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "SELECT" || e.target.tagName === "TEXTAREA")) {
+    if (e.key === "Escape") { e.target.blur(); return; }
+    return;
+  }
+  if (e.key === "?" || (e.key === "/" && e.shiftKey)) { e.preventDefault(); setHelp(!document.getElementById("helpPanel").classList.contains("open")); }
+  else if (e.key === "/") { e.preventDefault(); document.getElementById("q").focus(); }
+  else if (e.key === "f" || e.key === "F") { cy.fit(undefined, 42); }
+  else if (e.key === "l" || e.key === "L") { document.getElementById("labelBtn").click(); }
+  else if (e.key === "Escape") {
+    if (document.getElementById("helpPanel").classList.contains("open")) setHelp(false);
+    else document.getElementById("clearBtn").click();
+  }
+});
+
 render();
 if (DATA.nodes.length && DATA.nodes.length <= OVERVIEW_AT) show(DATA.nodes[0]);
 </script>

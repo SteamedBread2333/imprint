@@ -234,7 +234,7 @@ Commands:
   get         Full record by id
   sweep       Decay stale rules and archive low-confidence ones
   show        User-facing listing
-  viz         HTML dashboard or mermaid graph
+  viz         HTML dashboard, mermaid graph, or read-only notes/
   init        Write the alwaysApply Cursor rule
   export      Dump every record as JSON
   clear       Delete every rule (requires --confirm --yes)
@@ -262,7 +262,7 @@ func commandHelp(cmd string) string {
 	case "forget":
 		return "Usage: imprint forget ID\n"
 	case "list":
-		return "Usage: imprint list [--status active|dormant|superseded] [--limit N]\n"
+		return "Usage: imprint list [--status active|dormant|superseded] [--scope tag,tag] [--query TEXT] [--min-confidence 0] [--since YYYY-MM-DD] [--limit N]\n"
 	case "get":
 		return "Usage: imprint get ID\n"
 	case "sweep":
@@ -270,7 +270,7 @@ func commandHelp(cmd string) string {
 	case "show":
 		return "Usage: imprint show [--limit N] [--format table|json]\n"
 	case "viz":
-		return "Usage: imprint viz [--out PATH] [--format html|mermaid] [--include-archived]\n"
+		return "Usage: imprint viz [--out PATH] [--format html|mermaid|notes] [--include-archived]\n"
 	case "init":
 		return "Usage: imprint init [--force]\n\nWrites .cursor/rules/imprint-memory.mdc so agents run imprint --json.\n"
 	case "export":

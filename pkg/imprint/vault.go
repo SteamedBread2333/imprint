@@ -243,28 +243,115 @@ func (v *Vault) AddRecord(claim string, scope []string, text string, confidence 
 	if err := v.save(rec, false); err != nil {
 		return nil, err
 	}
+	v.refreshDashboard()
 	return &AddResult{ID: rec.ID, Confidence: rec.Confidence, Path: rec.Path}, nil
 }
 
-// Get returns the full record by id (active or archived).
+// Get returns the full record by id (active or archived), including reverse links.
 func (v *Vault) Get(id string) (*Record, error) {
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return nil, fmt.Errorf("id is required")
 	}
-	return v.load(id)
-}
-
-// List returns summaries, optionally filtered by status.
-func (v *Vault) List(status string, limit int) ([]ListItem, error) {
 	recs, err := v.loadAll()
 	if err != nil {
 		return nil, err
 	}
-	status = strings.TrimSpace(strings.ToLower(status))
+	var rec *Record
+	for _, r := range recs {
+		if r.ID == id {
+			rec = r
+			break
+		}
+	}
+	if rec == nil {
+		return nil, fmt.Errorf("record %s not found", id)
+	}
+	rec.ReferencedBy = backlinksFrom(recs, rec.ID)
+	return rec, nil
+}
+
+func backlinksFrom(recs []*Record, id string) []Backlink {
+	var out []Backlink
+	for _, r := range recs {
+		if r.ID == id {
+			continue
+		}
+		for _, x := range r.Supersedes {
+			if x == id {
+				out = append(out, Backlink{ID: r.ID, Kind: "supersedes"})
+			}
+		}
+		for _, x := range r.Related {
+			if x == id {
+				out = append(out, Backlink{ID: r.ID, Kind: "related"})
+			}
+		}
+		for _, x := range r.ConflictsWith {
+			if x == id {
+				out = append(out, Backlink{ID: r.ID, Kind: "conflicts_with"})
+			}
+		}
+	}
+	return out
+}
+
+func dropID(ids []string, id string) ([]string, bool) {
+	if len(ids) == 0 {
+		return ids, false
+	}
+	kept := make([]string, 0, len(ids))
+	changed := false
+	for _, x := range ids {
+		if x == id {
+			changed = true
+			continue
+		}
+		kept = append(kept, x)
+	}
+	if !changed {
+		return ids, false
+	}
+	return kept, true
+}
+
+// List returns summaries, optionally filtered by status.
+func (v *Vault) List(status string, limit int) ([]ListItem, error) {
+	return v.ListFilter(ListFilter{Status: status, Limit: limit})
+}
+
+// ListFilter returns summaries sliced by status, scope AND, confidence, query, and recency.
+func (v *Vault) ListFilter(f ListFilter) ([]ListItem, error) {
+	recs, err := v.loadAll()
+	if err != nil {
+		return nil, err
+	}
+	status := strings.TrimSpace(strings.ToLower(f.Status))
+	scope := cleanScope(f.Scope)
+	query := strings.TrimSpace(f.Query)
+	var corpus []*Record
+	if query != "" {
+		corpus = recs
+	}
+	idx := buildIndex(corpus)
 	var items []ListItem
 	for _, r := range recs {
 		if status != "" && string(r.Status) != status {
+			continue
+		}
+		if f.MinConfidence > 0 && r.Confidence < f.MinConfidence {
+			continue
+		}
+		if !f.Since.IsZero() && r.LastTouchedAt.Before(f.Since) {
+			continue
+		}
+		if len(scope) > 0 {
+			_, matched := scopeScore(r.Scope, scope)
+			if matched != len(scope) {
+				continue
+			}
+		}
+		if query != "" && idx.score(r, query) == 0 {
 			continue
 		}
 		items = append(items, ListItem{
@@ -274,7 +361,7 @@ func (v *Vault) List(status string, limit int) ([]ListItem, error) {
 			Status:     string(r.Status),
 			Scope:      r.Scope,
 		})
-		if limit > 0 && len(items) >= limit {
+		if f.Limit > 0 && len(items) >= f.Limit {
 			break
 		}
 	}
@@ -312,7 +399,7 @@ func (v *Vault) Show(limit int) ([]*Record, error) {
 	return recs, nil
 }
 
-// Forget permanently deletes a record.
+// Forget permanently deletes a record and strips inbound relationship ids.
 func (v *Vault) Forget(id string) (*ForgetResult, error) {
 	id = strings.TrimSpace(id)
 	if id == "" {
@@ -335,7 +422,50 @@ func (v *Vault) Forget(id string) (*ForgetResult, error) {
 	if err := writeRecords(rec.Path, kept); err != nil {
 		return nil, err
 	}
+	if err := v.stripInbound(id); err != nil {
+		return nil, err
+	}
+	v.refreshDashboard()
 	return &ForgetResult{Success: true}, nil
+}
+
+func (v *Vault) stripInbound(id string) error {
+	recs, err := v.loadAll()
+	if err != nil {
+		return err
+	}
+	byPath := map[string][]*Record{}
+	changedPaths := map[string]struct{}{}
+	for _, r := range recs {
+		var dirty bool
+		if r.Related, dirty = dropID(r.Related, id); dirty {
+			changedPaths[r.Path] = struct{}{}
+		}
+		if r.Supersedes, dirty = dropID(r.Supersedes, id); dirty {
+			changedPaths[r.Path] = struct{}{}
+		}
+		if r.ConflictsWith, dirty = dropID(r.ConflictsWith, id); dirty {
+			changedPaths[r.Path] = struct{}{}
+		}
+		if r.Path != "" {
+			byPath[r.Path] = append(byPath[r.Path], r)
+		}
+	}
+	for path := range changedPaths {
+		if err := writeRecords(path, byPath[path]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (v *Vault) refreshDashboard() {
+	path := filepath.Join(v.Dir, "dashboard.html")
+	st, err := os.Stat(path)
+	if err != nil || st.IsDir() {
+		return
+	}
+	_, _ = v.Viz(path, "html", false)
 }
 
 // ExportJSON writes every record as a JSON array.
@@ -367,5 +497,6 @@ func (v *Vault) Clear() error {
 			return err
 		}
 	}
+	v.refreshDashboard()
 	return nil
 }

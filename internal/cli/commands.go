@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/SteamedBread2333/imprint/pkg/imprint"
 )
@@ -279,6 +280,10 @@ func (a *App) cmdForget(g globals, args []string) int {
 func (a *App) cmdList(g globals, args []string) int {
 	fs := newFlags()
 	status := fs.String("status", "")
+	scope := fs.String("scope", "")
+	query := fs.String("query", "")
+	minConf := fs.Float("min-confidence", 0)
+	since := fs.String("since", "")
 	limit := fs.Int("limit", 0)
 	_, err := fs.parse(args)
 	if err != nil {
@@ -288,11 +293,22 @@ func (a *App) cmdList(g globals, args []string) int {
 		}
 		return a.fail(g.json, err)
 	}
+	when, err := parseSince(*since)
+	if err != nil {
+		return a.fail(g.json, err)
+	}
 	v, err := a.openVault(g)
 	if err != nil {
 		return a.fail(g.json, err)
 	}
-	items, err := v.List(*status, *limit)
+	items, err := v.ListFilter(imprint.ListFilter{
+		Status:        *status,
+		Scope:         splitCSV(*scope),
+		MinConfidence: *minConf,
+		Query:         *query,
+		Since:         when,
+		Limit:         *limit,
+	})
 	if err != nil {
 		return a.fail(g.json, err)
 	}
@@ -306,6 +322,20 @@ func (a *App) cmdList(g globals, args []string) int {
 	}
 	_ = w.Flush()
 	return 0
+}
+
+func parseSince(s string) (time.Time, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return time.Time{}, nil
+	}
+	if t, err := time.Parse(time.RFC3339, s); err == nil {
+		return t, nil
+	}
+	if t, err := time.Parse("2006-01-02", s); err == nil {
+		return t, nil
+	}
+	return time.Time{}, fmt.Errorf("invalid --since %q (use YYYY-MM-DD or RFC3339)", s)
 }
 
 func (a *App) cmdGet(g globals, args []string) int {
@@ -333,6 +363,13 @@ func (a *App) cmdGet(g globals, args []string) int {
 		return a.fail(false, a.writeJSON(rec))
 	}
 	fmt.Fprintf(a.out(), "%s  [%.2f %s]\n%s\n scope: %s\n path: %s\n", rec.ID, rec.Confidence, rec.Status, rec.Claim, strings.Join(rec.Scope, ", "), rec.Path)
+	if len(rec.ReferencedBy) > 0 {
+		fmt.Fprint(a.out(), " referenced_by:")
+		for _, b := range rec.ReferencedBy {
+			fmt.Fprintf(a.out(), " %s(%s)", b.ID, b.Kind)
+		}
+		fmt.Fprintln(a.out())
+	}
 	for _, e := range rec.EvidenceLog {
 		fmt.Fprintf(a.out(), "  %s  %s  %s\n", e.At.Format("2006-01-02"), e.Kind, e.Text)
 	}

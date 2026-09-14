@@ -1,5 +1,7 @@
 package imprint
 
+import "time"
+
 // AddResult is the --json shape for add.
 type AddResult struct {
 	ID         string  `json:"id"`
@@ -32,6 +34,22 @@ type SupersedeResult struct {
 // ForgetResult is the --json shape for forget.
 type ForgetResult struct {
 	Success bool `json:"success"`
+}
+
+// Backlink is another rule that points at this one.
+type Backlink struct {
+	ID   string `json:"id"`
+	Kind string `json:"kind"`
+}
+
+// ListFilter is the optional slice for list.
+type ListFilter struct {
+	Status        string
+	Scope         []string
+	MinConfidence float64
+	Query         string
+	Since         time.Time
+	Limit         int
 }
 
 // ListItem is one list row.

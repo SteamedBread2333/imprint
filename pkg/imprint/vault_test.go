@@ -431,6 +431,15 @@ func TestVizHTMLAndMermaid(t *testing.T) {
 	if !bytes.Contains(body, []byte("cytoscape")) || !bytes.Contains(body, []byte(old.ID)) {
 		t.Fatalf("dashboard missing graph data")
 	}
+	if !bytes.Contains(body, []byte(`id="helpPanel"`)) || !bytes.Contains(body, []byte(`id="recipe"`)) || !bytes.Contains(body, []byte(`id="legend"`)) {
+		t.Fatalf("dashboard missing help, filter recipe, or legend")
+	}
+	if !bytes.Contains(body, []byte("Match all")) {
+		t.Fatalf("dashboard missing match-all filter copy")
+	}
+	if bytes.Contains(body, []byte("unpkg.com")) {
+		t.Fatal("dashboard still references unpkg")
+	}
 	m, err := v.Viz("", "mermaid", true)
 	if err != nil {
 		t.Fatal(err)
@@ -509,4 +518,180 @@ func TestLegacyCompactOnOpen(t *testing.T) {
 	if _, err := os.Stat(legacy); !os.IsNotExist(err) {
 		t.Fatalf("legacy file should be gone: %v", err)
 	}
+}
+
+func TestForgetStripsInboundAndGetBacklinks(t *testing.T) {
+	dir := t.TempDir()
+	v := frozen(t, dir, day(0))
+	a, err := v.AddRecord("Keep related A", []string{"demo"}, "a", 0.6, nil, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := v.AddRecord("Keep related B", []string{"demo"}, "b", 0.6, nil, []string{a.ID}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := v.Get(a.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.ReferencedBy) != 1 || got.ReferencedBy[0].ID != b.ID || got.ReferencedBy[0].Kind != "related" {
+		t.Fatalf("backlinks = %+v", got.ReferencedBy)
+	}
+	if _, err := v.Forget(a.ID); err != nil {
+		t.Fatal(err)
+	}
+	still, err := v.Get(b.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range still.Related {
+		if id == a.ID {
+			t.Fatalf("inbound related survived forget: %+v", still.Related)
+		}
+	}
+	raw, err := os.ReadFile(still.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), a.ID) {
+		t.Fatalf("forgotten id still in shard:\n%s", raw)
+	}
+}
+
+func TestSeeAlsoRoundTrip(t *testing.T) {
+	now := day(0)
+	rec := &Record{
+		ID:            "r-2026-09-11-001",
+		Claim:         "Claim with a relative",
+		Scope:         []string{"go"},
+		Confidence:    0.6,
+		Status:        StatusActive,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+		LastTouchedAt: now,
+		Related:       []string{"r-2026-09-11-002"},
+		Body:          "Keep it boring.",
+		EvidenceLog:   []Evidence{{At: now, Kind: EvidenceOriginal, Text: "orig"}},
+	}
+	raw, err := MarshalRecord(rec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(raw)
+	if !strings.Contains(s, "[[r-2026-09-11-002]]") || !strings.Contains(s, seeAlsoMark) {
+		t.Fatalf("missing see-also:\n%s", s)
+	}
+	got, err := UnmarshalRecord(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Body != "Keep it boring." {
+		t.Fatalf("body = %q", got.Body)
+	}
+	if !strings.Contains(string(raw), "Keep it boring.") {
+		t.Fatal("user body dropped from marshal")
+	}
+}
+
+func TestFindCJKAndIDF(t *testing.T) {
+	dir := t.TempDir()
+	v := frozen(t, dir, day(0))
+	if _, err := v.Add("林小姐电话在前台登记", []string{"youti", "example"}, "林小姐电话", 0.6); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := v.Add("周六还有预约空档", []string{"youti", "example"}, "预约", 0.6); err != nil {
+		t.Fatal(err)
+	}
+	hits, err := v.Find(nil, "林小姐", 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 || !strings.Contains(hits[0].Title, "林小姐") {
+		t.Fatalf("cjk hits = %+v", hits)
+	}
+
+	if _, err := v.Add("Use gofmt on save", []string{"go", "style"}, "use gofmt", 0.6); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := v.Add("Go exported names use PascalCase", []string{"go", "naming"}, "PascalCase", 0.6); err != nil {
+		t.Fatal(err)
+	}
+	hits, err = v.Find([]string{"go"}, "PascalCase", 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) < 1 || !strings.Contains(hits[0].Title, "PascalCase") {
+		t.Fatalf("idf hits = %+v", hits)
+	}
+}
+
+func TestListFilterAndNotes(t *testing.T) {
+	dir := t.TempDir()
+	v := frozen(t, dir, day(0))
+	if _, err := v.Add("Use gofmt", []string{"go", "style"}, "gofmt", 0.9); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := v.Add("Python function names must always be snake_case", []string{"python", "naming"}, "snake", 0.6); err != nil {
+		t.Fatal(err)
+	}
+	items, err := v.ListFilter(ListFilter{Scope: []string{"go"}, MinConfidence: 0.85})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || items[0].Title != "Use gofmt" {
+		t.Fatalf("list filter = %+v", items)
+	}
+	items, err = v.ListFilter(ListFilter{Query: "snake_case"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || !strings.Contains(items[0].Title, "snake_case") {
+		t.Fatalf("list query = %+v", items)
+	}
+	res, err := v.Viz("", "notes", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.RulesCount != 2 {
+		t.Fatalf("notes count = %+v", res)
+	}
+	note := filepath.Join(dir, "notes", items[0].ID+".md")
+	body, err := os.ReadFile(note)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(body), "[[") && !strings.Contains(string(body), "(none)") {
+		t.Fatalf("note = %s", body)
+	}
+}
+
+func TestDashboardRefreshAndOffline(t *testing.T) {
+	dir := t.TempDir()
+	v := frozen(t, dir, day(0))
+	added, err := v.Add("First rule for the map", []string{"go"}, "one", 0.6)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := v.Viz("", "html", false); err != nil {
+		t.Fatal(err)
+	}
+	dash := filepath.Join(dir, "dashboard.html")
+	if _, err := v.Add("Second rule for the map", []string{"go"}, "two", 0.6); err != nil {
+		t.Fatal(err)
+	}
+	body, err := os.ReadFile(dash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(body, []byte("unpkg.com")) {
+		t.Fatal("dashboard still loads cytoscape from CDN")
+	}
+	if !bytes.Contains(body, []byte("Second rule for the map")) {
+		t.Fatalf("dashboard not refreshed after add")
+	}
+	if !bytes.Contains(body, []byte("cytoscape")) {
+		t.Fatal("embedded cytoscape missing")
+	}
+	_ = added
 }
