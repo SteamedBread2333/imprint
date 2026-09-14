@@ -231,6 +231,8 @@ Setup lives in [Quick start](#quick-start) above. Everything under [`docs/`](doc
 | [docs/examples/cursor-mcp.json](docs/examples/cursor-mcp.json) | Project vault `./memory` |
 | [docs/examples/cursor-mcp-global.json](docs/examples/cursor-mcp-global.json) | Global vault `~/.imprint` |
 
+The same pages are mirrored to **[GitHub Wiki](https://github.com/SteamedBread2333/imprint/wiki)** on every `v*` tag and when `docs/` changes on `main` ([`.github/workflows/wiki.yml`](.github/workflows/wiki.yml)). Enable Wiki once under repo **Settings → Features**.
+
 ## Release
 
 ```bash
@@ -242,7 +244,7 @@ make publish V=X.Y.Z
 scripts/publish.sh X.Y.Z --local
 ```
 
-Pushing tag `vX.Y.Z` runs [`.github/workflows/release.yml`](.github/workflows/release.yml). First GHCR image is private until you set the package to Public (GitHub → Packages → imprint → Package settings).
+Pushing tag `vX.Y.Z` runs [`.github/workflows/release.yml`](.github/workflows/release.yml) (binaries + GHCR) and [`.github/workflows/wiki.yml`](.github/workflows/wiki.yml) (docs → Wiki). First GHCR image is private until you set the package to Public (GitHub → Packages → imprint → Package settings).
 
 ## Go module
 

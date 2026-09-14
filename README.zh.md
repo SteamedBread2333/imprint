@@ -230,6 +230,8 @@ imprint clear --confirm --yes        # 不可逆
 | [docs/examples/cursor-mcp.json](docs/examples/cursor-mcp.json) | 项目 vault `./memory` |
 | [docs/examples/cursor-mcp-global.json](docs/examples/cursor-mcp-global.json) | 全局 vault `~/.imprint` |
 
+相同页面会同步到 **[GitHub Wiki](https://github.com/SteamedBread2333/imprint/wiki)**：每次打 `v*` tag，或 `main` 上 `docs/` 有变更时（[`.github/workflows/wiki.yml`](.github/workflows/wiki.yml)）。请先在仓库 **Settings → Features** 中启用 Wiki。
+
 ## 发布
 
 ```bash
@@ -241,7 +243,7 @@ make publish V=X.Y.Z
 scripts/publish.sh X.Y.Z --local
 ```
 
-推送 tag `vX.Y.Z` 会跑 [`.github/workflows/release.yml`](.github/workflows/release.yml)。第一次推上 GHCR 的镜像默认是私有的，需要到 GitHub → Packages → imprint → Package settings 设为 Public。
+推送 tag `vX.Y.Z` 会跑 [`.github/workflows/release.yml`](.github/workflows/release.yml)（二进制 + GHCR）和 [`.github/workflows/wiki.yml`](.github/workflows/wiki.yml)（文档 → Wiki）。第一次推上 GHCR 的镜像默认是私有的，需要到 GitHub → Packages → imprint → Package settings 设为 Public。
 
 ## Go 模块
 

@@ -48,8 +48,9 @@ for spec in "${PLATFORMS[@]}"; do
   docs=()
   for f in LICENSE README.md README.zh.md PROMPT.md docs/mcp.md docs/mcp.zh.md docs/correction.md docs/correction.zh.md docs/editors.md docs/editors.zh.md; do
     if [[ -f "$f" ]]; then
-      docs+=("$f")
-      cp "$f" "$stage/"
+      base="$(basename "$f")"
+      cp "$f" "${stage}/${base}"
+      docs+=("$base")
     fi
   done
 
