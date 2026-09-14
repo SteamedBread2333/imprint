@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="docs/logo.svg" alt="imprint" width="128" />
+  <img src="https://github.com/user-attachments/assets/0f27d705-5a2d-4a3f-b193-c6dcd331eb49" alt="imprint" width="128" />
   <h1>imprint</h1>
   <p><em>智能体长期记忆</em></p>
   <p>
