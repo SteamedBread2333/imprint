@@ -189,7 +189,7 @@ func TestCLIHelpMentionsShards(t *testing.T) {
 func TestCLIInitWritesCursorRule(t *testing.T) {
 	dir := t.TempDir()
 	app, out, errw := testApp(t, dir)
-	if code := app.Run([]string{"--json", "init"}); code != 0 {
+	if code := app.Run([]string{"--json", "init", "--cursor"}); code != 0 {
 		t.Fatalf("init exit %d stderr=%s stdout=%s", code, errw, out)
 	}
 	rulePath := filepath.Join(dir, ".cursor", "rules", "imprint-memory.mdc")
@@ -205,10 +205,10 @@ func TestCLIInitWritesCursorRule(t *testing.T) {
 	}
 	out.Reset()
 	errw.Reset()
-	if code := app.Run([]string{"init"}); code == 0 {
+	if code := app.Run([]string{"init", "--cursor"}); code == 0 {
 		t.Fatalf("expected refuse without --force, stdout=%s", out)
 	}
-	if code := app.Run([]string{"--json", "init", "--force"}); code != 0 {
+	if code := app.Run([]string{"--json", "init", "--cursor", "--force"}); code != 0 {
 		t.Fatalf("force init %d %s %s", code, errw, out)
 	}
 }

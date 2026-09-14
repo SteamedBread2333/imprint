@@ -235,7 +235,7 @@ Commands:
   sweep       Decay stale rules and archive low-confidence ones
   show        User-facing listing
   viz         HTML dashboard, mermaid graph, or read-only notes/
-  init        Write the alwaysApply Cursor rule
+  init        Write agent rules for Cursor, Claude Code, Codex, Trae, Workbuddy
   export      Dump every record as JSON
   clear       Delete every rule (requires --confirm --yes)
   version     Print version
@@ -272,7 +272,18 @@ func commandHelp(cmd string) string {
 	case "viz":
 		return "Usage: imprint viz [--out PATH] [--format html|mermaid|notes] [--include-archived]\n"
 	case "init":
-		return "Usage: imprint init [--force]\n\nWrites .cursor/rules/imprint-memory.mdc (prefer imprint MCP; fall back to imprint --json).\n"
+		return `Usage: imprint init [--force] [--cursor] [--claude] [--codex] [--trae] [--workbuddy]
+
+Writes imprint memory rules for AI editors (default: all). Does not write MCP config.
+
+  Cursor      .cursor/rules/imprint-memory.mdc
+  Claude Code .claude/rules/imprint-memory.md
+  Codex       AGENTS.md or AGENTS.override.md — ## imprint memory section
+  Trae        .trae/rules/imprint-memory.md
+  Workbuddy   .codebuddy/rules/imprint-memory/RULE.mdc
+
+See docs/editors.md.
+`
 	case "export":
 		return "Usage: imprint export\n"
 	case "clear":

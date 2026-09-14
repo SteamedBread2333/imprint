@@ -15,9 +15,32 @@
 
 用户纠正 → 可携带的 markdown。Go 静态二进制，零运行时依赖，MIT。
 
-智能体会忘。用户会把同一句话再说一遍。imprint 是双方共用的文件记忆：偏好、纠正、决策，写成普通 markdown，按 scope **AND** 过滤，再用 BM25 给 `--query` 排序，用 supersede 替换而不是叠床架屋。
+智能体会忘。imprint 把偏好和纠正写进 `./memory/`，下次写代码前召回。**你正常说话即可，vault 由智能体维护。**
 
-智能体通过 **`imprint-mcp`** 或全局 `imprint --json` 读写 vault。人用 `get` / `list` / `viz` 或只读的 `notes/` 卡片审计同一份 vault。
+## 快速开始
+
+**三步**（约两分钟）：
+
+```bash
+go install github.com/SteamedBread2333/imprint/cmd/imprint@latest
+go install github.com/SteamedBread2333/imprint/cmd/imprint-mcp@latest
+cd your-project
+imprint init
+```
+
+可选 — 在 `.cursor/mcp.json` 挂载 MCP（合并 [docs/examples/cursor-mcp.json](docs/examples/cursor-mcp.json)），重启编辑器。不用 MCP 也可以，智能体走 `imprint --json`。
+
+| 步骤 | 你做什么 | imprint 做什么 |
+| --- | --- | --- |
+| 1 | 安装 + `imprint init` | 为 Cursor、Claude Code、Codex、Trae、Workbuddy 写入规则 |
+| 2 | 正常写代码、正常纠正 | 智能体 `find` → ADD / REINFORCE / SUPERSEDE / IGNORE → 写入 `./memory/` |
+| 3 | 想看存了什么时打开 `memory/dashboard.html` | 列表 / 关系图审计 |
+
+<p align="center"><em>图 1 — [截图占位] IDE 对话：用户说明编码偏好，智能体在后续任务中通过 imprint 召回并遵守。</em></p>
+
+<p align="center"><em>图 2 — [截图占位] <code>memory/dashboard.html</code>：列表 / 关系图、筛选、按 scope 着色节点。</em></p>
+
+更多细节 → [文档](#文档)（`docs/` 下全部文件）。
 
 ```mermaid
 flowchart LR
@@ -73,7 +96,7 @@ sequenceDiagram
 
 | 阶段 | 做什么 |
 | --- | --- |
-| **初始化** | `go install` → `imprint init` 写入 `.cursor/rules/imprint-memory.mdc`（alwaysApply）。可选：在 `.cursor/mcp.json` 挂载 `imprint-mcp`（[docs/mcp.zh.md](docs/mcp.zh.md)）。Vault 默认 `./memory/`，`--global` 用 `~/.imprint`，也可用 `--vault` / `IMPRINT_VAULT` 覆盖。 |
+| **初始化** | [快速开始](#快速开始) — `imprint init`；可选 MCP（[docs/mcp.zh.md](docs/mcp.zh.md)）。Vault：`./memory/`、`~/.imprint`（`--global`）或 `--vault` / `IMPRINT_VAULT`。 |
 | **智能体循环** | `find` 召回；智能体判 **ADD / REINFORCE / SUPERSEDE / IGNORE**；写入走 `add`、`reinforce`、`supersede`（旧规则进 `archive/`）。`get` 拉单条证据与反向引用。 |
 | **Vault** | 规则打进 `imprint-NNNN.md` 分片；`sweep` 与 `supersede` 归档到 `archive/`；`forget` 硬删并清理入链。 |
 | **人工视图** | 同一套 CLI：`list`、`show`、`get`、`export`。`viz` 生成 `dashboard.html`（列表 / 关系图、筛选、URL 状态、中英）、stdout mermaid，或只读 `notes/` 卡片。 |
@@ -83,14 +106,7 @@ sequenceDiagram
 
 ## 安装
 
-```bash
-go install github.com/SteamedBread2333/imprint/cmd/imprint@latest
-go install github.com/SteamedBread2333/imprint/cmd/imprint-mcp@latest
-```
-
-需要 Go 1.25+（不用 MCP 时 1.23+ 即可）。`CGO_ENABLED=0` — 不链 libc，没有数据库，运行时不访问网络。
-
-也可以从 [GitHub Releases](https://github.com/SteamedBread2333/imprint/releases) 下载对应平台的压缩包，或从 GitHub Packages 拉容器：
+见 [快速开始](#快速开始)。亦可从 [GitHub Releases](https://github.com/SteamedBread2333/imprint/releases) 下载二进制，或：
 
 ```bash
 docker pull ghcr.io/steamedbread2333/imprint:latest
@@ -186,7 +202,8 @@ imprint viz                          # ./memory/dashboard.html（无 CDN）
 imprint viz --format mermaid
 imprint viz --format notes           # ./memory/notes/*.md，覆盖写，不要手改
 imprint export
-imprint init                         # alwaysApply Cursor 规则
+imprint init                         # Cursor / Claude / Codex / Trae / Workbuddy
+imprint init --cursor --force        # 仅某一编辑器
 imprint forget r-2026-09-11-001
 imprint clear --confirm --yes        # 不可逆
 ```
@@ -195,24 +212,22 @@ imprint clear --confirm --yes        # 不可逆
 
 全局参数：`--vault PATH`、`--global`、`--json`。
 
-## 记忆纠偏
+## 文档
 
-用户纠正智能体后如何写入、替换、加强或遗忘规则 — 含编码场景示例（ADD / REINFORCE / SUPERSEDE / IGNORE）：
+上手见上文 [快速开始](#快速开始)。[`docs/`](docs/) 内为**参考文档**，在此集中索引，避免与 README 脱节。
 
-- [docs/correction.zh.md](docs/correction.zh.md)（中文）
-- [docs/correction.md](docs/correction.md)（English）
+| 主题 | 中文 | English |
+| --- | --- | --- |
+| 各编辑器 `init` 路径与参数 | [docs/editors.zh.md](docs/editors.zh.md) | [docs/editors.md](docs/editors.md) |
+| MCP 服务与挂载 | [docs/mcp.zh.md](docs/mcp.zh.md) | [docs/mcp.md](docs/mcp.md) |
+| 记忆纠偏与编码场景 | [docs/correction.zh.md](docs/correction.zh.md) | [docs/correction.md](docs/correction.md) |
 
-## Cursor
+**MCP 示例**（需手动合并；`imprint init` 不会写入）：
 
-先把二进制装到全局，再在项目里放下 `alwaysApply` 规则：
-
-```bash
-go install github.com/SteamedBread2333/imprint/cmd/imprint@latest
-cd your-project
-imprint init
-```
-
-这会写入 `.cursor/rules/imprint-memory.mdc`。智能体用 **`imprint-mcp`**（见 [docs/mcp.zh.md](docs/mcp.zh.md) 与 [docs/examples/cursor-mcp.json](docs/examples/cursor-mcp.json)）或对 `./memory/` 执行 `imprint --json`（或用 `IMPRINT_VAULT` / `--global` 指向 `~/.imprint`）。`init` 不会写 `mcp.json` — 请自行添加挂载。`find` 的 scope 仍是硬 AND，`--query` 用字段加权 BM25（claim > scope > evidence > body），中文按字 n-gram。`get` 返回 `referenced_by`。HTML dashboard 自包含（内嵌 D3，无 CDN）。首页是 **列表 / 关系图** 切换（仅无筛选时）：普查，或全部节点一张径向关系图（填充色是 scope，环是跳数，点击节点会重新以它为根）。筛选、视图、边类型、标签、语言和选中节点会写入 URL — 后退、前进、刷新都保留。默认英文；点 **中文** 切换。打开 `dashboard.html` 按 **?** 看图例。筛选是全部命中；标签默认缩放到近处或悬停才出现。
+| 文件 | 用途 |
+| --- | --- |
+| [docs/examples/cursor-mcp.json](docs/examples/cursor-mcp.json) | 项目 vault `./memory` |
+| [docs/examples/cursor-mcp-global.json](docs/examples/cursor-mcp-global.json) | 全局 vault `~/.imprint` |
 
 ## 发布
 

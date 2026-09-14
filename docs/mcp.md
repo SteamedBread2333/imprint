@@ -1,8 +1,9 @@
 # imprint MCP server
 
-The **imprint-mcp** binary exposes the same vault operations as the CLI over the [Model Context Protocol](https://modelcontextprotocol.io/) (stdio transport). Agents in Cursor, Claude Desktop, and other MCP hosts can call tools instead of shelling out to `imprint`.
+> **Setup:** [README.md](../README.md#quick-start) — install, `imprint init`, optional MCP merge.  
+> This page is **reference** (tools, flags, mount snippets).
 
-The CLI remains fully supported. MCP is optional — mount it when your host works better with tools than subprocesses.
+**imprint-mcp** exposes vault operations over [MCP](https://modelcontextprotocol.io/) (stdio). Optional — CLI always works.
 
 ## Architecture
 

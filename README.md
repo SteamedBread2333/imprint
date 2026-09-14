@@ -15,9 +15,32 @@
 
 User corrections → portable markdown. Go static binary, zero runtime, MIT.
 
-Agents forget. Users repeat themselves. imprint is the file-backed memory they share: preferences, corrections, and decisions, stored as ordinary markdown, recalled by scope (AND) plus BM25 keyword ranking, superseded instead of stacked.
+Agents forget. Users repeat themselves. imprint is shared, file-backed memory: preferences and corrections in `./memory/`, recalled before the next edit. **You talk normally; the agent maintains the vault.**
 
-Agents use **`imprint-mcp`** or the global `imprint --json` CLI — same vault, same JSON shapes. Humans audit with `get`, `list`, `viz`, or the optional read-only `notes/` cards.
+## Quick start
+
+**Three steps** (about two minutes):
+
+```bash
+go install github.com/SteamedBread2333/imprint/cmd/imprint@latest
+go install github.com/SteamedBread2333/imprint/cmd/imprint-mcp@latest
+cd your-project
+imprint init
+```
+
+Optional — mount MCP in `.cursor/mcp.json` (merge [docs/examples/cursor-mcp.json](docs/examples/cursor-mcp.json)). Restart the editor. Skip MCP if you prefer `imprint --json` only.
+
+| Step | You do | imprint does |
+| --- | --- | --- |
+| 1 | Install + `imprint init` | Writes agent rules for Cursor, Claude Code, Codex, Trae, Workbuddy |
+| 2 | Code and correct in plain language | Agent `find` → ADD / REINFORCE / SUPERSEDE / IGNORE → writes `./memory/` |
+| 3 | Open `memory/dashboard.html` when curious | List / graph view of what was recorded |
+
+<p align="center"><em>Figure 1 — [Screenshot placeholder] IDE chat: user states a coding preference; agent recalls imprint on the next task.</em></p>
+
+<p align="center"><em>Figure 2 — [Screenshot placeholder] <code>memory/dashboard.html</code>: list / graph views, filters, scope-colored nodes.</em></p>
+
+Further reading → [Documentation](#documentation) (all files under `docs/`).
 
 ```mermaid
 flowchart LR
@@ -73,7 +96,7 @@ sequenceDiagram
 
 | Phase | What happens |
 | --- | --- |
-| **Bootstrap** | `go install` → `imprint init` writes `.cursor/rules/imprint-memory.mdc` (alwaysApply). Optional: mount `imprint-mcp` in `.cursor/mcp.json` ([docs/mcp.md](docs/mcp.md)). Vault defaults to `./memory/`, or `~/.imprint` with `--global`, overridable via `--vault` / `IMPRINT_VAULT`. |
+| **Bootstrap** | [Quick start](#quick-start) — `imprint init`; optional MCP ([docs/mcp.md](docs/mcp.md)). Vault: `./memory/`, or `~/.imprint` with `--global`, or `--vault` / `IMPRINT_VAULT`. |
 | **Agent loop** | `find` recalls; the agent classifies **ADD / REINFORCE / SUPERSEDE / IGNORE**; writes go through `add`, `reinforce`, or `supersede` (old rule → `archive/`). `get` loads one rule with evidence and backlinks. |
 | **Vault** | Rules pack into `imprint-NNNN.md` shards; `sweep` and `supersede` move copies to `archive/`; `forget` deletes and strips inbound links. |
 | **Human views** | Same CLI: `list`, `show`, `get`, `export`. `viz` builds `dashboard.html` (list / graph, filters, URL state, EN/中文), mermaid on stdout, or read-only `notes/` cards. |
@@ -83,14 +106,7 @@ Agents use MCP tools or `imprint --json`. `notes/` is generated; do not hand-edi
 
 ## Install
 
-```bash
-go install github.com/SteamedBread2333/imprint/cmd/imprint@latest
-go install github.com/SteamedBread2333/imprint/cmd/imprint-mcp@latest
-```
-
-Requires Go 1.25+ (1.23+ for `imprint` alone if you skip MCP). `CGO_ENABLED=0` — no libc, no database, no network at runtime.
-
-Or download a platform archive from [GitHub Releases](https://github.com/SteamedBread2333/imprint/releases), or the container from GitHub Packages:
+See [Quick start](#quick-start). Also: [GitHub Releases](https://github.com/SteamedBread2333/imprint/releases) binaries, or:
 
 ```bash
 docker pull ghcr.io/steamedbread2333/imprint:latest
@@ -186,7 +202,8 @@ imprint viz                          # ./memory/dashboard.html (no CDN)
 imprint viz --format mermaid
 imprint viz --format notes           # ./memory/notes/*.md, overwrite, do not edit
 imprint export
-imprint init                         # alwaysApply Cursor rule
+imprint init                         # rules for Cursor, Claude, Codex, Trae, Workbuddy
+imprint init --cursor --force        # one editor only
 imprint forget r-2026-09-11-001
 imprint clear --confirm --yes        # irreversible
 ```
@@ -195,24 +212,22 @@ imprint clear --confirm --yes        # irreversible
 
 Global flags: `--vault PATH`, `--global`, `--json`.
 
-## Memory correction
+## Documentation
 
-How user corrections become vault updates — with coding scenarios (ADD / REINFORCE / SUPERSEDE / IGNORE):
+Setup lives in [Quick start](#quick-start) above. Everything under [`docs/`](docs/) is **reference** — linked here so nothing is orphaned.
 
-- [docs/correction.md](docs/correction.md)
-- [docs/correction.zh.md](docs/correction.zh.md)
+| Topic | English | 中文 |
+| --- | --- | --- |
+| AI editor `init` paths & flags | [docs/editors.md](docs/editors.md) | [docs/editors.zh.md](docs/editors.zh.md) |
+| MCP server & mount | [docs/mcp.md](docs/mcp.md) | [docs/mcp.zh.md](docs/mcp.zh.md) |
+| Memory correction & coding scenarios | [docs/correction.md](docs/correction.md) | [docs/correction.zh.md](docs/correction.zh.md) |
 
-## Cursor
+**MCP examples** (merge manually; `imprint init` does not write these):
 
-Install the binary globally, then drop an `alwaysApply` rule in the project:
-
-```bash
-go install github.com/SteamedBread2333/imprint/cmd/imprint@latest
-cd your-project
-imprint init
-```
-
-That writes `.cursor/rules/imprint-memory.mdc`. Agents use **`imprint-mcp`** (see [docs/mcp.md](docs/mcp.md) and [docs/examples/cursor-mcp.json](docs/examples/cursor-mcp.json)) or `imprint --json` against `./memory/` (or `IMPRINT_VAULT` / `--global` for `~/.imprint`). `init` does not write `mcp.json` — add the mount yourself. `find` keeps scope as a hard AND filter, then ranks `--query` with field-weighted BM25 (claim > scope > evidence > body), including CJK character n-grams. `get` returns `referenced_by`. The HTML dashboard is self-contained (embedded D3, no CDN). Home is a **list / graph** switch (only when no filters): census or every node on one radial relation map (fill colour is scope, rings are hops, click a node to re-root). Filters, view, edges, labels, language, and the selected node sync to the URL — back/forward and refresh keep state. English by default; **中文** toggles Chinese. Open `dashboard.html` and press **?** for the legend. Filters are match-all; labels stay off until you zoom or hover.
+| File | Use |
+| --- | --- |
+| [docs/examples/cursor-mcp.json](docs/examples/cursor-mcp.json) | Project vault `./memory` |
+| [docs/examples/cursor-mcp-global.json](docs/examples/cursor-mcp-global.json) | Global vault `~/.imprint` |
 
 ## Release
 

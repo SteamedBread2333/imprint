@@ -1,8 +1,9 @@
 # imprint MCP 服务
 
-**imprint-mcp** 通过 [Model Context Protocol](https://modelcontextprotocol.io/)（stdio 传输）暴露与 CLI 相同的 vault 操作。Cursor、Claude Desktop 等 MCP 宿主可以让智能体调用工具，而不必每次 `exec` `imprint`。
+> **上手：** [README.zh.md](../README.zh.md#快速开始) — 安装、`imprint init`、可选 MCP。  
+> 本文是**参考**（工具列表、参数、挂载示例）。
 
-CLI 仍然完全可用。MCP 是可选的 — 当你的宿主更适合工具而不是子进程时再挂载。
+**imprint-mcp** 经 [MCP](https://modelcontextprotocol.io/)（stdio）暴露 vault 操作。可选 — CLI 始终可用。
 
 ## 架构
 

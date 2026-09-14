@@ -1,8 +1,8 @@
 # Memory correction
 
-In imprint, **correction** means: when the user fixes the agent, preferences land in the vault and **recall on the next coding task** steers behaviour back — not model training, not embeddings, but **markdown rules with an explicit lifecycle**.
+> **Setup:** [README.md](../README.md#quick-start). This page is **reference** (ADD / REINFORCE / SUPERSEDE / IGNORE, coding scenarios).
 
-Before every write the agent must **`find` → classify → pick an operation**. imprint stores honestly; it does not decide whether a write should happen.
+When the user fixes the agent, preferences land in `./memory/` and **recall on the next task** steers behaviour. The agent **`find`s → classifies → writes**; users speak normally and never maintain rule ids.
 
 ## Who maintains the vault (no extra burden)
 
