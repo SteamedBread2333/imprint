@@ -9,12 +9,13 @@ LDFLAGS ?= -s -w -X $(MODULE)/pkg/imprint.Version=$(VERSION)
 
 build:
 	CGO_ENABLED=$(CGO_ENABLED) go build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o imprint ./cmd/imprint
+	CGO_ENABLED=$(CGO_ENABLED) go build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o imprint-mcp ./cmd/imprint-mcp
 
 test:
 	go test ./...
 
 install:
-	CGO_ENABLED=$(CGO_ENABLED) go install $(GOFLAGS) -ldflags="$(LDFLAGS)" ./cmd/imprint
+	CGO_ENABLED=$(CGO_ENABLED) go install $(GOFLAGS) -ldflags="$(LDFLAGS)" ./cmd/imprint ./cmd/imprint-mcp
 
 dist:
 	VERSION=$(VERSION) LDFLAGS="$(LDFLAGS)" bash scripts/dist.sh
@@ -24,4 +25,4 @@ publish:
 	bash scripts/publish.sh $(V)
 
 clean:
-	rm -rf imprint imprint.exe dist
+	rm -rf imprint imprint.exe imprint-mcp imprint-mcp.exe dist

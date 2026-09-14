@@ -1,14 +1,16 @@
 ---
-description: Use imprint as long-term memory. Run the imprint CLI; write only explicit user preferences.
+description: Use imprint as long-term memory. Prefer imprint MCP tools; fall back to imprint --json CLI. Write only explicit user preferences.
 alwaysApply: true
 ---
 
 # imprint memory
 
-This project’s long-term memory is **imprint**, not chat history. A global `imprint` on PATH plus this rule is enough.
+This project's long-term memory is **imprint**, not chat history.
 
-- Vault: `./memory/` (override with `IMPRINT_VAULT` or `--vault`)
-- Call the CLI with `--json`. `path` on add/get is the shard file (`imprint-NNNN.md`), not a per-rule filename. `memory/notes/` is generated and read-only.
+- **Transport:** Prefer **imprint MCP** tools when the `imprint` server is connected in the host. If MCP is not mounted or a tool call fails, fall back to `imprint --json` in the shell. Same vault, same JSON shapes — do not use both for one operation.
+- Vault: `./memory/` (override with `IMPRINT_VAULT` or `--vault` / `--global`)
+- MCP mount: see `docs/mcp.md` and `docs/examples/cursor-mcp.json`. Correction loop + coding examples: `docs/correction.md` / `docs/correction.zh.md`.
+- `path` on add/get is the shard file (`imprint-NNNN.md`), not a per-rule filename. `memory/notes/` is generated and read-only.
 - Effects: `find` tags are **AND**, then `--query` is optional BM25 (not embeddings); `add` only after ADD (`claim`, `--scope`, `--text` required); `reinforce` +0.1 (cap 0.95); `supersede` archives the old rule and writes a new one; `get` includes `evidence_log` and `referenced_by`; `forget` strips inbound links; `list` accepts `--scope`, `--query`, `--min-confidence`, `--since`.
 
 ```bash
@@ -28,16 +30,15 @@ imprint --json --vault ./memory viz --format notes
 
 ## Must do
 
-1. Before coding or answering style/convention questions, `find` with a **narrow scope** (e.g. `go,naming`). Cite `[r-id]` when a hit shapes behavior.
+1. Before coding or answering style/convention questions, `find` (MCP tool or CLI) with a **narrow scope** (e.g. `go,naming`). Cite `[r-id]` when a hit shapes behavior.
 2. Before modifying anything, analyze the requirement until it is complete.
 3. Before every write, classify: ADD / REINFORCE / SUPERSEDE / IGNORE. Never add a duplicate.
-4. Record only what the user **said**. Starting confidence 0.6; corrections 0.85; “from now on always” 0.9.
-5. User says forget / don’t record → `forget` or skip the write.
+4. Record only what the user **said**. Starting confidence 0.6; corrections 0.85; "from now on always" 0.9.
+5. User says forget / don't record → `forget` or skip the write.
 6. User asks what is recorded / to see the picture → `show`; if more than ~20 items, `viz` (HTML by default, or `--format mermaid` / `--format notes`) and tell them the path.
 7. After development on this project, update README (including the flowchart) and all docs; self-test thoroughly.
 
 ## Must not
 
-- Infer preferences. Don’t store secrets. Don’t archive by hand (`imprint sweep` only). Don’t hand-edit `memory/notes/`.
-- Call the system “memory store” in user-facing text — it is **imprint**.
-- Ship or use an imprint MCP server. Agents read the CLI.
+- Infer preferences. Don't store secrets. Don't archive by hand (`imprint sweep` only). Don't hand-edit `memory/notes/`.
+- Call the system "memory store" in user-facing text — it is **imprint**.

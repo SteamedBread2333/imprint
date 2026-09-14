@@ -8,7 +8,7 @@
   </p>
   <p>
     <a href="https://github.com/SteamedBread2333/imprint/releases"><img src="https://img.shields.io/github/v/release/SteamedBread2333/imprint?include_prereleases&style=flat-square" alt="release" /></a>
-    <img src="https://img.shields.io/badge/go-1.23+-00ADD8?style=flat-square" alt="Go 1.23+" />
+    <img src="https://img.shields.io/badge/go-1.25+-00ADD8?style=flat-square" alt="Go 1.25+" />
     <img src="https://img.shields.io/badge/license-MIT-c4a574?style=flat-square" alt="MIT" />
   </p>
 </div>
@@ -17,7 +17,7 @@ User corrections → portable markdown. Go static binary, zero runtime, MIT.
 
 Agents forget. Users repeat themselves. imprint is the file-backed memory they share: preferences, corrections, and decisions, stored as ordinary markdown, recalled by scope (AND) plus BM25 keyword ranking, superseded instead of stacked.
 
-Agents never talk to a server. They run the global `imprint --json` CLI. Humans audit the same vault with `get`, `list`, `viz`, or the optional read-only `notes/` cards.
+Agents use **`imprint-mcp`** or the global `imprint --json` CLI — same vault, same JSON shapes. Humans audit with `get`, `list`, `viz`, or the optional read-only `notes/` cards.
 
 ```mermaid
 flowchart LR
@@ -73,21 +73,22 @@ sequenceDiagram
 
 | Phase | What happens |
 | --- | --- |
-| **Bootstrap** | `go install` → `imprint init` writes `.cursor/rules/imprint-memory.mdc` (alwaysApply, CLI only). Vault defaults to `./memory/`, or `~/.imprint` with `--global`, overridable via `--vault` / `IMPRINT_VAULT`. |
+| **Bootstrap** | `go install` → `imprint init` writes `.cursor/rules/imprint-memory.mdc` (alwaysApply). Optional: mount `imprint-mcp` in `.cursor/mcp.json` ([docs/mcp.md](docs/mcp.md)). Vault defaults to `./memory/`, or `~/.imprint` with `--global`, overridable via `--vault` / `IMPRINT_VAULT`. |
 | **Agent loop** | `find` recalls; the agent classifies **ADD / REINFORCE / SUPERSEDE / IGNORE**; writes go through `add`, `reinforce`, or `supersede` (old rule → `archive/`). `get` loads one rule with evidence and backlinks. |
 | **Vault** | Rules pack into `imprint-NNNN.md` shards; `sweep` and `supersede` move copies to `archive/`; `forget` deletes and strips inbound links. |
 | **Human views** | Same CLI: `list`, `show`, `get`, `export`. `viz` builds `dashboard.html` (list / graph, filters, URL state, EN/中文), mermaid on stdout, or read-only `notes/` cards. |
-| **Not here** | No MCP server. Whether to write at all is the agent's judgment call. |
+| **Not here** | Whether to write at all is the agent's judgment call (ADD / REINFORCE / SUPERSEDE / IGNORE). |
 
-Writes go through the CLI only. `notes/` is generated; do not hand-edit it.
+Agents use MCP tools or `imprint --json`. `notes/` is generated; do not hand-edit it.
 
 ## Install
 
 ```bash
 go install github.com/SteamedBread2333/imprint/cmd/imprint@latest
+go install github.com/SteamedBread2333/imprint/cmd/imprint-mcp@latest
 ```
 
-Requires Go 1.23+. `CGO_ENABLED=0` — no libc, no database, no network at runtime.
+Requires Go 1.25+ (1.23+ for `imprint` alone if you skip MCP). `CGO_ENABLED=0` — no libc, no database, no network at runtime.
 
 Or download a platform archive from [GitHub Releases](https://github.com/SteamedBread2333/imprint/releases), or the container from GitHub Packages:
 
@@ -194,6 +195,13 @@ imprint clear --confirm --yes        # irreversible
 
 Global flags: `--vault PATH`, `--global`, `--json`.
 
+## Memory correction
+
+How user corrections become vault updates — with coding scenarios (ADD / REINFORCE / SUPERSEDE / IGNORE):
+
+- [docs/correction.md](docs/correction.md)
+- [docs/correction.zh.md](docs/correction.zh.md)
+
 ## Cursor
 
 Install the binary globally, then drop an `alwaysApply` rule in the project:
@@ -204,7 +212,7 @@ cd your-project
 imprint init
 ```
 
-That writes `.cursor/rules/imprint-memory.mdc`. Agents run `imprint --json` against `./memory/` (or `IMPRINT_VAULT` / `--global` for `~/.imprint`). There is no MCP server. `find` keeps scope as a hard AND filter, then ranks `--query` with field-weighted BM25 (claim > scope > evidence > body), including CJK character n-grams. `get` returns `referenced_by`. The HTML dashboard is self-contained (embedded D3, no CDN). Home is a **list / graph** switch (only when no filters): census or every node on one radial relation map (fill colour is scope, rings are hops, click a node to re-root). Filters, view, edges, labels, language, and the selected node sync to the URL — back/forward and refresh keep state. English by default; **中文** toggles Chinese. Open `dashboard.html` and press **?** for the legend. Filters are match-all; labels stay off until you zoom or hover.
+That writes `.cursor/rules/imprint-memory.mdc`. Agents use **`imprint-mcp`** (see [docs/mcp.md](docs/mcp.md) and [docs/examples/cursor-mcp.json](docs/examples/cursor-mcp.json)) or `imprint --json` against `./memory/` (or `IMPRINT_VAULT` / `--global` for `~/.imprint`). `init` does not write `mcp.json` — add the mount yourself. `find` keeps scope as a hard AND filter, then ranks `--query` with field-weighted BM25 (claim > scope > evidence > body), including CJK character n-grams. `get` returns `referenced_by`. The HTML dashboard is self-contained (embedded D3, no CDN). Home is a **list / graph** switch (only when no filters): census or every node on one radial relation map (fill colour is scope, rings are hops, click a node to re-root). Filters, view, edges, labels, language, and the selected node sync to the URL — back/forward and refresh keep state. English by default; **中文** toggles Chinese. Open `dashboard.html` and press **?** for the legend. Filters are match-all; labels stay off until you zoom or hover.
 
 ## Release
 

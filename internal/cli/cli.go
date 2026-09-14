@@ -272,7 +272,7 @@ func commandHelp(cmd string) string {
 	case "viz":
 		return "Usage: imprint viz [--out PATH] [--format html|mermaid|notes] [--include-archived]\n"
 	case "init":
-		return "Usage: imprint init [--force]\n\nWrites .cursor/rules/imprint-memory.mdc so agents run imprint --json.\n"
+		return "Usage: imprint init [--force]\n\nWrites .cursor/rules/imprint-memory.mdc (prefer imprint MCP; fall back to imprint --json).\n"
 	case "export":
 		return "Usage: imprint export\n"
 	case "clear":
