@@ -21,17 +21,65 @@
 
 ```mermaid
 flowchart LR
-  U[用户] -->|偏好、纠正、决策| A[智能体]
-  A -->|ADD / REINFORCE / SUPERSEDE / IGNORE| C["imprint --json"]
-  C --> V[Vault]
-  V --> S["imprint-NNNN.md 分片"]
-  V --> X[archive/]
-  A -->|find：scope AND 然后 BM25| C
-  H[人] -->|get / list / viz / notes| V
-  C -->|写入| D["若已有 dashboard.html 则刷新"]
+  Setup["install · init"] -.-> CLI
+
+  User((用户)) --> Agent[智能体]
+  Human((人))
+
+  Agent <-->|find · write · get| CLI["imprint --json"]
+  Human <-->|list · viz · export| CLI
+
+  CLI <-->|读 / 写| Vault[(memory/)]
+
+  Vault --- Disk
+
+  subgraph Disk["磁盘上"]
+    direction TB
+    Shards[imprint-NNNN.md]
+    Archive[archive/]
+    Dash[dashboard.html]
+    Notes[notes/]
+  end
+
+  CLI -.->|刷新| Dash
 ```
 
-写入只走 CLI。`notes/` 是生成出来的显微镜，不要手改。没有 MCP 服务。
+```mermaid
+sequenceDiagram
+  autonumber
+  participant U as 用户
+  participant A as 智能体
+  participant C as imprint CLI
+  participant V as Vault
+
+  U->>A: 偏好 / 纠正 / 决策
+  A->>C: find — scope AND，再 BM25
+  C->>V: 读分片
+  V-->>C: 命中
+  C-->>A: 排序后的规则
+
+  alt ADD · REINFORCE · SUPERSEDE
+    A->>C: add / reinforce / supersede
+    C->>V: 更新 markdown
+    opt 已有 dashboard.html
+      C->>V: 刷新 dashboard
+    end
+  else IGNORE
+    A->>A: 不写，继续任务
+  end
+
+  Note over A,C: get — 单条规则的 evidence_log 与 referenced_by
+```
+
+| 阶段 | 做什么 |
+| --- | --- |
+| **初始化** | `go install` → `imprint init` 写入 `.cursor/rules/imprint-memory.mdc`（alwaysApply，只走 CLI）。Vault 默认 `./memory/`，`--global` 用 `~/.imprint`，也可用 `--vault` / `IMPRINT_VAULT` 覆盖。 |
+| **智能体循环** | `find` 召回；智能体判 **ADD / REINFORCE / SUPERSEDE / IGNORE**；写入走 `add`、`reinforce`、`supersede`（旧规则进 `archive/`）。`get` 拉单条证据与反向引用。 |
+| **Vault** | 规则打进 `imprint-NNNN.md` 分片；`sweep` 与 `supersede` 归档到 `archive/`；`forget` 硬删并清理入链。 |
+| **人工视图** | 同一套 CLI：`list`、`show`、`get`、`export`。`viz` 生成 `dashboard.html`（列表 / 关系图、筛选、URL 状态、中英）、stdout mermaid，或只读 `notes/` 卡片。 |
+| **不负责** | 没有 MCP。要不要写，由智能体判断。 |
+
+写入只走 CLI。`notes/` 是生成出来的，不要手改。
 
 ## 安装
 
@@ -156,7 +204,7 @@ cd your-project
 imprint init
 ```
 
-这会写入 `.cursor/rules/imprint-memory.mdc`。智能体对 `./memory/` 执行 `imprint --json`（或用 `IMPRINT_VAULT` / `--global` 指向 `~/.imprint`）。没有 MCP 服务。`find` 的 scope 仍是硬 AND，`--query` 用字段加权 BM25（claim > scope > evidence > body），中文按字 n-gram。`get` 返回 `referenced_by`。HTML dashboard 自包含（内嵌 D3，无 CDN），图画径向蒲公英：填充色是 scope，环是跳数，点击节点会重新以它为根。打开 `dashboard.html` 按 **?** 看图例。筛选是全部命中；标签默认缩放到近处或悬停才出现。
+这会写入 `.cursor/rules/imprint-memory.mdc`。智能体对 `./memory/` 执行 `imprint --json`（或用 `IMPRINT_VAULT` / `--global` 指向 `~/.imprint`）。没有 MCP 服务。`find` 的 scope 仍是硬 AND，`--query` 用字段加权 BM25（claim > scope > evidence > body），中文按字 n-gram。`get` 返回 `referenced_by`。HTML dashboard 自包含（内嵌 D3，无 CDN）。首页是 **列表 / 关系图** 切换（仅无筛选时）：普查，或全部节点一张径向关系图（填充色是 scope，环是跳数，点击节点会重新以它为根）。筛选、视图、边类型、标签、语言和选中节点会写入 URL — 后退、前进、刷新都保留。默认英文；点 **中文** 切换。打开 `dashboard.html` 按 **?** 看图例。筛选是全部命中；标签默认缩放到近处或悬停才出现。
 
 ## 发布
 

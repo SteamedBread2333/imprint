@@ -21,17 +21,65 @@ Agents never talk to a server. They run the global `imprint --json` CLI. Humans 
 
 ```mermaid
 flowchart LR
-  U[User] -->|preferences, corrections, decisions| A[Agent]
-  A -->|ADD / REINFORCE / SUPERSEDE / IGNORE| C["imprint --json"]
-  C --> V[Vault]
-  V --> S["imprint-NNNN.md shards"]
-  V --> X[archive/]
-  A -->|find: scope AND then BM25| C
-  H[Human] -->|get / list / viz / notes| V
-  C -->|write| D["dashboard.html refreshed if present"]
+  Setup["install · init"] -.-> CLI
+
+  User((User)) --> Agent[Agent]
+  Human((Human))
+
+  Agent <-->|find · write · get| CLI["imprint --json"]
+  Human <-->|list · viz · export| CLI
+
+  CLI <-->|read / write| Vault[(memory/)]
+
+  Vault --- Disk
+
+  subgraph Disk["on disk"]
+    direction TB
+    Shards[imprint-NNNN.md]
+    Archive[archive/]
+    Dash[dashboard.html]
+    Notes[notes/]
+  end
+
+  CLI -.->|refresh| Dash
 ```
 
-Writes go through the CLI. `notes/` is a generated microscope; do not hand-edit it. There is no MCP server.
+```mermaid
+sequenceDiagram
+  autonumber
+  participant U as User
+  participant A as Agent
+  participant C as imprint CLI
+  participant V as Vault
+
+  U->>A: preference / correction / decision
+  A->>C: find — scope AND, then BM25
+  C->>V: read shards
+  V-->>C: hits
+  C-->>A: ranked rules
+
+  alt ADD · REINFORCE · SUPERSEDE
+    A->>C: add / reinforce / supersede
+    C->>V: update markdown
+    opt dashboard.html exists
+      C->>V: refresh dashboard
+    end
+  else IGNORE
+    A->>A: continue without write
+  end
+
+  Note over A,C: get — evidence_log & referenced_by when one rule matters
+```
+
+| Phase | What happens |
+| --- | --- |
+| **Bootstrap** | `go install` → `imprint init` writes `.cursor/rules/imprint-memory.mdc` (alwaysApply, CLI only). Vault defaults to `./memory/`, or `~/.imprint` with `--global`, overridable via `--vault` / `IMPRINT_VAULT`. |
+| **Agent loop** | `find` recalls; the agent classifies **ADD / REINFORCE / SUPERSEDE / IGNORE**; writes go through `add`, `reinforce`, or `supersede` (old rule → `archive/`). `get` loads one rule with evidence and backlinks. |
+| **Vault** | Rules pack into `imprint-NNNN.md` shards; `sweep` and `supersede` move copies to `archive/`; `forget` deletes and strips inbound links. |
+| **Human views** | Same CLI: `list`, `show`, `get`, `export`. `viz` builds `dashboard.html` (list / graph, filters, URL state, EN/中文), mermaid on stdout, or read-only `notes/` cards. |
+| **Not here** | No MCP server. Whether to write at all is the agent's judgment call. |
+
+Writes go through the CLI only. `notes/` is generated; do not hand-edit it.
 
 ## Install
 
@@ -156,7 +204,7 @@ cd your-project
 imprint init
 ```
 
-That writes `.cursor/rules/imprint-memory.mdc`. Agents run `imprint --json` against `./memory/` (or `IMPRINT_VAULT` / `--global` for `~/.imprint`). There is no MCP server. `find` keeps scope as a hard AND filter, then ranks `--query` with field-weighted BM25 (claim > scope > evidence > body), including CJK character n-grams. `get` returns `referenced_by`. The HTML dashboard is self-contained (embedded D3, no CDN) and draws a radial dandelion: fill colour is scope, rings are hops, click a node to re-root. Open `dashboard.html` and press **?** for the legend. Filters are match-all; labels stay off until you zoom or hover.
+That writes `.cursor/rules/imprint-memory.mdc`. Agents run `imprint --json` against `./memory/` (or `IMPRINT_VAULT` / `--global` for `~/.imprint`). There is no MCP server. `find` keeps scope as a hard AND filter, then ranks `--query` with field-weighted BM25 (claim > scope > evidence > body), including CJK character n-grams. `get` returns `referenced_by`. The HTML dashboard is self-contained (embedded D3, no CDN). Home is a **list / graph** switch (only when no filters): census or every node on one radial relation map (fill colour is scope, rings are hops, click a node to re-root). Filters, view, edges, labels, language, and the selected node sync to the URL — back/forward and refresh keep state. English by default; **中文** toggles Chinese. Open `dashboard.html` and press **?** for the legend. Filters are match-all; labels stay off until you zoom or hover.
 
 ## Release
 

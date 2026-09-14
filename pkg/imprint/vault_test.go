@@ -437,8 +437,26 @@ func TestVizHTMLAndMermaid(t *testing.T) {
 	if !bytes.Contains(body, []byte(`class="palette"`)) || !bytes.Contains(body, []byte("paintLegend")) {
 		t.Fatalf("dashboard missing scope colour palette")
 	}
+	if !bytes.Contains(body, []byte(`class="legend-edges"`)) {
+		t.Fatal("dashboard missing edge line legend")
+	}
 	if bytes.Contains(body, []byte("unpkg.com")) || bytes.Contains(body, []byte("cytoscape(")) {
 		t.Fatal("dashboard still references CDN or cytoscape")
+	}
+	if !bytes.Contains(body, []byte(`id="viewList"`)) || !bytes.Contains(body, []byte(`id="viewMap"`)) {
+		t.Fatal("dashboard missing list/graph home switch")
+	}
+	if !bytes.Contains(body, []byte(`id="viewSwitch"`)) {
+		t.Fatal("dashboard missing home-only view switch container")
+	}
+	if !bytes.Contains(body, []byte("pushState")) || !bytes.Contains(body, []byte("popstate")) {
+		t.Fatal("dashboard missing URL query history sync")
+	}
+	if !bytes.Contains(body, []byte(`id="langBtn"`)) || !bytes.Contains(body, []byte("const I18N")) {
+		t.Fatal("dashboard missing bilingual UI")
+	}
+	if bytes.Contains(body, []byte(`id="graphAll"`)) || bytes.Contains(body, []byte("forceGraph")) {
+		t.Fatal("dashboard still uses hidden graph-all toggle")
 	}
 	m, err := v.Viz("", "mermaid", true)
 	if err != nil {

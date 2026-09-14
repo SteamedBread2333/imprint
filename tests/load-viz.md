@@ -15,9 +15,10 @@
 已改模板（刷新 `memory/dashboard.html`）：
 
 - ≤16 个点：圆布局，标签带 claim 摘要
-- 全库 >40 且未过滤：**先总览**（scope 条、supersede 链列表），不画全图
-- 过滤后的切片：最多画 300 个点（有边的优先，其余按 confidence）
-- 「graph anyway」才强行画当前切片
+- 全库 >40 且未过滤：默认 **list** 总览（scope 条、supersede 链列表）；**list / 关系图** 开关只在首页出现
+- 工具栏切到 **graph**：未过滤时画当前命中的全部节点（仍最多 300 点，有边的优先）
+- 筛选、视图、边、标签、语言、选中节点进 URL；后退/刷新保留
+- 点左侧 scope 打开该簇；清筛选不会把视图切回 list
 
 ## 3000 条压测
 
@@ -35,7 +36,7 @@ open tests/loadvault/dashboard.html
 | `imprint viz --include-archived` | **69ms**，`tests/loadvault/dashboard.html` **1.16MB**，`rules_count=3000` |
 | `find --scope go,naming --top-k 5` | **64ms**，5 hits（例：`r-2025-02-07-001` score 0.975） |
 
-打开 loadvault 的 dashboard 时：默认应是 **3000 rules 总览 + scope 条**，不是 3000 个绿点。点左侧 `go` 或 `naming` 才会出图；图上应能看到 supersede 红箭头，而不是均匀撒点。
+打开 loadvault 的 dashboard 时：默认应是 **3000 rules 总览 + scope 条**，不是 3000 个绿点。工具栏 **graph** 才画全库（截到 300）。点左侧 `go` 或 `naming` 打开该簇；图上应能看到 supersede 红箭头，而不是均匀撒点。
 
 本机 vault `./memory/` 是打包后的 `imprint-0001.md`（真实规则，不是压测数据）。压测目录已 gitignore。
 
