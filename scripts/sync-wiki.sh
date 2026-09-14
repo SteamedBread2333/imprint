@@ -1,15 +1,25 @@
 #!/usr/bin/env bash
 # Sync docs/ (+ README pointers) to the GitHub Wiki git repository.
-# Requires: GITHUB_REPOSITORY, GITHUB_TOKEN
-# Optional: GITHUB_REF_NAME, GITHUB_SHA
+# Requires: GITHUB_REPOSITORY, and WIKI_PUSH_TOKEN or GITHUB_TOKEN
+# Optional: GITHUB_ACTOR (required when using a PAT), GITHUB_REF_NAME, GITHUB_SHA
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 REPO="${GITHUB_REPOSITORY:?GITHUB_REPOSITORY required}"
-TOKEN="${GITHUB_TOKEN:?GITHUB_TOKEN required}"
+TOKEN="${WIKI_PUSH_TOKEN:-${GITHUB_TOKEN:?WIKI_PUSH_TOKEN or GITHUB_TOKEN required}}"
 REF="${GITHUB_REF_NAME:-main}"
 SHA="${GITHUB_SHA:-local}"
-WIKI_URL="https://x-access-token:${TOKEN}@github.com/${REPO}.wiki.git"
+
+wiki_url() {
+  if [[ "$TOKEN" == ghp_* || "$TOKEN" == github_pat_* ]]; then
+    local actor="${GITHUB_ACTOR:?GITHUB_ACTOR required when using a PAT}"
+    echo "https://${actor}:${TOKEN}@github.com/${REPO}.wiki.git"
+  else
+    echo "https://x-access-token:${TOKEN}@github.com/${REPO}.wiki.git"
+  fi
+}
+
+WIKI_URL="$(wiki_url)"
 
 WORKDIR="$(mktemp -d)"
 trap 'rm -rf "$WORKDIR"' EXIT
@@ -74,7 +84,21 @@ push_wiki() {
   if [[ -z "$branch" ]]; then
     branch=master
   fi
-  git -C "$w" push origin "HEAD:${branch}"
+  if ! git -C "$w" push origin "HEAD:${branch}"; then
+    if [[ -z "${WIKI_PUSH_TOKEN:-}" ]]; then
+      echo "::warning::Wiki push failed using GITHUB_TOKEN. Set repo secret WIKI_PUSH_TOKEN (PAT with repo Contents write)."
+    fi
+    cat >&2 <<EOF
+::error::Wiki push failed for https://github.com/${REPO}.wiki
+
+1. Enable Wikis: https://github.com/${REPO}/settings — Features → Wikis
+2. Add repository secret \`WIKI_PUSH_TOKEN\` — fine-grained PAT (Contents: read/write on this repo)
+   or classic PAT with \`repo\` scope: https://github.com/settings/tokens
+
+GITHUB_TOKEN alone usually cannot push to *.wiki.git (GitHub often reports "Repository not found").
+EOF
+    exit 128
+  fi
   echo "→ pushed wiki (${branch})"
 }
 

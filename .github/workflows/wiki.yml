@@ -1,3 +1,11 @@
+# Sync docs/ to the repo's GitHub Wiki (*.wiki.git).
+#
+# One-time setup (repo owner):
+#   1. Settings → Features → enable Wikis
+#   2. Settings → Secrets → add WIKI_PUSH_TOKEN (fine-grained PAT with Contents
+#      read/write on this repo, or classic PAT with repo scope)
+#
+# GITHUB_TOKEN alone cannot push to wiki repos on most accounts.
 name: wiki
 
 on:
@@ -29,7 +37,9 @@ jobs:
 
       - name: Sync docs to GitHub Wiki
         env:
+          WIKI_PUSH_TOKEN: ${{ secrets.WIKI_PUSH_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_REF_NAME: ${{ github.ref_name }}
           GITHUB_SHA: ${{ github.sha }}
