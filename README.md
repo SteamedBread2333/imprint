@@ -36,9 +36,9 @@ Optional — mount MCP in `.cursor/mcp.json` (merge [docs/examples/cursor-mcp.js
 | 2 | Code and correct in plain language | Agent `find` → ADD / REINFORCE / SUPERSEDE / IGNORE → writes `./memory/` |
 | 3 | Open `memory/dashboard.html` when curious | List / graph view of what was recorded |
 
-<p align="center"><em>Figure 1 — [Screenshot placeholder] IDE chat: user states a coding preference; agent recalls imprint on the next task.</em></p>
+<p align="center"><em>Figure 1 — [Screenshot placeholder] <code>memory/dashboard.html</code> home: census list view (unfiltered).</em></p>
 
-<p align="center"><em>Figure 2 — [Screenshot placeholder] <code>memory/dashboard.html</code>: list / graph views, filters, scope-colored nodes.</em></p>
+<p align="center"><em>Figure 2 — [Screenshot placeholder] <code>memory/dashboard.html</code> graph view: radial relation map, scope-colored nodes.</em></p>
 
 Further reading → [Documentation](#documentation) (all files under `docs/`).
 

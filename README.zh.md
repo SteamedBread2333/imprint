@@ -36,9 +36,9 @@ imprint init
 | 2 | 正常写代码、正常纠正 | 智能体 `find` → ADD / REINFORCE / SUPERSEDE / IGNORE → 写入 `./memory/` |
 | 3 | 想看存了什么时打开 `memory/dashboard.html` | 列表 / 关系图审计 |
 
-<p align="center"><em>图 1 — [截图占位] IDE 对话：用户说明编码偏好，智能体在后续任务中通过 imprint 召回并遵守。</em></p>
+<p align="center"><em>图 1 — [截图占位] <code>memory/dashboard.html</code> 首页：无筛选时的普查列表视图。</em></p>
 
-<p align="center"><em>图 2 — [截图占位] <code>memory/dashboard.html</code>：列表 / 关系图、筛选、按 scope 着色节点。</em></p>
+<p align="center"><em>图 2 — [截图占位] <code>memory/dashboard.html</code> 关系图：径向关系图，节点按 scope 着色。</em></p>
 
 更多细节 → [文档](#文档)（`docs/` 下全部文件）。
 
