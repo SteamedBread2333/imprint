@@ -4,6 +4,18 @@ imprint 的「纠偏」指：**用户纠正智能体后，如何把偏好写进 
 
 智能体在每次写入前必须 **`find` → 分类 → 选操作**；imprint 只负责诚实存储，不替智能体决定「该不该写」。
 
+## 谁维护 vault（无额外心智负担）
+
+**用户**只在正常写代码、正常说话——纠正、确认、否定偏好即可，**不需要**知道 `imprint`、`forget`、规则 id 或任何维护口令。
+
+**智能体**负责：`find`、分类、`add` / `reinforce` / `supersede` / `forget`；用户说「别记了」「那个不算了」「以后看 STYLE.md」时，由智能体查 vault 并执行，**不要**让用户复述命令或 id。
+
+**人（可选）**想审计时再打开 `memory/dashboard.html` 或跑 `show` / `viz`——这是查阅，不是日常维护流程。
+
+**Review + 剪枝（允许）**用户可以说「帮我看看命名相关的记忆，过时的砍掉」——智能体用 `show` / `viz` / `get` 展示链路与分支，用**自然语言**说明，用户确认后由智能体 `supersede` / `forget` / `sweep`。**禁止**的是让用户自己报 id 或跑命令，不是禁止整理 vault。
+
+文档里的 CLI / MCP 示例是**智能体执行面**，不是要求用户背诵的操作手册。
+
 ## 纠偏循环
 
 ```mermaid
@@ -54,7 +66,7 @@ sequenceDiagram
 
 | 操作 | 何时用 |
 | --- | --- |
-| **forget** | 用户明确「忘记 / 不要记录这条」 |
+| **forget** | 用户用**日常口语**否定某条（「别记了」「那个不算」）；由智能体 `find` 后 `forget`，用户不提 imprint |
 | **sweep** | 定期衰减长期未触达规则（默认 90 天 −0.05；低于 0.3 → `dormant` 归档） |
 
 ### 置信度约定（智能体侧）
@@ -185,23 +197,41 @@ imprint --json --vault ./memory supersede r-2026-09-14-002 \
 - `find` 可不写 vault  
 - 分类：**IGNORE**
 
-不写 `add`。若误存，用户说「这个别记」→ `forget ID`。
+不写 `add`。若误存，用户随口「这个别记」→ 智能体 **`find` + `forget`**，用户无需知道 id。
 
 ---
 
-### 场景 6：明确删除 — forget
+### 场景 6：偏好作废 — 用户只说话，智能体收尾
 
 **对话**
 
-> 用户：别再记 PascalCase 那条了，我们项目改规范文档了，imprint 里删掉。
+> 用户：命名以后以仓库里的 `STYLE.md` 为准，之前说的 PascalCase 导出约定不用了。
+
+**智能体**
+
+1. `find --scope go,naming` → 命中旧规则 `r-2026-09-14-003`  
+2. 分类：**SUPERSEDE**（政策迁到 `STYLE.md`，保留审计链）或 **forget**（用户否定「别记这类命名偏好」时）  
+3. **用户全程不说 imprint**；下面命令由智能体执行
+
+**首选 supersede**（可追溯）：
+
+```bash
+imprint --json --vault ./memory supersede r-2026-09-14-003 \
+  --claim "Follow STYLE.md for naming; imprint does not override the style guide" \
+  --scope go,naming,docs \
+  --reason "naming policy moved to STYLE.md" \
+  --text "命名以后以仓库里的 STYLE.md 为准，之前说的 PascalCase 导出约定不用了"
+```
+
+**若用户是否定「不要再用 imprint 记命名」**（口语「别记这些了」）→ `forget`：
 
 ```bash
 imprint --json --vault ./memory forget r-2026-09-14-003
 ```
 
-MCP `forget`：`id`。
+MCP：同上，`supersede` 或 `forget`，参数由智能体从对话解析。
 
-**结果**：规则从 shard 删除；其他规则里指向它的 `related` / `supersedes` / `conflicts_with` 会被清理。
+**回复用户**：确认已按 `STYLE.md` 执行即可，**不要**让用户确认规则 id 或选择命令。
 
 ---
 
@@ -225,7 +255,7 @@ imprint --json --vault ./memory find --scope go,naming --query export
 
 | 机制 | 触发 | 适用 |
 | --- | --- | --- |
-| **supersede / forget** | 用户纠正 | 规则**错了**或**作废** |
+| **supersede / forget** | 用户日常口语纠正 | 规则**错了**或**作废**（智能体执行，用户不维护 vault） |
 | **reinforce** | 用户重复确认 | 规则**仍对**，加强信心 |
 | **sweep** | 运维 / 定期任务 | 长期未引用偏好**淡出**（默认 90 天未 touch −0.05；&lt; 0.3 → dormant） |
 

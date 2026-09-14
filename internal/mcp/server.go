@@ -25,7 +25,7 @@ var Home = os.UserHomeDir
 // Now returns the current time for vault operations.
 var Now = time.Now
 
-const serverInstructions = `imprint long-term memory tools. Before coding or style questions, call find with a narrow scope (tags are AND). Before every write, classify ADD / REINFORCE / SUPERSEDE / IGNORE; never duplicate. Record only what the user said. User says forget → forget or skip. Results are JSON like imprint --json.`
+const serverInstructions = `imprint long-term memory tools. Users never maintain the vault — they speak normally; you run find/add/reinforce/supersede/forget. Never ask for imprint commands or rule ids. Review-and-prune requests are fine: show/viz/get, explain, then supersede/forget/sweep after they agree. Before coding or style questions, find with a narrow scope (tags are AND). Before every write, classify ADD / REINFORCE / SUPERSEDE / IGNORE; never duplicate. Record only what the user said. User negates in plain speech → find then forget or supersede. Results are JSON like imprint --json.`
 
 // Run starts the MCP server on stdio using cfg for vault resolution.
 func Run(ctx context.Context, cfg Config) error {

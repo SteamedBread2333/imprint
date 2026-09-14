@@ -4,6 +4,18 @@ In imprint, **correction** means: when the user fixes the agent, preferences lan
 
 Before every write the agent must **`find` → classify → pick an operation**. imprint stores honestly; it does not decide whether a write should happen.
 
+## Who maintains the vault (no extra burden)
+
+**Users** keep working and talking normally — corrections and confirmations in plain language. They do **not** need to know `imprint`, `forget`, rule ids, or maintenance phrases.
+
+**Agents** run `find`, classify, and call `add` / `reinforce` / `supersede` / `forget`. When the user says “don’t record that” or “we follow STYLE.md now”, the agent queries the vault and acts — never ask the user to repeat a command or id.
+
+**Humans (optional)** audit via `memory/dashboard.html` or `show` / `viz` when curious — that is read-only review, not a daily chore.
+
+**Review + prune (allowed):** the user may say “review naming memories and cut obsolete branches”. The agent uses `show` / `viz` / `get`, explains in plain language, then `supersede` / `forget` / `sweep` after they agree. Forbidden is making them supply ids or run CLI — not tidying the vault.
+
+CLI / MCP snippets in this doc are the **agent execution surface**, not a user manual to memorise.
+
 ## Correction loop
 
 ```mermaid
@@ -54,7 +66,7 @@ Also:
 
 | Op | When |
 | --- | --- |
-| **forget** | User explicitly "forget / don't record this" |
+| **forget** | User negates in **plain speech** (“don’t record that”); agent `find`s then `forget`s — user never mentions imprint |
 | **sweep** | Periodic decay of untouched rules (default 90d −0.05; below 0.3 → `dormant`) |
 
 ### Confidence (agent convention)
@@ -160,13 +172,29 @@ Task instruction, not a long-term preference → **IGNORE**. No `add`.
 
 ---
 
-### 6. User deletes a rule — forget
+### 6. Preference voided — user talks, agent cleans up
 
-**User:** Drop the PascalCase rule — we moved that to the official style guide.
+**User:** Use `STYLE.md` for naming from now on — the PascalCase export rule we used before is gone.
+
+**Agent**
+
+1. `find --scope go,naming` → old rule `r-2026-09-14-003`  
+2. **SUPERSEDE** (policy moved to `STYLE.md`, keep audit trail) or **forget** (user rejects imprint-stored naming prefs entirely)  
+3. User never says “imprint”; commands below are agent-only
+
+**Prefer supersede:**
 
 ```bash
-imprint --json --vault ./memory forget r-2026-09-14-003
+imprint --json --vault ./memory supersede r-2026-09-14-003 \
+  --claim "Follow STYLE.md for naming; imprint does not override the style guide" \
+  --scope go,naming,docs \
+  --reason "naming policy moved to STYLE.md" \
+  --text "Use STYLE.md for naming from now on — the PascalCase export rule we used before is gone"
 ```
+
+**If the user rejects imprint-held naming prefs** (“stop recording these”) → `forget r-2026-09-14-003`.
+
+Reply in normal language — do not ask the user to confirm a rule id or pick a command.
 
 ---
 
@@ -188,7 +216,7 @@ Hit `[r-2026-09-14-002]` → name the method `GetProfile`, not `get_profile`; ci
 
 | Mechanism | Trigger | Use when |
 | --- | --- | --- |
-| **supersede / forget** | User correction | Rule is **wrong** or **void** |
+| **supersede / forget** | User speaks in plain language | Rule **wrong** or **void** (agent acts; user does not maintain the vault) |
 | **reinforce** | User repeats | Rule still **valid**, strengthen |
 | **sweep** | Ops / cron | Stale preferences **fade** (default 90d untouched −0.05; &lt; 0.3 → dormant) |
 
