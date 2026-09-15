@@ -47,11 +47,23 @@ func Run(ctx context.Context, cfg Config) error {
 		Instructions: serverInstructions,
 	})
 	registerTools(server, v)
-	if cfgPath, err := plugin.ResolveConfigPath(Getwd); err == nil {
+	if cfgPath := resolvePluginConfigPath(v.Dir); cfgPath != "" {
 		registerPluginTools(server, cfgPath)
 	}
 
 	return server.Run(ctx, &sdkmcp.StdioTransport{})
+}
+
+// resolvePluginConfigPath pairs plugin config with the vault from --vault.
+func resolvePluginConfigPath(vaultDir string) string {
+	if path, ok := plugin.ResolveConfigPathForVault(vaultDir); ok {
+		return path
+	}
+	path, err := plugin.ResolveConfigPath(Getwd)
+	if err != nil {
+		return ""
+	}
+	return path
 }
 
 // Usage returns help text for -h.

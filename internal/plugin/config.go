@@ -32,11 +32,7 @@ type Config struct {
 }
 
 // ResolveConfigPath walks up from cwd for .imprint/imprint.yaml.
-// IMPRINT_WORKSPACE (absolute project root) overrides cwd when set.
 func ResolveConfigPath(getwd func() (string, error)) (string, error) {
-	if ws := strings.TrimSpace(os.Getenv("IMPRINT_WORKSPACE")); ws != "" {
-		return imprint.ConfigPath(ws), nil
-	}
 	if getwd == nil {
 		getwd = os.Getwd
 	}
@@ -52,6 +48,14 @@ func ResolveConfigPath(getwd func() (string, error)) (string, error) {
 		return imprint.ConfigPath(root), nil
 	}
 	return imprint.ConfigPath(cwd), nil
+}
+
+// ResolveConfigPathForVault returns imprint.yaml for the project that owns vaultDir.
+func ResolveConfigPathForVault(vaultDir string) (string, bool) {
+	if root, ok := imprint.FindProjectRootFromVault(vaultDir); ok {
+		return imprint.ConfigPath(root), true
+	}
+	return "", false
 }
 
 // Load reads imprint.yaml from path. Missing file yields defaults.

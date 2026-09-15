@@ -8,17 +8,44 @@ import (
 	"github.com/SteamedBread2333/imprint/pkg/imprint"
 )
 
-func TestResolveConfigPathIMPRINTWorkspace(t *testing.T) {
-	t.Setenv("IMPRINT_WORKSPACE", "/tmp/my-project")
+func TestResolveConfigPathWalkUpIgnoresIMPRINTWorkspace(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := imprint.ConfigPath(dir)
+	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cfgPath, []byte("vault: .imprint/memory\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sub := filepath.Join(dir, "pkg", "foo")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("IMPRINT_WORKSPACE", "/tmp/other-project")
 	t.Cleanup(func() { os.Unsetenv("IMPRINT_WORKSPACE") })
 
-	got, err := ResolveConfigPath(func() (string, error) { return "/elsewhere", nil })
+	got, err := ResolveConfigPath(func() (string, error) { return sub, nil })
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := filepath.Join("/tmp/my-project", imprint.ImprintDirName, imprint.ConfigFileName)
-	if got != want {
-		t.Fatalf("ResolveConfigPath = %q want %q", got, want)
+	if got != cfgPath {
+		t.Fatalf("ResolveConfigPath = %q want %q (must not follow IMPRINT_WORKSPACE)", got, cfgPath)
+	}
+}
+
+func TestResolveConfigPathForVault(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := imprint.ConfigPath(dir)
+	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cfgPath, []byte("vault: .imprint/memory\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, ok := ResolveConfigPathForVault(imprint.DefaultVaultDir(dir))
+	if !ok || got != cfgPath {
+		t.Fatalf("ResolveConfigPathForVault = %q, %v want %q, true", got, ok, cfgPath)
 	}
 }
 
@@ -34,6 +61,37 @@ func TestLoadDefaultsMissingFile(t *testing.T) {
 	}
 	if cfg.Vault != imprint.DefaultVaultRel() {
 		t.Fatalf("vault = %q want %q", cfg.Vault, imprint.DefaultVaultRel())
+	}
+}
+
+func TestLoadPluginEnabledFalse(t *testing.T) {
+	dir := t.TempDir()
+	path := imprint.ConfigPath(dir)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body := `vault: .imprint/memory
+plugins:
+  shelves:
+    enabled: false
+    package: ../imprint-shelves-plugin
+`
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Plugins["shelves"].Enabled {
+		t.Fatal("shelves should be disabled")
+	}
+	routes, skipped := EnabledTools(cfg)
+	if len(routes) != 0 {
+		t.Fatalf("expected no plugin tools, got %d: %+v", len(routes), routes)
+	}
+	if len(skipped) != 0 {
+		t.Fatalf("disabled plugin should not appear in skipped: %v", skipped)
 	}
 }
 

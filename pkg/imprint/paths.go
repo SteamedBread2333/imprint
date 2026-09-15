@@ -39,6 +39,22 @@ func DefaultShelvesCacheDir(projectRoot string) string {
 	return filepath.Join(ImprintDir(projectRoot), ".shelves", ".cache")
 }
 
+// FindProjectRootFromVault walks up from vaultDir for .imprint/imprint.yaml.
+func FindProjectRootFromVault(vaultDir string) (string, bool) {
+	dir := filepath.Clean(vaultDir)
+	for {
+		if st, err := os.Stat(ConfigPath(dir)); err == nil && !st.IsDir() {
+			return dir, true
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+	return "", false
+}
+
 // FindProjectRoot walks up from cwd for .imprint/imprint.yaml or .imprint/memory.
 func FindProjectRoot(getwd func() (string, error)) (string, bool, error) {
 	if getwd == nil {

@@ -17,7 +17,11 @@ func registerPluginTools(server *sdkmcp.Server, cfgPath string) {
 		fmt.Fprintf(os.Stderr, "imprint-mcp: plugin config %s: %v\n", cfgPath, err)
 		return
 	}
+	fmt.Fprintf(os.Stderr, "imprint-mcp: plugin config %s\n", cfgPath)
 	routes, skipped := plugin.EnabledTools(cfg)
+	if len(routes) == 0 {
+		fmt.Fprintf(os.Stderr, "imprint-mcp: no plugin tools registered\n")
+	}
 	for _, msg := range skipped {
 		fmt.Fprintf(os.Stderr, "imprint-mcp: %s\n", msg)
 	}

@@ -13,7 +13,7 @@ plugins:
     config:
       port: 4173
   shelves:
-    enabled: true
+    enabled: false
     package: ../imprint-shelves-plugin
     config:
       port: 4174
