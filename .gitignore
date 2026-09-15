@@ -28,8 +28,7 @@ go.work.sum
 !.env.example
 
 # --- vault & plugin caches (user data, never commit) ---
-.imprint/memory/
-.imprint/.shelves/.cache/
+.imprint/
 /loadvault/
 
 # --- release packages ---
