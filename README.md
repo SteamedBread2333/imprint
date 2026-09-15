@@ -1,5 +1,5 @@
 <div align="center">
-  <img alt="imprint" width="256" src="https://github.com/user-attachments/assets/744687c8-d732-428e-be40-6562ff7c47ad" />
+  <img alt="imprint" width="256"  src="https://github.com/user-attachments/assets/5c546072-5913-446b-b092-d255fc4fca90" />
   <h1>imprint</h1>
   <p><em>AI agent long-term memory</em></p>
   <p>
