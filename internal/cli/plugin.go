@@ -147,16 +147,20 @@ func (a *App) cmdDesk(g globals, rest []string) int {
 	if err != nil {
 		return a.fail(g.json, err)
 	}
+	vaultDir, err := a.resolveHostVault(g, cfg)
+	if err != nil {
+		return a.fail(g.json, err)
+	}
+	hostURL := cfg.HostURL()
+	if v, ok := fetchHostHealth(hostURL); !ok {
+		return a.fail(g.json, fmt.Errorf("host is not running — run: imprint up (starts host + desk together)"))
+	} else if !vaultPathsEqual(v, vaultDir) {
+		return a.fail(g.json, fmt.Errorf("host on %s serves %s, not this project (%s) — run: imprint up", hostURL, v, vaultDir))
+	}
 	mgr := plugin.NewManager(cfg)
 	url, err := mgr.DeskURL()
 	if err != nil {
-		// try reload once
-		if _, rerr := mgr.Reload(context.Background()); rerr == nil {
-			url, err = mgr.DeskURL()
-		}
-	}
-	if err != nil {
-		return a.fail(g.json, err)
+		return a.fail(g.json, fmt.Errorf("desk is not running — run: imprint up (%w)", err))
 	}
 	if g.json {
 		return boolExit(a.writeJSON(map[string]string{"url": url}))

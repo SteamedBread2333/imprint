@@ -212,6 +212,8 @@ func (a *App) Run(args []string) int {
 		return a.cmdUp(g, rest)
 	case "down":
 		return a.cmdDown(g, rest)
+	case "status":
+		return a.cmdStatus(g, rest)
 	case "plugin":
 		return a.cmdPlugin(g, rest)
 	case "desk":
@@ -250,6 +252,7 @@ Commands:
   clear       Delete every rule (requires --confirm --yes)
   up, dev     Start host + plugins + open desk (daily driver)
   down        Stop background host + plugins (from imprint up)
+  status      Show which vault is live on host/desk ports
   host        Vault read-only HTTP API (host serve)
   plugin      Plugin lifecycle (list, enable, disable, reload)
   desk        Desk UI (desk open)

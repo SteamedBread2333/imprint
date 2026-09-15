@@ -34,6 +34,15 @@ func pidsOnPort(port int) ([]int, error) {
 	return pids, nil
 }
 
+// FreeListenPort kills processes bound to host:port (e.g. 127.0.0.1:9470).
+func FreeListenPort(listen string, wait time.Duration) error {
+	port := ParseListenPort(listen)
+	if port <= 0 {
+		return fmt.Errorf("invalid listen address %q", listen)
+	}
+	return freePort(port, wait)
+}
+
 func freePort(port int, wait time.Duration) error {
 	pids, err := pidsOnPort(port)
 	if err != nil {

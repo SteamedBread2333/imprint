@@ -62,7 +62,14 @@ func (a *App) cmdUp(g globals, rest []string) int {
 		return boolExit(a.writeJSON(out))
 	}
 
-	fmt.Fprintf(a.out(), "imprint up: host %s + plugins running in background (vault %s)\n", hostURL, vaultDir)
+	ws := cfg.Workspace()
+	fmt.Fprintf(a.out(), "imprint up: project %s\n", ws)
+	fmt.Fprintf(a.out(), "  vault: %s\n", vaultDir)
+	if n := fetchRuleCount(hostURL); n > 0 {
+		fmt.Fprintf(a.out(), "  host:  %s (%d rules)\n", hostURL, n)
+	} else {
+		fmt.Fprintf(a.out(), "  host:  %s\n", hostURL)
+	}
 	for _, st := range plugins {
 		if !st.Enabled {
 			continue
@@ -142,13 +149,23 @@ func pluginIDs(cfg *plugin.Config) []string {
 
 func (a *App) ensureHostRunning(g globals, cfg *plugin.Config, vaultDir string) (string, error) {
 	hostURL := cfg.HostURL()
-	if v, ok := fetchHostHealth(hostURL); ok && vaultPathsEqual(v, vaultDir) {
-		return hostURL, nil
+	listen := strings.TrimSpace(cfg.Host.Listen)
+	if listen == "" {
+		listen = imprint.DefaultHostListen
+	}
+	if v, ok := fetchHostHealth(hostURL); ok {
+		if vaultPathsEqual(v, vaultDir) {
+			return hostURL, nil
+		}
+		if !g.json {
+			fmt.Fprintf(a.out(), "imprint up: replacing host on %s\n  was: %s\n  now: %s\n", listen, v, vaultDir)
+		}
+		_ = plugin.FreeListenPort(listen, 5*time.Second)
 	}
 	if err := a.startHostBackground(g, cfg, vaultDir); err != nil {
 		return "", err
 	}
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(20 * time.Second)
 	for time.Now().Before(deadline) {
 		if v, ok := fetchHostHealth(hostURL); ok && vaultPathsEqual(v, vaultDir) {
 			return hostURL, nil
