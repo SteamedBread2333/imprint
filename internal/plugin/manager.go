@@ -267,9 +267,9 @@ func (m *Manager) DeskURL() (string, error) {
 }
 
 // EnabledTools returns proxied tools from enabled plugins with resolved names.
-func EnabledTools(cfg *Config) ([]ToolRoute, error) {
+// skipped lists human-readable reasons for enabled plugins that were not loaded.
+func EnabledTools(cfg *Config) (routes []ToolRoute, skipped []string) {
 	taken := map[string]struct{}{}
-	var routes []ToolRoute
 	for id, entry := range cfg.Plugins {
 		if !entry.Enabled {
 			continue
@@ -277,6 +277,7 @@ func EnabledTools(cfg *Config) ([]ToolRoute, error) {
 		pkgDir := PackageDir(cfg.Workspace(), entry.Package)
 		man, err := LoadManifest(pkgDir)
 		if err != nil {
+			skipped = append(skipped, fmt.Sprintf("plugin %q skipped: %v", id, err))
 			continue
 		}
 		hasTools := false
@@ -287,6 +288,7 @@ func EnabledTools(cfg *Config) ([]ToolRoute, error) {
 			}
 		}
 		if !hasTools {
+			skipped = append(skipped, fmt.Sprintf("plugin %q skipped: no tools capability", id))
 			continue
 		}
 		port := PluginPort(entry, imprint.DefaultPortForPlugin(id))
@@ -301,7 +303,7 @@ func EnabledTools(cfg *Config) ([]ToolRoute, error) {
 			})
 		}
 	}
-	return routes, nil
+	return routes, skipped
 }
 
 // ToolRoute is one MCP tool proxied to a plugin HTTP handler.

@@ -8,13 +8,13 @@ host:
 
 plugins:
   desk:
-    enabled: true
+    enabled: false   # opt-in: clone imprint-desk-plugin, set enabled: true
     package: ../imprint-desk-plugin
     config:
       port: 4173
 
   shelves:
-    enabled: true
+    enabled: false   # opt-in: clone imprint-shelves-plugin, set enabled: true
     package: ../imprint-shelves-plugin
     config:
       port: 4174
