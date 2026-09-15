@@ -50,15 +50,16 @@ go install github.com/SteamedBread2333/imprint/cmd/imprint-mcp@latest
 进入 MCP 模式前解析（未知参数会报错）：
 
 
-| 参数             | 作用                               |
-| -------------- | -------------------------------- |
-| `--vault PATH` | 使用该目录作为 vault。                   |
-| `--global`     | 使用 `~/.imprint`（除非指定 `--vault`）。 |
-| `--version`    | 打印版本并退出。                         |
-| `-h`, `--help` | 打印用法并退出。                         |
+| 参数               | 作用                                                                 |
+| ---------------- | ------------------------------------------------------------------ |
+| `--project PATH` | 项目根（`.imprint/` 的父目录）。vault 默认 `.imprint/memory`；插件读 `.imprint/imprint.yaml`。**Cursor 多根工作区请用这个。** 别名 `--root`。 |
+| `--vault PATH`   | vault 目录。配合 `--project` 时，相对路径挂在项目根下。                              |
+| `--global`       | 使用 `~/.imprint`（除非指定 `--vault`）。                                    |
+| `--version`      | 打印版本并退出。                                                           |
+| `-h`, `--help`   | 打印用法并退出。                                                           |
 
 
-环境变量：`IMPRINT_VAULT` — 与 CLI 相同（在 `--vault` / `--global` 之后生效）。
+环境变量：`IMPRINT_PROJECT`（同 `--project`）、`IMPRINT_VAULT`（无 `--project`/`--vault`/`--global` 时 CLI  walk-up）。
 
 ## 工具
 
@@ -97,20 +98,20 @@ go install github.com/SteamedBread2333/imprint/cmd/imprint-mcp@latest
 
 ### Cursor — 项目 vault
 
-复制或合并到项目根 `.cursor/mcp.json`。若 `imprint-mcp` 不在 PATH，请改 `command` 路径。
+复制或合并到项目根 `.cursor/mcp.json`。推荐 **`--project ${workspaceFolder}`**，多根工作区时也不依赖 Cursor 的 spawn cwd。
 
 ```json
 {
   "mcpServers": {
     "imprint": {
       "command": "imprint-mcp",
-      "args": ["--vault", "./.imprint/memory"]
+      "args": ["--project", "${workspaceFolder}"]
     }
   }
 }
 ```
 
-见 [docs/examples/cursor-mcp.json](examples/cursor-mcp.json)。
+见 [docs/examples/cursor-mcp.json](examples/cursor-mcp.json)。`go install` 后 **Cmd+Q 完全退出再开**（仅 Reload 可能仍用旧 spawn 命令）。
 
 ### Cursor — 全局 vault
 

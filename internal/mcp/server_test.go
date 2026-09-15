@@ -64,7 +64,14 @@ func callTool(t *testing.T, cs *sdkmcp.ClientSession, name string, args any) str
 }
 
 func TestParseArgs(t *testing.T) {
-	cfg, err := ParseArgs([]string{"--vault", "/tmp/v", "--global"})
+	cfg, err := ParseArgs([]string{"--project", "/tmp/proj", "--vault", ".imprint/memory"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Project != "/tmp/proj" || cfg.Vault != ".imprint/memory" {
+		t.Fatalf("unexpected cfg: %+v", cfg)
+	}
+	cfg, err = ParseArgs([]string{"--vault", "/tmp/v", "--global"})
 	if err != nil {
 		t.Fatal(err)
 	}

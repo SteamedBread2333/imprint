@@ -98,6 +98,15 @@ func defaultVaultRel(workspace string) string {
 	return filepath.Join(imprint.ImprintDirName, imprint.VaultDirName)
 }
 
+// FileExists reports whether imprint.yaml was loaded from an on-disk file.
+func (c *Config) FileExists() bool {
+	if c.filePath == "" {
+		return false
+	}
+	st, err := os.Stat(c.filePath)
+	return err == nil && !st.IsDir()
+}
+
 // Save writes imprint.yaml atomically.
 func (c *Config) Save() error {
 	if c.filePath == "" {

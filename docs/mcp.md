@@ -47,12 +47,13 @@ Parsed before the process enters MCP mode (unknown flags are rejected):
 
 | Flag | Effect |
 | --- | --- |
-| `--vault PATH` | Use this directory as the vault. |
+| `--project PATH` | Repo root (parent of `.imprint/`). Vault defaults to `.imprint/memory`; plugin config from `.imprint/imprint.yaml`. **Use this in Cursor multi-root workspaces.** Alias: `--root`. |
+| `--vault PATH` | Vault directory. With `--project`, relative paths join under the project root. |
 | `--global` | Use `~/.imprint` (overrides walk-up / `./.imprint/memory` unless `--vault` is set). |
 | `--version` | Print version and exit. |
 | `-h`, `--help` | Print usage and exit. |
 
-Environment: **`IMPRINT_VAULT`** — same precedence as the CLI (after `--vault` / `--global`).
+Environment: **`IMPRINT_PROJECT`** (same as `--project`), **`IMPRINT_VAULT`** (CLI walk-up when no `--project` / `--vault` / `--global`).
 
 ## Tools
 
@@ -85,20 +86,20 @@ Every tool returns **pretty-printed JSON** in the tool result text. On failure, 
 
 ### Cursor — project vault
 
-Copy or merge into **`.cursor/mcp.json`** (project root). Adjust the command path if `imprint-mcp` is not on `PATH`.
+Copy or merge into **`.cursor/mcp.json`** (project root). Prefer **`--project ${workspaceFolder}`** so vault and plugins bind to **this repo** even when Cursor spawns MCP with another folder’s cwd (multi-root workspaces).
 
 ```json
 {
   "mcpServers": {
     "imprint": {
       "command": "imprint-mcp",
-      "args": ["--vault", "./.imprint/memory"]
+      "args": ["--project", "${workspaceFolder}"]
     }
   }
 }
 ```
 
-See [docs/examples/cursor-mcp.json](examples/cursor-mcp.json).
+See [docs/examples/cursor-mcp.json](examples/cursor-mcp.json). After `go install`, **Cmd+Q** and reopen (Reload alone may keep a stale spawn command). Output should show `imprint-mcp: project`, vault under **this** repo, and `no plugin tools registered` when shelves is disabled.
 
 ### Cursor — global vault
 

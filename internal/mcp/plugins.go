@@ -29,7 +29,10 @@ func registerPluginTools(server *sdkmcp.Server, cfgPath string) {
 		if err := addPluginTool(server, route); err != nil {
 			fmt.Fprintf(os.Stderr, "imprint-mcp: plugin %q tool %q skipped: %v\n",
 				route.PluginID, route.Registered, err)
+			continue
 		}
+		fmt.Fprintf(os.Stderr, "imprint-mcp: registered plugin tool %q (%s)\n",
+			route.Registered, route.PluginID)
 	}
 }
 

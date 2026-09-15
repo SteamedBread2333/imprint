@@ -35,7 +35,7 @@ func TestResolveHostVault(t *testing.T) {
 		}
 	})
 
-	t.Run("env vault", func(t *testing.T) {
+	t.Run("yaml beats env when config file exists", func(t *testing.T) {
 		app := &App{Environ: func(k string) string {
 			if k == "IMPRINT_VAULT" {
 				return "/env/vault"
@@ -46,8 +46,8 @@ func TestResolveHostVault(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got != "/env/vault" {
-			t.Fatalf("got %q", got)
+		if got != yamlVault {
+			t.Fatalf("got %q want %q", got, yamlVault)
 		}
 	})
 

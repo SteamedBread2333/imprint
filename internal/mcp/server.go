@@ -30,7 +30,7 @@ const serverInstructions = `imprint long-term memory tools. Users never maintain
 
 // Run starts the MCP server on stdio using cfg for vault resolution.
 func Run(ctx context.Context, cfg Config) error {
-	dir, err := imprint.ResolveDir(cfg.Vault, cfg.Global, Env, Getwd, Home)
+	dir, err := resolveVaultDir(cfg)
 	if err != nil {
 		return err
 	}
@@ -38,7 +38,9 @@ func Run(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return fmt.Errorf("open vault %s: %w", dir, err)
 	}
-	fmt.Fprintf(os.Stderr, "imprint-mcp: vault %s\n", dir)
+	fmt.Fprintf(os.Stderr, "imprint-mcp: version %s\n", imprint.Version)
+	logProjectRoot(cfg)
+	fmt.Fprintf(os.Stderr, "imprint-mcp: vault %s\n", v.Dir)
 
 	server := sdkmcp.NewServer(&sdkmcp.Implementation{
 		Name:    "imprint",
@@ -47,20 +49,19 @@ func Run(ctx context.Context, cfg Config) error {
 		Instructions: serverInstructions,
 	})
 	registerTools(server, v)
-	if cfgPath := resolvePluginConfigPath(v.Dir); cfgPath != "" {
+	if cfgPath := resolvePluginConfigPathForRun(cfg, v.Dir); cfgPath != "" {
 		registerPluginTools(server, cfgPath)
 	}
 
 	return server.Run(ctx, &sdkmcp.StdioTransport{})
 }
 
-// resolvePluginConfigPath pairs plugin config with the vault from --vault.
+// resolvePluginConfigPath pairs plugin config with the vault directory only.
+// It never falls back to process cwd — that would bind the wrong imprint.yaml when
+// Cursor spawns MCP with an unexpected working directory.
 func resolvePluginConfigPath(vaultDir string) string {
-	if path, ok := plugin.ResolveConfigPathForVault(vaultDir); ok {
-		return path
-	}
-	path, err := plugin.ResolveConfigPath(Getwd)
-	if err != nil {
+	path, ok := plugin.ResolveConfigPathForVault(vaultDir)
+	if !ok {
 		return ""
 	}
 	return path

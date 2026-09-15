@@ -208,6 +208,10 @@ func (a *App) Run(args []string) int {
 		return a.cmdClear(g, rest)
 	case "host":
 		return a.cmdHost(g, rest)
+	case "up", "dev":
+		return a.cmdUp(g, rest)
+	case "down":
+		return a.cmdDown(g, rest)
 	case "plugin":
 		return a.cmdPlugin(g, rest)
 	case "desk":
@@ -244,6 +248,8 @@ Commands:
   init        Write agent rules for Cursor, Claude Code, Codex, Trae, Workbuddy
   export      Dump every record as JSON
   clear       Delete every rule (requires --confirm --yes)
+  up, dev     Start host + plugins + open desk (daily driver)
+  down        Stop background host + plugins (from imprint up)
   host        Vault read-only HTTP API (host serve)
   plugin      Plugin lifecycle (list, enable, disable, reload)
   desk        Desk UI (desk open)
@@ -297,6 +303,10 @@ See docs/editors.md.
 		return "Usage: imprint export\n"
 	case "clear":
 		return "Usage: imprint clear --confirm --yes\n\nIrreversible. Both flags are required.\n"
+	case "up", "dev":
+		return "Usage: imprint up [--no-open]\n\nStarts host in the background (if needed), reloads enabled plugins, opens desk.\nAlias: imprint dev\n"
+	case "down":
+		return "Usage: imprint down\n\nStops background host and plugin processes started by imprint up.\n"
 	default:
 		return rootHelp
 	}

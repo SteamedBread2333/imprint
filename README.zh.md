@@ -34,7 +34,7 @@ imprint init
 | --- | --- | --- |
 | 1 | 安装 + `imprint init` | 为 Cursor、Claude Code、Codex、Trae、Workbuddy 写入规则 |
 | 2 | 正常写代码、正常纠正 | 智能体 `find` → ADD / REINFORCE / SUPERSEDE / IGNORE → 写入 `.imprint/memory/` |
-| 3 | `imprint host serve` + `imprint desk open` 想审计时 | desk 插件实时列表 / 关系图 |
+| 3 | `imprint up` 想审计时 | 后台 host + 插件 + desk UI |
 
 更多细节 → [文档](#文档)（`docs/` 下全部文件）。Desk 截图 → [imprint-desk-plugin](https://github.com/SteamedBread2333/imprint-desk-plugin)。
 
@@ -192,7 +192,10 @@ imprint viz --format notes           # .imprint/memory/notes/*.md，覆盖写，
 imprint export
 imprint init                         # Cursor / Claude / Codex / Trae / Workbuddy
 imprint init --cursor --force        # 仅某一编辑器
-imprint host serve                   # vault 只读 HTTP API（供插件）
+imprint up                           # host + 插件 + desk（日常一条命令）
+imprint up --no-open                 # 启动但不打开浏览器
+imprint down                         # 停止 up 启动的后台 host + 插件
+imprint host serve                   # vault 只读 HTTP API（前台）
 imprint plugin list|enable|disable|reload
 imprint desk open                    # 打开 desk 插件 UI
 imprint forget r-2026-09-11-001
@@ -213,6 +216,8 @@ imprint clear --confirm --yes        # 不可逆
 | **shelves** | [imprint-shelves-plugin](https://github.com/SteamedBread2333/imprint-shelves-plugin) | 工作区文档索引（SQLite + BM25）；`doc_search` 经 **imprint-mcp** 代理 |
 
 ```bash
+imprint up                  # 后台 host + reload 插件 + 打开 desk
+# 进阶（分步控制）：
 imprint host serve
 imprint plugin reload
 imprint desk open

@@ -7,6 +7,7 @@ import (
 
 // Config holds imprint-mcp startup flags.
 type Config struct {
+	Project string
 	Vault   string
 	Global  bool
 	Version bool
@@ -25,6 +26,16 @@ func ParseArgs(args []string) (Config, error) {
 			c.Version = true
 		case a == "--global":
 			c.Global = true
+		case a == "--project", a == "--root":
+			if i+1 >= len(args) {
+				return c, fmt.Errorf("%s needs a path", a)
+			}
+			c.Project = args[i+1]
+			i++
+		case strings.HasPrefix(a, "--project="):
+			c.Project = strings.TrimPrefix(a, "--project=")
+		case strings.HasPrefix(a, "--root="):
+			c.Project = strings.TrimPrefix(a, "--root=")
 		case a == "--vault":
 			if i+1 >= len(args) {
 				return c, fmt.Errorf("--vault needs a path")
@@ -34,7 +45,7 @@ func ParseArgs(args []string) (Config, error) {
 		case strings.HasPrefix(a, "--vault="):
 			c.Vault = strings.TrimPrefix(a, "--vault=")
 		default:
-			return c, fmt.Errorf("unknown argument %q (imprint-mcp uses stdio only; pass --vault, --global, or --help)", a)
+			return c, fmt.Errorf("unknown argument %q (imprint-mcp uses stdio only; pass --project, --vault, --global, or --help)", a)
 		}
 	}
 	return c, nil
@@ -43,13 +54,16 @@ func ParseArgs(args []string) (Config, error) {
 const usageText = `imprint-mcp — MCP server for an imprint vault (stdio transport)
 
 Usage:
-  imprint-mcp [--vault PATH] [--global] [--version]
+  imprint-mcp [--project PATH] [--vault PATH] [--global] [--version]
 
-Vault resolution (same as imprint CLI):
-  --vault PATH   explicit directory
-  --global       ~/.imprint
-  IMPRINT_VAULT  environment override when no --vault/--global
-  otherwise      walk up for .imprint/memory/, else ./.imprint/memory
+Project + vault (recommended for Cursor multi-root workspaces):
+  --project PATH   repo root (parent of .imprint/); vault defaults to .imprint/memory
+  --vault PATH     vault directory (relative paths join under --project)
+  IMPRINT_PROJECT  same as --project when the flag is omitted
+
+Otherwise (same as imprint CLI):
+  --global         ~/.imprint
+  walk-up / IMPRINT_VAULT / ./.imprint/memory under cwd
 
 Logs go to stderr. Tool results are JSON (same shapes as imprint --json).
 

@@ -2,7 +2,7 @@
   "mcpServers": {
     "imprint": {
       "command": "imprint-mcp",
-      "args": ["--vault", "./.imprint/memory"]
+      "args": ["--project", "${workspaceFolder}"]
     }
   }
 }

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -130,11 +131,7 @@ func (m *Manager) startOne(ctx context.Context, id string, entry PluginEntry) er
 		return fmt.Errorf("plugin %q: entry.start is empty", id)
 	}
 
-	m.mu.Lock()
-	if old, ok := m.procs[id]; ok && old.Process != nil {
-		_ = old.Process.Kill()
-	}
-	m.mu.Unlock()
+	m.stopPlugin(id, port)
 
 	cmd, err := execStartCommand(ctx, start)
 	if err != nil {
@@ -159,28 +156,61 @@ func (m *Manager) startOne(ctx context.Context, id string, entry PluginEntry) er
 		cmd.Env = append(cmd.Env, "IMPRINT_SHELVES_STATE="+stateDir)
 	}
 	if id == "desk" {
+		shelvesURL := ""
 		if shelvesEntry, ok := m.cfg.Plugins["shelves"]; ok && shelvesEntry.Enabled {
 			port := PluginPort(shelvesEntry, imprint.DefaultShelvesPort)
-			cmd.Env = append(cmd.Env, "IMPRINT_SHELVES_URL="+BaseURL(port))
+			shelvesURL = BaseURL(port)
 		}
+		cmd.Env = append(cmd.Env, "IMPRINT_SHELVES_URL="+shelvesURL)
 	}
 	if roots, ok := entry.Config["roots"]; ok {
 		if b, err := jsonRoots(roots); err == nil {
 			cmd.Env = append(cmd.Env, "IMPRINT_SHELVES_ROOTS="+b)
 		}
 	}
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	logPath := pluginLogPath(m.cfg, id)
+	if err := os.MkdirAll(filepath.Dir(logPath), 0o755); err != nil {
+		return fmt.Errorf("plugin %q: %w", id, err)
+	}
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		return fmt.Errorf("plugin %q: log %s: %w", id, logPath, err)
+	}
+	_, _ = fmt.Fprintf(logFile, "\n--- plugin %s %s ---\n", id, time.Now().Format(time.RFC3339))
+	cmd.Stdout = logFile
+	cmd.Stderr = logFile
+	DetachProcess(cmd)
 	if err := cmd.Start(); err != nil {
+		_ = logFile.Close()
 		return fmt.Errorf("start %q: %w", id, err)
+	}
+	_ = logFile.Close()
+
+	statePath := pluginStatePath(m.cfg)
+	pid := cmd.Process.Pid
+	if err := setPluginPID(statePath, id, pid); err != nil {
+		_ = cmd.Process.Kill()
+		return fmt.Errorf("plugin %q: record pid: %w", id, err)
 	}
 
 	deadline := time.Now().Add(8 * time.Second)
+	healthy := false
 	for time.Now().Before(deadline) {
+		if !processAlive(pid) {
+			clearPluginPID(statePath, id)
+			return fmt.Errorf("plugin %q: process exited during startup (port %d may be in use)", id, port)
+		}
 		if checkHealth(man.Entry.Health, port) {
+			healthy = true
 			break
 		}
 		time.Sleep(200 * time.Millisecond)
+	}
+	if !healthy {
+		_ = cmd.Process.Kill()
+		clearPluginPID(statePath, id)
+		_ = freePort(port, 2*time.Second)
+		return fmt.Errorf("plugin %q: health check failed on port %d", id, port)
 	}
 
 	m.mu.Lock()
@@ -193,6 +223,7 @@ func (m *Manager) startOne(ctx context.Context, id string, entry PluginEntry) er
 		m.mu.Lock()
 		delete(m.procs, pid)
 		m.mu.Unlock()
+		clearPluginPID(statePath, pid)
 	}(id, cmd)
 	return nil
 }
@@ -214,16 +245,42 @@ func jsonRoots(v any) (string, error) {
 	}
 }
 
-// StopAll kills all managed plugin processes.
+// StopAll kills plugin processes tracked in memory, on disk, or holding configured ports.
 func (m *Manager) StopAll() {
+	statePath := pluginStatePath(m.cfg)
+	killAllFromState(statePath)
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	for id, cmd := range m.procs {
 		if cmd.Process != nil {
 			_ = cmd.Process.Kill()
 		}
 		delete(m.procs, id)
 	}
+	m.mu.Unlock()
+	for id, entry := range m.cfg.Plugins {
+		port := PluginPort(entry, imprint.DefaultPortForPlugin(id))
+		_ = freePort(port, 2*time.Second)
+	}
+}
+
+func pluginLogPath(cfg *Config, id string) string {
+	return filepath.Join(cfg.Workspace(), imprint.ImprintDirName, ".plugins", id+".log")
+}
+
+func (m *Manager) stopPlugin(id string, port int) {
+	statePath := pluginStatePath(m.cfg)
+	st, _ := loadPluginState(statePath)
+	if pid, ok := st[id]; ok {
+		killPID(pid)
+		clearPluginPID(statePath, id)
+	}
+	m.mu.Lock()
+	if old, ok := m.procs[id]; ok && old.Process != nil {
+		_ = old.Process.Kill()
+		delete(m.procs, id)
+	}
+	m.mu.Unlock()
+	_ = freePort(port, 3*time.Second)
 }
 
 func checkHealth(healthTpl string, port int) bool {

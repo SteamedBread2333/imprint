@@ -34,7 +34,7 @@ Optional — mount MCP in `.cursor/mcp.json` (merge [docs/examples/cursor-mcp.js
 | --- | --- | --- |
 | 1 | Install + `imprint init` | Writes agent rules for Cursor, Claude Code, Codex, Trae, Workbuddy |
 | 2 | Code and correct in plain language | Agent `find` → ADD / REINFORCE / SUPERSEDE / IGNORE → writes `.imprint/memory/` |
-| 3 | `imprint host serve` + `imprint desk open` when curious | Live list / graph dashboard (desk plugin) |
+| 3 | `imprint up` when curious | Background host + plugins + desk UI |
 
 Further reading → [Documentation](#documentation) (all files under `docs/`). Desk screenshots → [imprint-desk-plugin](https://github.com/SteamedBread2333/imprint-desk-plugin).
 
@@ -192,7 +192,10 @@ imprint viz --format notes           # .imprint/memory/notes/*.md, overwrite, do
 imprint export
 imprint init                         # rules for Cursor, Claude, Codex, Trae, Workbuddy
 imprint init --cursor --force        # one editor only
-imprint host serve                   # vault read-only HTTP API (plugins)
+imprint up                           # host + plugins + desk (daily driver)
+imprint up --no-open                 # start without opening browser
+imprint down                         # stop background host + plugins
+imprint host serve                   # vault read-only HTTP API (foreground)
 imprint plugin list|enable|disable|reload
 imprint desk open                    # open desk-plugin UI
 imprint forget r-2026-09-11-001
@@ -213,8 +216,10 @@ Optional UI and doc search ship as **separate repos**, enabled via [`.imprint/im
 | **shelves** | [imprint-shelves-plugin](https://github.com/SteamedBread2333/imprint-shelves-plugin) | Workspace doc index (SQLite + BM25); `doc_search` proxied through **imprint-mcp** |
 
 ```bash
+imprint up                  # background host + reload plugins + open desk
+# Advanced (split control):
 imprint host serve          # 127.0.0.1:9470 — GET /graph, /rules, /find, …
-imprint plugin reload       # start enabled plugins from manifest
+imprint plugin reload
 imprint desk open
 ```
 

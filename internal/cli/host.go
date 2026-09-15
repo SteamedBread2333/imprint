@@ -14,7 +14,7 @@ import (
 )
 
 // resolveHostVault picks the vault directory for host serve.
-// Order: --vault, --global, IMPRINT_VAULT, imprint.yaml vault, walk-up default.
+// Order: --vault, --global, imprint.yaml vault (when config file exists), walk-up, IMPRINT_VAULT.
 func (a *App) resolveHostVault(g globals, pcfg *plugin.Config) (string, error) {
 	if strings.TrimSpace(g.vault) != "" {
 		return g.vault, nil
@@ -22,10 +22,7 @@ func (a *App) resolveHostVault(g globals, pcfg *plugin.Config) (string, error) {
 	if g.global {
 		return imprint.ResolveDir("", true, a.Environ, a.Getwd, a.Home)
 	}
-	if a.Environ != nil && strings.TrimSpace(a.Environ("IMPRINT_VAULT")) != "" {
-		return a.Environ("IMPRINT_VAULT"), nil
-	}
-	if pcfg != nil {
+	if pcfg != nil && pcfg.FileExists() {
 		return pcfg.ResolveVaultAbs(), nil
 	}
 	return imprint.ResolveDir("", false, a.Environ, a.Getwd, a.Home)
