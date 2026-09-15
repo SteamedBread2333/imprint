@@ -129,10 +129,6 @@ func (m *Manager) startOne(ctx context.Context, id string, entry PluginEntry) er
 	if start == "" {
 		return fmt.Errorf("plugin %q: entry.start is empty", id)
 	}
-	parts := strings.Fields(start)
-	if len(parts) == 0 {
-		return fmt.Errorf("plugin %q: invalid start command", id)
-	}
 
 	m.mu.Lock()
 	if old, ok := m.procs[id]; ok && old.Process != nil {
@@ -140,7 +136,10 @@ func (m *Manager) startOne(ctx context.Context, id string, entry PluginEntry) er
 	}
 	m.mu.Unlock()
 
-	cmd := exec.CommandContext(ctx, parts[0], parts[1:]...)
+	cmd, err := execStartCommand(ctx, start)
+	if err != nil {
+		return fmt.Errorf("plugin %q: %w", id, err)
+	}
 	cmd.Dir = pkgDir
 	vaultDir := m.cfg.ResolveVaultAbs()
 	cmd.Env = append(os.Environ(),
