@@ -22,7 +22,6 @@ flowchart LR
   end
   Agent <-->|JSON-RPC| MCP
   Vault --> Shards
-  Vault -.->|若已存在则刷新| Dash
 ```
 
 
@@ -32,7 +31,7 @@ flowchart LR
 | --------- | ----------------------------------------------------------------------------- |
 | **宿主**    | Cursor、Claude Desktop 等启动 `imprint-mcp`，经 stdin/stdout 通信。                    |
 | **工具**    | 每个 vault 命令对应一个 MCP 工具（`find`、`add` …）。结果为 JSON 文本 — 与 `imprint --json` 结构相同。 |
-| **Vault** | 启动时解析一次：`--vault`、`--global`、`IMPRINT_VAULT`、向上查找 `memory/`，或 `./memory`。     |
+| **Vault** | 启动时解析一次：`--vault`、`--global`、`IMPRINT_VAULT`、向上查找 `.imprint/memory/`，或 `./.imprint/memory`。 |
 | **判断**    | ADD / REINFORCE / SUPERSEDE / IGNORE 仍由智能体负责；服务不会替你决定是否写入。                    |
 
 
@@ -105,7 +104,7 @@ go install github.com/SteamedBread2333/imprint/cmd/imprint-mcp@latest
   "mcpServers": {
     "imprint": {
       "command": "imprint-mcp",
-      "args": ["--vault", "./memory"]
+      "args": ["--vault", "./.imprint/memory"]
     }
   }
 }
@@ -152,7 +151,7 @@ go install github.com/SteamedBread2333/imprint/cmd/imprint-mcp@latest
   "mcpServers": {
     "imprint": {
       "command": "go",
-      "args": ["run", "./cmd/imprint-mcp", "--vault", "./memory"],
+      "args": ["run", "./cmd/imprint-mcp", "--vault", "./.imprint/memory"],
       "cwd": "/absolute/path/to/imprint"
     }
   }

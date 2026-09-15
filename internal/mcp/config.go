@@ -49,7 +49,7 @@ Vault resolution (same as imprint CLI):
   --vault PATH   explicit directory
   --global       ~/.imprint
   IMPRINT_VAULT  environment override when no --vault/--global
-  otherwise      walk up for memory/, else ./memory
+  otherwise      walk up for .imprint/memory/, else ./.imprint/memory
 
 Logs go to stderr. Tool results are JSON (same shapes as imprint --json).
 

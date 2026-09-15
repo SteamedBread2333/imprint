@@ -250,7 +250,7 @@ Commands:
   version     Print version
 
 Global flags:
-  --vault PATH   Vault directory (default: ./memory, or walk-up to memory/)
+  --vault PATH   Vault directory (default: ./.imprint/memory, or walk-up)
   --global       Use ~/.imprint
   --json         Machine-readable JSON on stdout
 

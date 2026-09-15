@@ -22,14 +22,13 @@ flowchart LR
   end
   Agent <-->|JSON-RPC| MCP
   Vault --> Shards
-  Vault -.->|refresh if exists| Dash
 ```
 
 | Layer | Role |
 | --- | --- |
 | **Host** | Cursor, Claude Desktop, etc. spawns `imprint-mcp` and talks over stdin/stdout. |
 | **Tools** | One MCP tool per vault command (`find`, `add`, …). Results are JSON text — same shapes as `imprint --json`. |
-| **Vault** | Resolved once at startup: `--vault`, `--global`, `IMPRINT_VAULT`, walk-up `memory/`, or `./memory`. |
+| **Vault** | Resolved once at startup: `--vault`, `--global`, `IMPRINT_VAULT`, walk-up `.imprint/memory/`, or `./.imprint/memory`. |
 | **Judgment** | ADD / REINFORCE / SUPERSEDE / IGNORE stays on the agent. The server does not decide whether to write. |
 
 Logging goes to **stderr** only so stdout stays clean for MCP framing.
@@ -49,7 +48,7 @@ Parsed before the process enters MCP mode (unknown flags are rejected):
 | Flag | Effect |
 | --- | --- |
 | `--vault PATH` | Use this directory as the vault. |
-| `--global` | Use `~/.imprint` (overrides walk-up / `./memory` unless `--vault` is set). |
+| `--global` | Use `~/.imprint` (overrides walk-up / `./.imprint/memory` unless `--vault` is set). |
 | `--version` | Print version and exit. |
 | `-h`, `--help` | Print usage and exit. |
 
@@ -93,7 +92,7 @@ Copy or merge into **`.cursor/mcp.json`** (project root). Adjust the command pat
   "mcpServers": {
     "imprint": {
       "command": "imprint-mcp",
-      "args": ["--vault", "./memory"]
+      "args": ["--vault", "./.imprint/memory"]
     }
   }
 }
@@ -138,7 +137,7 @@ See [docs/examples/cursor-mcp-global.json](examples/cursor-mcp-global.json).
   "mcpServers": {
     "imprint": {
       "command": "go",
-      "args": ["run", "./cmd/imprint-mcp", "--vault", "./memory"],
+      "args": ["run", "./cmd/imprint-mcp", "--vault", "./.imprint/memory"],
       "cwd": "/absolute/path/to/imprint"
     }
   }

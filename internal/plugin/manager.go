@@ -151,13 +151,23 @@ func (m *Manager) startOne(ctx context.Context, id string, entry PluginEntry) er
 
 	cmd := exec.CommandContext(ctx, parts[0], parts[1:]...)
 	cmd.Dir = pkgDir
+	vaultDir := m.cfg.ResolveVaultAbs()
 	cmd.Env = append(os.Environ(),
 		fmt.Sprintf("IMPRINT_PLUGIN_PORT=%d", port),
 		fmt.Sprintf("IMPRINT_HOST_URL=%s", m.cfg.HostURL()),
-		fmt.Sprintf("IMPRINT_VAULT=%s", m.cfg.Vault),
+		fmt.Sprintf("IMPRINT_VAULT=%s", vaultDir),
 		fmt.Sprintf("IMPRINT_WORKSPACE=%s", m.cfg.Workspace()),
 		fmt.Sprintf("IMPRINT_PLUGIN_CONFIG=%s", m.cfg.filePath),
 	)
+	if id == "shelves" {
+		stateDir := DefaultShelvesStateDir(m.cfg.Workspace())
+		if entry.Config != nil {
+			if s, ok := entry.Config["stateDir"].(string); ok && strings.TrimSpace(s) != "" {
+				stateDir = strings.TrimSpace(s)
+			}
+		}
+		cmd.Env = append(cmd.Env, "IMPRINT_SHELVES_STATE="+stateDir)
+	}
 	if roots, ok := entry.Config["roots"]; ok {
 		if b, err := jsonRoots(roots); err == nil {
 			cmd.Env = append(cmd.Env, "IMPRINT_SHELVES_ROOTS="+b)

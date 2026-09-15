@@ -15,7 +15,7 @@
 
 User corrections → portable markdown. Go static binary, zero runtime, MIT.
 
-Agents forget. Users repeat themselves. imprint is shared, file-backed memory: preferences and corrections in `./memory/`, recalled before the next edit. **You talk normally; the agent maintains the vault.**
+Agents forget. Users repeat themselves. imprint is shared, file-backed memory: preferences and corrections in `.imprint/memory/`, recalled before the next edit. **You talk normally; the agent maintains the vault.**
 
 ## Quick start
 
@@ -33,7 +33,7 @@ Optional — mount MCP in `.cursor/mcp.json` (merge [docs/examples/cursor-mcp.js
 | Step | You do | imprint does |
 | --- | --- | --- |
 | 1 | Install + `imprint init` | Writes agent rules for Cursor, Claude Code, Codex, Trae, Workbuddy |
-| 2 | Code and correct in plain language | Agent `find` → ADD / REINFORCE / SUPERSEDE / IGNORE → writes `./memory/` |
+| 2 | Code and correct in plain language | Agent `find` → ADD / REINFORCE / SUPERSEDE / IGNORE → writes `.imprint/memory/` |
 | 3 | `imprint host serve` + `imprint desk open` when curious | Live list / graph dashboard (desk plugin) |
 
 Further reading → [Documentation](#documentation) (all files under `docs/`). Desk screenshots → [imprint-desk-plugin](https://github.com/SteamedBread2333/imprint-desk-plugin).
@@ -48,7 +48,7 @@ flowchart LR
   Agent <-->|find · write · get| CLI["imprint --json"]
   Human <-->|list · viz · export| CLI
 
-  CLI <-->|read / write| Vault[(memory/)]
+  CLI <-->|read / write| Vault[(.imprint/memory/)]
 
   Vault --- Disk
 
@@ -86,7 +86,7 @@ sequenceDiagram
 
 | Phase | What happens |
 | --- | --- |
-| **Bootstrap** | [Quick start](#quick-start) — `imprint init`; optional MCP ([docs/mcp.md](docs/mcp.md)). Vault: `./memory/`, or `~/.imprint` with `--global`, or `--vault` / `IMPRINT_VAULT`. |
+| **Bootstrap** | [Quick start](#quick-start) — `imprint init`; optional MCP ([docs/mcp.md](docs/mcp.md)). Vault: `.imprint/memory/`, or `~/.imprint` with `--global`, or `--vault` / `IMPRINT_VAULT`. |
 | **Agent loop** | `find` recalls; the agent classifies **ADD / REINFORCE / SUPERSEDE / IGNORE**; writes go through `add`, `reinforce`, or `supersede` (old rule → `archive/`). `get` loads one rule with evidence and backlinks. |
 | **Vault** | Rules pack into `imprint-NNNN.md` shards; `sweep` and `supersede` move copies to `archive/`; `forget` deletes and strips inbound links. |
 | **Human views** | Same CLI: `list`, `show`, `get`, `export`. `viz` prints mermaid or writes read-only `notes/` cards. Interactive list / graph UI is the **desk** plugin. |
@@ -118,15 +118,14 @@ The version you type at publish time is the only one that matters: it becomes th
 
 ## Vault
 
-Default project vault is `./memory/` (or the nearest `memory/` walking up from cwd). `--global` uses `~/.imprint`. `--vault PATH` and `IMPRINT_VAULT` override both.
+Default project vault is `./.imprint/memory/` (walk up from cwd for `.imprint/`). `--global` uses `~/.imprint`. `--vault PATH` and `IMPRINT_VAULT` override both.
 
 ```
-memory/
-  imprint-0001.md
-  archive/
-    imprint-0001.md
-  notes/                  # optional: imprint viz --format notes (read-only cards)
-    r-2026-09-11-001.md
+.imprint/                 # imprint project home (config + vault + caches)
+  imprint.yaml            # plugins + host
+  memory/                 # vault (rules)
+  .shelves/.cache/        # doc index (SQLite); gitignore
+docs/                     # your project docs (shelves indexes this)
 ```
 
 Rules are packed into `imprint-NNNN.md` shards (legacy `r-YYYY-MM-DD-NNN.md` files are still read and compacted on open). A new shard starts at **32768 lines** or **1 MiB**, whichever comes first — large enough that a typical project stays in one file, small enough that reinforce still rewrites well under a millisecond on SSD.
@@ -189,7 +188,7 @@ imprint show
 imprint sweep
 imprint viz                          # mermaid on stdout
 imprint viz --format mermaid --out graph.mmd
-imprint viz --format notes           # ./memory/notes/*.md, overwrite, do not edit
+imprint viz --format notes           # .imprint/memory/notes/*.md, overwrite, do not edit
 imprint export
 imprint init                         # rules for Cursor, Claude, Codex, Trae, Workbuddy
 imprint init --cursor --force        # one editor only
@@ -206,12 +205,12 @@ Global flags: `--vault PATH`, `--global`, `--json`.
 
 ## Plugins
 
-Optional UI and doc search ship as **separate repos**, enabled via [`.imprint/plugins.yaml`](.imprint/plugins.yaml):
+Optional UI and doc search ship as **separate repos**, enabled via [`.imprint/imprint.yaml`](docs/examples/imprint.yaml):
 
 | Plugin | Repo | Role |
 | --- | --- | --- |
 | **desk** | [imprint-desk-plugin](https://github.com/SteamedBread2333/imprint-desk-plugin) | Live dashboard SPA (list / graph, filters, URL state, EN/中文) |
-| **shelves** | [imprint-shelves-plugin](https://github.com/SteamedBread2333/imprint-shelves-plugin) | Workspace doc index; `doc_search` tools proxied through **imprint-mcp** |
+| **shelves** | [imprint-shelves-plugin](https://github.com/SteamedBread2333/imprint-shelves-plugin) | Workspace doc index (SQLite + BM25); `doc_search` proxied through **imprint-mcp** |
 
 ```bash
 imprint host serve          # 127.0.0.1:9470 — GET /graph, /rules, /find, …
@@ -235,7 +234,7 @@ Setup lives in [Quick start](#quick-start) above. Everything under [`docs/`](doc
 
 | File | Use |
 | --- | --- |
-| [docs/examples/cursor-mcp.json](docs/examples/cursor-mcp.json) | Project vault `./memory` |
+| [docs/examples/cursor-mcp.json](docs/examples/cursor-mcp.json) | Project vault `./.imprint/memory` |
 | [docs/examples/cursor-mcp-global.json](docs/examples/cursor-mcp-global.json) | Global vault `~/.imprint` |
 
 ## Release
@@ -256,7 +255,7 @@ Pushing tag `vX.Y.Z` runs [`.github/workflows/release.yml`](.github/workflows/re
 ```go
 import "github.com/SteamedBread2333/imprint/pkg/imprint"
 
-v, err := imprint.Open("./memory")
+v, err := imprint.Open("./.imprint/memory")
 res, err := v.Add("Use gofmt", []string{"go"}, "gofmt", 0.6)
 hits, err := v.Find([]string{"go"}, "", 5)
 ```

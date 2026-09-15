@@ -27,11 +27,10 @@ go.work.sum
 .env.*
 !.env.example
 
-# --- vault & viz output (user data, never commit) ---
-/memory/
+# --- vault & plugin caches (user data, never commit) ---
+.imprint/memory/
+.imprint/.shelves/.cache/
 /tests/loadvault/
-**/.imprint/
-dashboard.html
 
 # --- release packages ---
 /dist/

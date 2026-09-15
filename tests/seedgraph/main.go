@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	v, err := imprint.Open("./memory")
+	v, err := imprint.Open("./.imprint/memory")
 	if err != nil {
 		fatal(err)
 	}
@@ -32,7 +32,7 @@ func main() {
 
 	r008 := add("Ship only as MIT; do not switch the license", []string{"git", "branding"}, "License is MIT", 0.85, nil, []string{r001, r005}, nil)
 	r009 := add("Cross-compile with make dist into dist/; do not commit those archives", []string{"go", "build"}, "make dist packs platform tarballs", 0.8, nil, []string{r002}, nil)
-	r010 := add("Default project vault is ./memory; --global uses ~/.imprint", []string{"imprint", "storage"}, "vault discovery order in README", 0.85, nil, []string{r003}, nil)
+	r010 := add("Default project vault is ./.imprint/memory; --global uses ~/.imprint", []string{"imprint", "storage"}, "vault discovery order in README", 0.85, nil, []string{r003}, nil)
 	r011 := add("Rule IDs are r-YYYY-MM-DD-NNN and must stay human-readable", []string{"imprint", "storage"}, "ID format from §21", 0.8, nil, []string{r003, r010}, nil)
 	r012 := add("find uses AND on every requested scope tag", []string{"imprint", "find"}, "precise recall by scope", 0.8, nil, []string{r003}, nil)
 	r013 := add("Do not recall rules with confidence below 0.3", []string{"imprint", "find"}, "dormant should not come back from find", 0.85, nil, []string{r012}, nil)
@@ -43,7 +43,7 @@ func main() {
 	r020 := add("sweep decays untouched rules 0.05 per 90 days and archives below 0.3; it never deletes", []string{"imprint", "sweep"}, "PROMPT §7 / §14", 0.85, nil, []string{r013, r010}, nil)
 	_ = add("forget removes a rule from its shard; that is the only delete path", []string{"imprint", "sweep"}, "user sovereignty", 0.85, nil, []string{r020}, nil)
 	_ = add("Cursor rule imprint-memory.mdc is alwaysApply and tells the agent to run imprint --json by scope first", []string{"cursor", "branding"}, "alwaysApply memory rule", 0.7, nil, []string{r005}, nil)
-	r024 := add("Keep loadgen / synthetic vaults out of ./memory so demo rules stay readable", []string{"imprint", "testing"}, "tests/loadvault is gitignored", 0.7, nil, []string{r017, r018}, nil)
+	r024 := add("Keep loadgen / synthetic vaults out of ./.imprint/memory so demo rules stay readable", []string{"imprint", "testing"}, "tests/loadvault is gitignored", 0.7, nil, []string{r017, r018}, nil)
 	r025 := add("go:embed the dashboard template into the binary", []string{"go", "viz"}, "pkg/imprint/dashboard.html", 0.75, nil, []string{r016, r002}, nil)
 
 	blob := add("Persist the whole vault as one JSON blob", []string{"imprint", "storage"}, "first idea: single json file", 0.55, nil, []string{r003}, nil)

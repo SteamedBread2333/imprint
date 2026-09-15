@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/SteamedBread2333/imprint/internal/host"
@@ -33,7 +34,7 @@ func (a *App) cmdHost(g globals, rest []string) int {
 	if err != nil {
 		return a.fail(g.json, err)
 	}
-	if pcfg.Vault == "" {
+	if strings.TrimSpace(pcfg.Vault) == "" {
 		pcfg.Vault = v.Dir
 	}
 	addr := *listen

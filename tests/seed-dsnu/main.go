@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	v, err := imprint.Open("./memory")
+	v, err := imprint.Open("./.imprint/memory")
 	if err != nil {
 		fatal(err)
 	}

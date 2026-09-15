@@ -2,7 +2,7 @@
 
 > **上手：** [README.zh.md](../README.zh.md#快速开始)。本文是**参考**（ADD / REINFORCE / SUPERSEDE / IGNORE、编码场景）。
 
-用户纠正后偏好写入 `./memory/`，下次任务前召回。智能体 **`find` → 分类 → 写入**；用户正常说话，不维护规则 id。
+用户纠正后偏好写入 `.imprint/memory/`，下次任务前召回。智能体 **`find` → 分类 → 写入**；用户正常说话，不维护规则 id。
 
 ## 谁维护 vault（无额外心智负担）
 
@@ -91,7 +91,7 @@ sequenceDiagram
 
 ## 编码场景示例
 
-以下用 **`./memory`** vault；MCP 与 CLI 等价，各举一种写法。
+以下用 **`./.imprint/memory`** vault；MCP 与 CLI 等价，各举一种写法。
 
 ### 场景 1：新偏好 — ADD
 
@@ -105,7 +105,7 @@ sequenceDiagram
 2. 分类：**ADD**
 
 ```bash
-imprint --json --vault ./memory add \
+imprint --json --vault ./.imprint/memory add \
   "Go exported identifiers must use PascalCase" \
   --scope go,naming \
   --text "Go 里 exported 标识符一律 PascalCase，别用 snake_case export"
@@ -129,7 +129,7 @@ MCP `add`：`claim` / `scope` / `text` 同上，`confidence` 省略（0.6）。
 2. 分类：**REINFORCE**（不是 ADD，避免重复）
 
 ```bash
-imprint --json --vault ./memory reinforce r-2026-09-14-001 \
+imprint --json --vault ./.imprint/memory reinforce r-2026-09-14-001 \
   --evidence "用户再次确认 exported 用 PascalCase"
 ```
 
@@ -151,7 +151,7 @@ MCP `reinforce`：`id` + `evidence`。
 2. 分类：**SUPERSEDE**（不是改旧文件手编辑，不是 ADD  duplicate）
 
 ```bash
-imprint --json --vault ./memory supersede r-2026-09-14-001 \
+imprint --json --vault ./.imprint/memory supersede r-2026-09-14-001 \
   --claim "Go identifiers exported across packages must use PascalCase; internal unexported names use camelCase" \
   --scope go,naming \
   --reason "narrowed to cross-package exports only" \
@@ -160,7 +160,7 @@ imprint --json --vault ./memory supersede r-2026-09-14-001 \
 
 MCP `supersede`：`old_id`, `claim`, `scope`, `reason`, `text`。
 
-**结果**：旧 id → `superseded` + `archive/`；新 id `active`，继承旧 confidence 并链到旧规则。Dashboard 上可看 **supersedes** 边。
+**结果**：旧 id → `superseded` + `archive/`；新 id `active`，继承旧 confidence 并链到旧规则。`imprint desk open` 上可看 **supersedes** 边。
 
 ---
 
@@ -176,7 +176,7 @@ MCP `supersede`：`old_id`, `claim`, `scope`, `reason`, `text`。
 2. 分类：**SUPERSEDE**（scope 从 go → go + typescript）
 
 ```bash
-imprint --json --vault ./memory supersede r-2026-09-14-002 \
+imprint --json --vault ./.imprint/memory supersede r-2026-09-14-002 \
   --claim "Exported Go and TypeScript symbols follow PascalCase (TS functions/components aligned with Go exports)" \
   --scope go,typescript,naming \
   --reason "extended naming rule to frontend TS" \
@@ -216,7 +216,7 @@ imprint --json --vault ./memory supersede r-2026-09-14-002 \
 **首选 supersede**（可追溯）：
 
 ```bash
-imprint --json --vault ./memory supersede r-2026-09-14-003 \
+imprint --json --vault ./.imprint/memory supersede r-2026-09-14-003 \
   --claim "Follow STYLE.md for naming; imprint does not override the style guide" \
   --scope go,naming,docs \
   --reason "naming policy moved to STYLE.md" \
@@ -226,7 +226,7 @@ imprint --json --vault ./memory supersede r-2026-09-14-003 \
 **若用户是否定「不要再用 imprint 记命名」**（口语「别记这些了」）→ `forget`：
 
 ```bash
-imprint --json --vault ./memory forget r-2026-09-14-003
+imprint --json --vault ./.imprint/memory forget r-2026-09-14-003
 ```
 
 MCP：同上，`supersede` 或 `forget`，参数由智能体从对话解析。
@@ -244,7 +244,7 @@ MCP：同上，`supersede` 或 `forget`，参数由智能体从对话解析。
 **智能体（编码前）**
 
 ```bash
-imprint --json --vault ./memory find --scope go,naming --query export
+imprint --json --vault ./.imprint/memory find --scope go,naming --query export
 ```
 
 命中 `[r-2026-09-14-002]` → 新方法名 `GetProfile` 而非 `get_profile`。在回复或 commit 说明中可 cite `[r-2026-09-14-002]`。
@@ -267,17 +267,17 @@ imprint --json --vault ./memory find --scope go,naming --query export
 
 ```bash
 # 写前召回
-imprint --json --vault ./memory find --scope go,error-handling --query wrap
+imprint --json --vault ./.imprint/memory find --scope go,error-handling --query wrap
 
 # 看单条证据链
-imprint --json --vault ./memory get r-2026-09-14-002
+imprint --json --vault ./.imprint/memory get r-2026-09-14-002
 
 # 高置信 active 规则
-imprint --json --vault ./memory list --status active --scope go --min-confidence 0.85
+imprint --json --vault ./.imprint/memory list --status active --scope go --min-confidence 0.85
 
 # 全景
-imprint --json --vault ./memory show
-imprint --json --vault ./memory viz
+imprint --json --vault ./.imprint/memory show
+imprint --json --vault ./.imprint/memory viz
 ```
 
 ---

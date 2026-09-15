@@ -7,8 +7,8 @@ import (
 
 // ResolveDir picks the vault directory.
 //
-// Order: flagVault, --global (~/.imprint), IMPRINT_VAULT, a parent memory/
-// directory walking up from cwd, otherwise ./memory.
+// Order: flagVault, --global (~/.imprint), IMPRINT_VAULT, walk-up .imprint/memory,
+// otherwise ./.imprint/memory under cwd.
 func ResolveDir(flagVault string, global bool, getenv func(string) string, getwd func() (string, error), home func() (string, error)) (string, error) {
 	if getenv == nil {
 		getenv = os.Getenv
@@ -27,26 +27,21 @@ func ResolveDir(flagVault string, global bool, getenv func(string) string, getwd
 		if err != nil {
 			return "", err
 		}
-		return filepath.Join(h, ".imprint"), nil
+		return filepath.Join(h, ImprintDirName), nil
 	}
 	if env := getenv("IMPRINT_VAULT"); env != "" {
 		return env, nil
+	}
+	root, found, err := FindProjectRoot(getwd)
+	if err != nil {
+		return "", err
+	}
+	if found {
+		return DefaultVaultDir(root), nil
 	}
 	cwd, err := getwd()
 	if err != nil {
 		return "", err
 	}
-	dir := cwd
-	for {
-		cand := filepath.Join(dir, "memory")
-		if st, err := os.Stat(cand); err == nil && st.IsDir() {
-			return cand, nil
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			break
-		}
-		dir = parent
-	}
-	return filepath.Join(cwd, "memory"), nil
+	return DefaultVaultDir(cwd), nil
 }

@@ -387,7 +387,7 @@ func TestResolveDir(t *testing.T) {
 	if err := os.MkdirAll(proj, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	mem := filepath.Join(root, "proj", "memory")
+	mem := filepath.Join(root, "proj", ".imprint", "memory")
 	if err := os.MkdirAll(mem, 0o755); err != nil {
 		t.Fatal(err)
 	}

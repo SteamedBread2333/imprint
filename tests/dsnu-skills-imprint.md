@@ -2,7 +2,7 @@
 
 日期：2026-09-11  
 来源：`/Users/derbysoft-i129/Documents/Bitbucket/dsnu-agent`  
-Vault：`./memory/`（已 `imprint clear --confirm --yes`，压测库 `tests/loadvault` 已删）
+Vault：`./.imprint/memory/`（已 `imprint clear --confirm --yes`，压测库 `tests/loadvault` 已删）
 
 不是把 SKILL.md 全文塞进 vault。每条 skill 收成 **祈使句 claim + 窄 scope + 原文证据**，用 `related` 连回 dispatcher。
 
@@ -31,7 +31,7 @@ CLI `imprint find` / `imprint list` 可召回。
 | 002_git_commit.mdc | 036 `{emoji} rationale`，禁止 `--no-verify` |
 | README / CHECKLIST | 037 `npx dsnu-agent setup` 不挂 postinstall；038 禁止机器绝对路径 |
 
-共 **40** 条 active（seed 当时），写在 `memory/imprint-0001.md` 一个分片里，不再一规则一文件。`memory/dashboard.html` 随后续规则（优齿示例、分片策略等）再 `imprint viz` 刷新。点左侧 `page-implement` / `e2e-playwright` / `thinking-process` 看团。
+共 **40** 条 active（seed 当时），写在 `.imprint/memory/imprint-0001.md` 一个分片里，不再一规则一文件。图谱用 `imprint desk open`（desk 插件）或 `imprint viz --format mermaid`。点左侧 `page-implement` / `e2e-playwright` / `thinking-process` 看团。
 
 ## 刻意没写进 imprint 的
 

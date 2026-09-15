@@ -4,7 +4,7 @@
 
 ## 7 条时为什么看起来没意义
 
-`memory/dashboard.html` 里那张图不是失败，是**规模不够、布局也不对**：
+压测 vault 的图谱（`imprint viz --format mermaid` 或 desk 插件）不是失败，是**规模不够、布局也不对**：
 
 - 图要回答的是 PROMPT §22 的问题：supersede 链、scope 团、冲突。7 个点里只有 **一条** 红箭头（007 → 006）。
 - 旧模板用 `cose` 把 5 个点撑到整块黑底上，标签还裁成 `2026-09-11-001`，看起来像空的装饰。
@@ -12,7 +12,7 @@
 
 它**不是**「规则越多越好看的海报」。全量摊开几千个点会变成毛球，和 7 个点一样读不了。有用的交互是：左边看 scope 质量 → 点进一个 scope → 只图这一刀上的替换/关联。
 
-已改模板（刷新 `memory/dashboard.html`）：
+已改 viz 模板（`imprint viz --format mermaid`）：
 
 - ≤16 个点：圆布局，标签带 claim 摘要
 - 全库 >40 且未过滤：默认 **list** 总览（scope 条、supersede 链列表）；**list / 关系图** 开关只在首页出现
@@ -24,7 +24,7 @@
 
 ```bash
 go run ./cmd/loadgen -n 3000 -vault tests/loadvault
-open tests/loadvault/dashboard.html
+imprint viz --vault tests/loadvault --format mermaid
 ```
 
 合成数据：5 语言 × 8 主题，约每 12 条一条 supersede，另有 related / conflicts；dormant/superseded 进 `archive/`。写入走 `ImportRecords`，打进 `imprint-NNNN.md` 分片（32768 行 / 1 MiB 封顶），不再一规则一文件。
@@ -33,12 +33,12 @@ open tests/loadvault/dashboard.html
 |---|---|
 | 写入 | **3000** rules / **113ms**（2422 active, 110 dormant, 468 superseded） |
 | 分片 | active `imprint-0001.md` 32763 行 + `imprint-0002.md` 16585 行；archive `imprint-0001.md` 12442 行 |
-| `imprint viz --include-archived` | **69ms**，`tests/loadvault/dashboard.html` **1.16MB**，`rules_count=3000` |
+| `imprint viz --include-archived --vault tests/loadvault` | **69ms**，mermaid 输出，`rules_count=3000` |
 | `find --scope go,naming --top-k 5` | **64ms**，5 hits（例：`r-2025-02-07-001` score 0.975） |
 
-打开 loadvault 的 dashboard 时：默认应是 **3000 rules 总览 + scope 条**，不是 3000 个绿点。工具栏 **graph** 才画全库（截到 300）。点左侧 `go` 或 `naming` 打开该簇；图上应能看到 supersede 红箭头，而不是均匀撒点。
+查看 loadvault 图谱时：默认应是 **3000 rules 总览 + scope 条**，不是 3000 个绿点。工具栏 **graph** 才画全库（截到 300）。点左侧 `go` 或 `naming` 打开该簇；图上应能看到 supersede 红箭头，而不是均匀撒点。
 
-本机 vault `./memory/` 是打包后的 `imprint-0001.md`（真实规则，不是压测数据）。压测目录已 gitignore。
+本机 vault `./.imprint/memory/` 是打包后的 `imprint-0001.md`（真实规则，不是压测数据）。压测目录已 gitignore。
 
 ## 结论
 

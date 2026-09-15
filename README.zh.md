@@ -15,7 +15,7 @@
 
 用户纠正 → 可携带的 markdown。Go 静态二进制，零运行时依赖，MIT。
 
-智能体会忘。imprint 把偏好和纠正写进 `./memory/`，下次写代码前召回。**你正常说话即可，vault 由智能体维护。**
+智能体会忘。imprint 把偏好和纠正写进 `.imprint/memory/`，下次写代码前召回。**你正常说话即可，vault 由智能体维护。**
 
 ## 快速开始
 
@@ -33,7 +33,7 @@ imprint init
 | 步骤 | 你做什么 | imprint 做什么 |
 | --- | --- | --- |
 | 1 | 安装 + `imprint init` | 为 Cursor、Claude Code、Codex、Trae、Workbuddy 写入规则 |
-| 2 | 正常写代码、正常纠正 | 智能体 `find` → ADD / REINFORCE / SUPERSEDE / IGNORE → 写入 `./memory/` |
+| 2 | 正常写代码、正常纠正 | 智能体 `find` → ADD / REINFORCE / SUPERSEDE / IGNORE → 写入 `.imprint/memory/` |
 | 3 | `imprint host serve` + `imprint desk open` 想审计时 | desk 插件实时列表 / 关系图 |
 
 更多细节 → [文档](#文档)（`docs/` 下全部文件）。Desk 截图 → [imprint-desk-plugin](https://github.com/SteamedBread2333/imprint-desk-plugin)。
@@ -48,7 +48,7 @@ flowchart LR
   Agent <-->|find · write · get| CLI["imprint --json"]
   Human <-->|list · viz · export| CLI
 
-  CLI <-->|读 / 写| Vault[(memory/)]
+  CLI <-->|读 / 写| Vault[(.imprint/memory/)]
 
   Vault --- Disk
 
@@ -86,7 +86,7 @@ sequenceDiagram
 
 | 阶段 | 做什么 |
 | --- | --- |
-| **初始化** | [快速开始](#快速开始) — `imprint init`；可选 MCP（[docs/mcp.zh.md](docs/mcp.zh.md)）。Vault：`./memory/`、`~/.imprint`（`--global`）或 `--vault` / `IMPRINT_VAULT`。 |
+| **初始化** | [快速开始](#快速开始) — `imprint init`；可选 MCP（[docs/mcp.zh.md](docs/mcp.zh.md)）。Vault：`.imprint/memory/`、`~/.imprint`（`--global`）或 `--vault` / `IMPRINT_VAULT`。 |
 | **智能体循环** | `find` 召回；智能体判 **ADD / REINFORCE / SUPERSEDE / IGNORE**；写入走 `add`、`reinforce`、`supersede`（旧规则进 `archive/`）。`get` 拉单条证据与反向引用。 |
 | **Vault** | 规则打进 `imprint-NNNN.md` 分片；`sweep` 与 `supersede` 归档到 `archive/`；`forget` 硬删并清理入链。 |
 | **人工视图** | 同一套 CLI：`list`、`show`、`get`、`export`。`viz` 输出 mermaid 或只读 `notes/` 卡片。交互式列表 / 关系图用 **desk** 插件。 |
@@ -118,15 +118,14 @@ GitHub 没有 Go 包仓库。发布产物是 **GitHub Release 上的二进制** 
 
 ## 仓库（Vault）
 
-默认项目仓库是 `./memory/`（或从当前目录向上找到的最近 `memory/`）。`--global` 使用 `~/.imprint`。`--vault PATH` 和 `IMPRINT_VAULT` 覆盖以上两者。
+默认项目 vault 是 `./.imprint/memory/`（从 cwd 向上找 `.imprint/`）。`--global` 使用 `~/.imprint`。`--vault PATH` 和 `IMPRINT_VAULT` 覆盖以上两者。
 
 ```
-memory/
-  imprint-0001.md
-  archive/
-    imprint-0001.md
-  notes/                  # 可选：imprint viz --format notes（只读卡片）
-    r-2026-09-11-001.md
+.imprint/                 # imprint 项目目录（配置 + vault + 缓存）
+  imprint.yaml            # 插件 + host
+  memory/                 # vault（规则）
+  .shelves/.cache/        # 文档索引（SQLite，派生，gitignore）
+docs/                     # 项目文档（shelves 索引）
 ```
 
 规则打进 `imprint-NNNN.md` 分片（旧的一规则一文件 `r-YYYY-MM-DD-NNN.md` 仍会在打开时读取并压实）。新分片在 **32768 行** 或 **1 MiB** 时开始——大到一个典型项目通常只占一个文件，小到一次 reinforce 在 SSD 上仍远低于一毫秒。
@@ -189,7 +188,7 @@ imprint show
 imprint sweep
 imprint viz                          # stdout 输出 mermaid
 imprint viz --format mermaid --out graph.mmd
-imprint viz --format notes           # ./memory/notes/*.md，覆盖写，不要手改
+imprint viz --format notes           # .imprint/memory/notes/*.md，覆盖写，不要手改
 imprint export
 imprint init                         # Cursor / Claude / Codex / Trae / Workbuddy
 imprint init --cursor --force        # 仅某一编辑器
@@ -206,12 +205,12 @@ imprint clear --confirm --yes        # 不可逆
 
 ## 插件
 
-可选 UI 与文档检索在**独立仓库**，通过 [`.imprint/plugins.yaml`](.imprint/plugins.yaml) 启用：
+可选 UI 与文档检索在**独立仓库**，通过 [`.imprint/imprint.yaml`](docs/examples/imprint.yaml) 启用：
 
 | 插件 | 仓库 | 职责 |
 | --- | --- | --- |
 | **desk** | [imprint-desk-plugin](https://github.com/SteamedBread2333/imprint-desk-plugin) | 实时 dashboard SPA（列表 / 关系图、筛选、URL 状态、中英） |
-| **shelves** | [imprint-shelves-plugin](https://github.com/SteamedBread2333/imprint-shelves-plugin) | 工作区文档索引；`doc_search` 经 **imprint-mcp** 代理 |
+| **shelves** | [imprint-shelves-plugin](https://github.com/SteamedBread2333/imprint-shelves-plugin) | 工作区文档索引（SQLite + BM25）；`doc_search` 经 **imprint-mcp** 代理 |
 
 ```bash
 imprint host serve
@@ -235,7 +234,7 @@ Agent 仍只挂 **imprint-mcp** 一个 MCP；工具名来自各插件 `imprint.p
 
 | 文件 | 用途 |
 | --- | --- |
-| [docs/examples/cursor-mcp.json](docs/examples/cursor-mcp.json) | 项目 vault `./memory` |
+| [docs/examples/cursor-mcp.json](docs/examples/cursor-mcp.json) | 项目 vault `./.imprint/memory` |
 | [docs/examples/cursor-mcp-global.json](docs/examples/cursor-mcp-global.json) | 全局 vault `~/.imprint` |
 
 ## 发布
@@ -256,7 +255,7 @@ scripts/publish.sh X.Y.Z --local
 ```go
 import "github.com/SteamedBread2333/imprint/pkg/imprint"
 
-v, err := imprint.Open("./memory")
+v, err := imprint.Open("./.imprint/memory")
 res, err := v.Add("Use gofmt", []string{"go"}, "gofmt", 0.6)
 hits, err := v.Find([]string{"go"}, "", 5)
 ```
