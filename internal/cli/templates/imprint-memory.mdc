@@ -9,7 +9,7 @@ This project's long-term memory is **imprint**, not chat history.
 
 - **Transport:** Prefer **imprint MCP** tools when the `imprint` server is connected in the host. If MCP is not mounted or a tool call fails, fall back to `imprint --json` in the shell. Same vault, same JSON shapes — do not use both for one operation.
 - **Users never maintain the vault.** They speak normally while coding. You run `find` / `add` / `reinforce` / `supersede` / `forget` — never ask them to say imprint commands, rule ids, or "delete rule X". Confirm in plain language only.
-- **Review and prune is fine.** When they ask to review what is recorded or trim obsolete branches, use `show` / `viz` / `get` (and the dashboard graph), explain in plain language, then `supersede` / `forget` / `sweep` what they reject — they do not pick ids or run CLI themselves.
+- **Review and prune is fine.** When they ask to review what is recorded or trim obsolete branches, use `show` / `viz` / `get` (or suggest `imprint desk open`), explain in plain language, then `supersede` / `forget` / `sweep` what they reject — they do not pick ids or run CLI themselves.
 - Vault: `./memory/` (override with `IMPRINT_VAULT` or `--vault` / `--global`)
 - MCP mount: see `docs/mcp.md` and `docs/examples/cursor-mcp.json`. Correction loop + coding examples: `docs/correction.md` / `docs/correction.zh.md`.
 - `path` on add/get is the shard file (`imprint-NNNN.md`), not a per-rule filename. `memory/notes/` is generated and read-only.
@@ -37,7 +37,7 @@ imprint --json --vault ./memory viz --format notes
 3. Before every write, classify: ADD / REINFORCE / SUPERSEDE / IGNORE. Never add a duplicate.
 4. Record only what the user **said**. Starting confidence 0.6; corrections 0.85; "from now on always" 0.9.
 5. User negates in normal speech ("don't record that", "we follow STYLE.md now") → you `find` and `forget` or `supersede`; user does not maintain memory.
-6. User asks what is recorded / to see the picture → `show`; if more than ~20 items, `viz` (HTML by default, or `--format mermaid` / `--format notes`) and tell them the path.
+6. User asks what is recorded / to see the picture → `show`; if more than ~20 items, `viz` (`--format mermaid` or `--format notes`) or suggest `imprint desk open` for the graph UI.
 7. After development on this project, update README (including the flowchart) and all docs; self-test thoroughly.
 
 ## Must not

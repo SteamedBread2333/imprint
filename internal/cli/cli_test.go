@@ -134,8 +134,8 @@ func TestCLIForgetGetSweepShowVizClear(t *testing.T) {
 	}
 
 	out.Reset()
-	dash := filepath.Join(dir, "dashboard.html")
-	if code := app.Run([]string{"--json", "--vault", dir, "viz", "--out", dash, "--include-archived"}); code != 0 {
+	mer := filepath.Join(dir, "graph.mmd")
+	if code := app.Run([]string{"--json", "--vault", dir, "viz", "--format", "mermaid", "--out", mer, "--include-archived"}); code != 0 {
 		t.Fatal(errw.String())
 	}
 	var vz imprint.VizResult
@@ -145,7 +145,7 @@ func TestCLIForgetGetSweepShowVizClear(t *testing.T) {
 	if vz.RulesCount != 1 {
 		t.Fatalf("viz %+v", vz)
 	}
-	if _, err := os.Stat(dash); err != nil {
+	if _, err := os.Stat(mer); err != nil {
 		t.Fatal(err)
 	}
 

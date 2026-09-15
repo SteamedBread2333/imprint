@@ -1,9 +1,6 @@
 package imprint
 
 import (
-	"bytes"
-	_ "embed"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,13 +8,8 @@ import (
 	"time"
 )
 
-//go:embed dashboard.html
-var dashboardHTML []byte
-
-//go:embed d3.min.js
-var d3JS []byte
-
-type vizNode struct {
+// GraphNode is one rule in the vault graph JSON.
+type GraphNode struct {
 	ID                 string     `json:"id"`
 	Claim              string     `json:"claim"`
 	Scope              []string   `json:"scope"`
@@ -32,27 +24,35 @@ type vizNode struct {
 	ReferencedBy       []Backlink `json:"referenced_by,omitempty"`
 }
 
-type vizEdge struct {
+// GraphEdge links two rules in the vault graph.
+type GraphEdge struct {
 	Source string `json:"source"`
 	Target string `json:"target"`
 	Kind   string `json:"kind"`
 }
 
-type vizData struct {
-	GeneratedAt string    `json:"generated_at"`
-	Nodes       []vizNode `json:"nodes"`
-	Edges       []vizEdge `json:"edges"`
+// GraphData is the JSON shape for GET /graph and desk UI.
+type GraphData struct {
+	GeneratedAt string      `json:"generated_at"`
+	Nodes       []GraphNode `json:"nodes"`
+	Edges       []GraphEdge `json:"edges"`
 }
 
-func (v *Vault) graph(includeArchived bool) (vizData, []*Record, error) {
+// Graph returns vault graph data for HTTP APIs and plugins.
+func (v *Vault) Graph(includeArchived bool) (GraphData, error) {
+	data, _, err := v.graph(includeArchived)
+	return data, err
+}
+
+func (v *Vault) graph(includeArchived bool) (GraphData, []*Record, error) {
 	recs, err := v.loadAll()
 	if err != nil {
-		return vizData{}, nil, err
+		return GraphData{}, nil, err
 	}
-	data := vizData{
+	data := GraphData{
 		GeneratedAt: v.instant().Format(time.RFC3339),
-		Nodes:       []vizNode{},
-		Edges:       []vizEdge{},
+		Nodes:       []GraphNode{},
+		Edges:       []GraphEdge{},
 	}
 	ids := map[string]struct{}{}
 	var kept []*Record
@@ -62,7 +62,7 @@ func (v *Vault) graph(includeArchived bool) (vizData, []*Record, error) {
 		}
 		ids[r.ID] = struct{}{}
 		kept = append(kept, r)
-		data.Nodes = append(data.Nodes, vizNode{
+		data.Nodes = append(data.Nodes, GraphNode{
 			ID:                 r.ID,
 			Claim:              r.Claim,
 			Scope:              r.Scope,
@@ -87,7 +87,7 @@ func (v *Vault) graph(includeArchived bool) (vizData, []*Record, error) {
 		if _, ok := ids[dst]; !ok {
 			return
 		}
-		data.Edges = append(data.Edges, vizEdge{Source: src, Target: dst, Kind: kind})
+		data.Edges = append(data.Edges, GraphEdge{Source: src, Target: dst, Kind: kind})
 	}
 	for _, r := range kept {
 		for _, old := range r.Supersedes {
@@ -115,7 +115,7 @@ func containsID(ids []string, id string) bool {
 	return false
 }
 
-func mermaidGraph(data vizData) string {
+func mermaidGraph(data GraphData) string {
 	var b strings.Builder
 	b.WriteString("graph LR\n")
 	ident := func(id string) string {
@@ -150,29 +150,14 @@ func mermaidGraph(data vizData) string {
 	return b.String()
 }
 
-func renderHTML(data vizData) ([]byte, error) {
-	var buf bytes.Buffer
-	enc := json.NewEncoder(&buf)
-	enc.SetEscapeHTML(true)
-	if err := enc.Encode(data); err != nil {
-		return nil, err
-	}
-	payload := bytes.TrimSpace(buf.Bytes())
-	if !bytes.Contains(dashboardHTML, []byte("__IMPRINT_DATA__")) {
-		return nil, fmt.Errorf("dashboard template missing data marker")
-	}
-	if !bytes.Contains(dashboardHTML, []byte("__D3_JS__")) {
-		return nil, fmt.Errorf("dashboard template missing d3 marker")
-	}
-	html := bytes.Replace(dashboardHTML, []byte("__IMPRINT_DATA__"), payload, 1)
-	return bytes.Replace(html, []byte("__D3_JS__"), d3JS, 1), nil
-}
-
-// Viz writes an HTML dashboard or a mermaid graph.
+// Viz writes a mermaid graph or read-only notes/ cards.
 func (v *Vault) Viz(out, format string, includeArchived bool) (*VizResult, error) {
 	format = strings.ToLower(strings.TrimSpace(format))
 	if format == "" {
-		format = "html"
+		format = "mermaid"
+	}
+	if format == "html" {
+		return nil, fmt.Errorf("html dashboard removed — use imprint desk open (desk plugin) or imprint viz --format mermaid|notes")
 	}
 	data, recs, err := v.graph(includeArchived)
 	if err != nil {
@@ -221,29 +206,7 @@ func (v *Vault) Viz(out, format string, includeArchived bool) (*VizResult, error
 		}
 		result.SizeBytes = st.Size()
 		return result, nil
-	case "html":
-		if out == "" {
-			out = filepath.Join(v.Dir, "dashboard.html")
-		}
-		html, err := renderHTML(data)
-		if err != nil {
-			return nil, err
-		}
-		if err := writeFileAtomic(out, html); err != nil {
-			return nil, err
-		}
-		abs, err := filepath.Abs(out)
-		if err != nil {
-			return nil, err
-		}
-		st, err := os.Stat(abs)
-		if err != nil {
-			return nil, err
-		}
-		result.Path = abs
-		result.SizeBytes = st.Size()
-		return result, nil
 	default:
-		return nil, fmt.Errorf("unknown viz format %q (html|mermaid|notes)", format)
+		return nil, fmt.Errorf("unknown viz format %q (mermaid|notes)", format)
 	}
 }

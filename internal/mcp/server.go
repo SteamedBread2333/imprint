@@ -10,6 +10,7 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/SteamedBread2333/imprint/internal/plugin"
 	"github.com/SteamedBread2333/imprint/pkg/imprint"
 )
 
@@ -46,6 +47,9 @@ func Run(ctx context.Context, cfg Config) error {
 		Instructions: serverInstructions,
 	})
 	registerTools(server, v)
+	if cfgPath, err := plugin.ResolveConfigPath(Getwd); err == nil {
+		registerPluginTools(server, cfgPath)
+	}
 
 	return server.Run(ctx, &sdkmcp.StdioTransport{})
 }

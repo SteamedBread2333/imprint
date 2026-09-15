@@ -206,6 +206,12 @@ func (a *App) Run(args []string) int {
 		return a.cmdExport(g, rest)
 	case "clear":
 		return a.cmdClear(g, rest)
+	case "host":
+		return a.cmdHost(g, rest)
+	case "plugin":
+		return a.cmdPlugin(g, rest)
+	case "desk":
+		return a.cmdDesk(g, rest)
 	case "version":
 		fmt.Fprintln(a.out(), "imprint", imprint.Version)
 		return 0
@@ -234,10 +240,13 @@ Commands:
   get         Full record by id
   sweep       Decay stale rules and archive low-confidence ones
   show        User-facing listing
-  viz         HTML dashboard, mermaid graph, or read-only notes/
+  viz         mermaid graph or read-only notes/ (interactive UI: desk plugin)
   init        Write agent rules for Cursor, Claude Code, Codex, Trae, Workbuddy
   export      Dump every record as JSON
   clear       Delete every rule (requires --confirm --yes)
+  host        Vault read-only HTTP API (host serve)
+  plugin      Plugin lifecycle (list, enable, disable, reload)
+  desk        Desk UI (desk open)
   version     Print version
 
 Global flags:
@@ -270,7 +279,7 @@ func commandHelp(cmd string) string {
 	case "show":
 		return "Usage: imprint show [--limit N] [--format table|json]\n"
 	case "viz":
-		return "Usage: imprint viz [--out PATH] [--format html|mermaid|notes] [--include-archived]\n"
+		return "Usage: imprint viz [--out PATH] [--format mermaid|notes] [--include-archived]\n"
 	case "init":
 		return `Usage: imprint init [--force] [--cursor] [--claude] [--codex] [--trae] [--workbuddy]
 

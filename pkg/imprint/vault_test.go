@@ -407,7 +407,7 @@ func TestResolveDir(t *testing.T) {
 	}
 }
 
-func TestVizHTMLAndMermaid(t *testing.T) {
+func TestVizMermaidAndGraph(t *testing.T) {
 	dir := t.TempDir()
 	v := frozen(t, dir, day(0))
 	old, err := v.Add("Use camelCase", []string{"js", "naming"}, "camel", 0.6)
@@ -417,53 +417,22 @@ func TestVizHTMLAndMermaid(t *testing.T) {
 	if _, err := v.Supersede(old.ID, "Use snake_case in JS", []string{"js", "naming"}, "changed mind", "snake"); err != nil {
 		t.Fatal(err)
 	}
-	htmlRes, err := v.Viz("", "html", true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if htmlRes.RulesCount != 2 || htmlRes.Path == "" {
-		t.Fatalf("%+v", htmlRes)
-	}
-	body, err := os.ReadFile(htmlRes.Path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Contains(body, []byte("dandelionLayout")) || !bytes.Contains(body, []byte(old.ID)) {
-		t.Fatalf("dashboard missing graph data")
-	}
-	if !bytes.Contains(body, []byte(`id="helpPanel"`)) || !bytes.Contains(body, []byte(`id="recipe"`)) || !bytes.Contains(body, []byte(`id="legend"`)) {
-		t.Fatalf("dashboard missing help, filter recipe, or legend")
-	}
-	if !bytes.Contains(body, []byte(`class="palette"`)) || !bytes.Contains(body, []byte("paintLegend")) {
-		t.Fatalf("dashboard missing scope colour palette")
-	}
-	if !bytes.Contains(body, []byte(`class="legend-edges"`)) {
-		t.Fatal("dashboard missing edge line legend")
-	}
-	if bytes.Contains(body, []byte("unpkg.com")) || bytes.Contains(body, []byte("cytoscape(")) {
-		t.Fatal("dashboard still references CDN or cytoscape")
-	}
-	if !bytes.Contains(body, []byte(`id="viewList"`)) || !bytes.Contains(body, []byte(`id="viewMap"`)) {
-		t.Fatal("dashboard missing list/graph home switch")
-	}
-	if !bytes.Contains(body, []byte(`id="viewSwitch"`)) {
-		t.Fatal("dashboard missing home-only view switch container")
-	}
-	if !bytes.Contains(body, []byte("pushState")) || !bytes.Contains(body, []byte("popstate")) {
-		t.Fatal("dashboard missing URL query history sync")
-	}
-	if !bytes.Contains(body, []byte(`id="langBtn"`)) || !bytes.Contains(body, []byte("const I18N")) {
-		t.Fatal("dashboard missing bilingual UI")
-	}
-	if bytes.Contains(body, []byte(`id="graphAll"`)) || bytes.Contains(body, []byte("forceGraph")) {
-		t.Fatal("dashboard still uses hidden graph-all toggle")
-	}
 	m, err := v.Viz("", "mermaid", true)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(m.Mermaid, "graph LR") || !strings.Contains(m.Mermaid, "supersedes") {
 		t.Fatalf("mermaid = %s", m.Mermaid)
+	}
+	g, err := v.Graph(true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(g.Nodes) != 2 || len(g.Edges) < 1 {
+		t.Fatalf("graph = %+v", g)
+	}
+	if _, err := v.Viz("", "html", true); err == nil {
+		t.Fatal("html viz should be removed")
 	}
 }
 
@@ -684,32 +653,3 @@ func TestListFilterAndNotes(t *testing.T) {
 	}
 }
 
-func TestDashboardRefreshAndOffline(t *testing.T) {
-	dir := t.TempDir()
-	v := frozen(t, dir, day(0))
-	added, err := v.Add("First rule for the map", []string{"go"}, "one", 0.6)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := v.Viz("", "html", false); err != nil {
-		t.Fatal(err)
-	}
-	dash := filepath.Join(dir, "dashboard.html")
-	if _, err := v.Add("Second rule for the map", []string{"go"}, "two", 0.6); err != nil {
-		t.Fatal(err)
-	}
-	body, err := os.ReadFile(dash)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if bytes.Contains(body, []byte("unpkg.com")) {
-		t.Fatal("dashboard still loads graph code from CDN")
-	}
-	if !bytes.Contains(body, []byte("Second rule for the map")) {
-		t.Fatalf("dashboard not refreshed after add")
-	}
-	if !bytes.Contains(body, []byte("dandelionLayout")) {
-		t.Fatal("embedded dandelion graph missing")
-	}
-	_ = added
-}

@@ -10,7 +10,7 @@
 
 **智能体**负责：`find`、分类、`add` / `reinforce` / `supersede` / `forget`；用户说「别记了」「那个不算了」「以后看 STYLE.md」时，由智能体查 vault 并执行，**不要**让用户复述命令或 id。
 
-**人（可选）**想审计时再打开 `memory/dashboard.html` 或跑 `show` / `viz`——这是查阅，不是日常维护流程。
+**人（可选）**想审计时用 `imprint desk open` 或跑 `show` / `viz`——这是查阅，不是日常维护流程。
 
 **Review + 剪枝（允许）**用户可以说「帮我看看命名相关的记忆，过时的砍掉」——智能体用 `show` / `viz` / `get` 展示链路与分支，用**自然语言**说明，用户确认后由智能体 `supersede` / `forget` / `sweep`。**禁止**的是让用户自己报 id 或跑命令，不是禁止整理 vault。
 

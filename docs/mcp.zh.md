@@ -19,7 +19,6 @@ flowchart LR
   end
   subgraph disk [Vault 目录]
     Shards[imprint-NNNN.md]
-    Dash[dashboard.html]
   end
   Agent <-->|JSON-RPC| MCP
   Vault --> Shards
@@ -78,7 +77,7 @@ go install github.com/SteamedBread2333/imprint/cmd/imprint-mcp@latest
 | `list`      | `imprint list`      | 可选 `status`、`scope`、`query`、`min_confidence`、`since`（YYYY-MM-DD 或 RFC3339）、`limit`。   |
 | `show`      | `imprint show`      | 可选 `limit`。                                                                           |
 | `sweep`     | `imprint sweep`     | 可选 `decay_days`、`decay_amount`、`dormant_threshold`。                                   |
-| `viz`       | `imprint viz`       | 可选 `out`、`format`（`html` / `mermaid` / `notes`）、`include_archived`。返回路径与统计，不含完整 HTML。 |
+| `viz`       | `imprint viz`       | 可选 `out`、`format`（`mermaid` / `notes`）、`include_archived`。返回路径与统计。交互式关系图见 desk 插件。 |
 
 
 **未暴露：** `init`（一次性设置）、`export`、`clear`（不可逆；若确需请用 CLI 并加 `--confirm --yes`）。

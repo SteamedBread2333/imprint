@@ -34,15 +34,9 @@ Optional — mount MCP in `.cursor/mcp.json` (merge [docs/examples/cursor-mcp.js
 | --- | --- | --- |
 | 1 | Install + `imprint init` | Writes agent rules for Cursor, Claude Code, Codex, Trae, Workbuddy |
 | 2 | Code and correct in plain language | Agent `find` → ADD / REINFORCE / SUPERSEDE / IGNORE → writes `./memory/` |
-| 3 | Open `memory/dashboard.html` when curious | List / graph view of what was recorded |
+| 3 | `imprint host serve` + `imprint desk open` when curious | Live list / graph dashboard (desk plugin) |
 
-<p align="center">home: census list view (unfiltered).</p>
-<img width="1920" height="958" alt="image" src="https://github.com/user-attachments/assets/7795c4bc-2405-4cae-96c1-8fe6509d76ba" />
-
-<p align="center">graph view: radial relation map, scope-colored nodes.</p>
-<img width="1920" height="958" alt="image" src="https://github.com/user-attachments/assets/765d9219-464f-420c-895b-0884c1578d30" />
-
-Further reading → [Documentation](#documentation) (all files under `docs/`).
+Further reading → [Documentation](#documentation) (all files under `docs/`). Desk screenshots → [imprint-desk-plugin](https://github.com/SteamedBread2333/imprint-desk-plugin).
 
 ```mermaid
 flowchart LR
@@ -62,11 +56,8 @@ flowchart LR
     direction TB
     Shards[imprint-NNNN.md]
     Archive[archive/]
-    Dash[dashboard.html]
     Notes[notes/]
   end
-
-  CLI -.->|refresh| Dash
 ```
 
 ```mermaid
@@ -86,9 +77,6 @@ sequenceDiagram
   alt ADD · REINFORCE · SUPERSEDE
     A->>C: add / reinforce / supersede
     C->>V: update markdown
-    opt dashboard.html exists
-      C->>V: refresh dashboard
-    end
   else IGNORE
     A->>A: continue without write
   end
@@ -101,7 +89,7 @@ sequenceDiagram
 | **Bootstrap** | [Quick start](#quick-start) — `imprint init`; optional MCP ([docs/mcp.md](docs/mcp.md)). Vault: `./memory/`, or `~/.imprint` with `--global`, or `--vault` / `IMPRINT_VAULT`. |
 | **Agent loop** | `find` recalls; the agent classifies **ADD / REINFORCE / SUPERSEDE / IGNORE**; writes go through `add`, `reinforce`, or `supersede` (old rule → `archive/`). `get` loads one rule with evidence and backlinks. |
 | **Vault** | Rules pack into `imprint-NNNN.md` shards; `sweep` and `supersede` move copies to `archive/`; `forget` deletes and strips inbound links. |
-| **Human views** | Same CLI: `list`, `show`, `get`, `export`. `viz` builds `dashboard.html` (list / graph, filters, URL state, EN/中文), mermaid on stdout, or read-only `notes/` cards. |
+| **Human views** | Same CLI: `list`, `show`, `get`, `export`. `viz` prints mermaid or writes read-only `notes/` cards. Interactive list / graph UI is the **desk** plugin. |
 | **Not here** | Whether to write at all is the agent's judgment call (ADD / REINFORCE / SUPERSEDE / IGNORE). |
 
 Agents use MCP tools or `imprint --json`. `notes/` is generated; do not hand-edit it.
@@ -137,7 +125,6 @@ memory/
   imprint-0001.md
   archive/
     imprint-0001.md
-  dashboard.html          # offline graph; regenerated on write if it already exists
   notes/                  # optional: imprint viz --format notes (read-only cards)
     r-2026-09-11-001.md
 ```
@@ -200,12 +187,15 @@ imprint list --status active --scope python,naming --min-confidence 0.85
 imprint get r-2026-09-11-001          # includes evidence_log and referenced_by
 imprint show
 imprint sweep
-imprint viz                          # ./memory/dashboard.html (no CDN)
-imprint viz --format mermaid
+imprint viz                          # mermaid on stdout
+imprint viz --format mermaid --out graph.mmd
 imprint viz --format notes           # ./memory/notes/*.md, overwrite, do not edit
 imprint export
 imprint init                         # rules for Cursor, Claude, Codex, Trae, Workbuddy
 imprint init --cursor --force        # one editor only
+imprint host serve                   # vault read-only HTTP API (plugins)
+imprint plugin list|enable|disable|reload
+imprint desk open                    # open desk-plugin UI
 imprint forget r-2026-09-11-001
 imprint clear --confirm --yes        # irreversible
 ```
@@ -213,6 +203,23 @@ imprint clear --confirm --yes        # irreversible
 `--json` prints machine-readable JSON on stdout so agents and scripts can parse it.
 
 Global flags: `--vault PATH`, `--global`, `--json`.
+
+## Plugins
+
+Optional UI and doc search ship as **separate repos**, enabled via [`.imprint/plugins.yaml`](.imprint/plugins.yaml):
+
+| Plugin | Repo | Role |
+| --- | --- | --- |
+| **desk** | [imprint-desk-plugin](https://github.com/SteamedBread2333/imprint-desk-plugin) | Live dashboard SPA (list / graph, filters, URL state, EN/中文) |
+| **shelves** | [imprint-shelves-plugin](https://github.com/SteamedBread2333/imprint-shelves-plugin) | Workspace doc index; `doc_search` tools proxied through **imprint-mcp** |
+
+```bash
+imprint host serve          # 127.0.0.1:9470 — GET /graph, /rules, /find, …
+imprint plugin reload       # start enabled plugins from manifest
+imprint desk open
+```
+
+Agent still mounts **one** MCP (`imprint-mcp`). Plugin tools come from each plugin's `imprint.plugin.json`; the host does not hardcode shelves APIs.
 
 ## Documentation
 

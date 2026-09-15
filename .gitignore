@@ -32,7 +32,6 @@ go.work.sum
 /tests/loadvault/
 **/.imprint/
 dashboard.html
-!pkg/imprint/dashboard.html
 
 # --- release packages ---
 /dist/

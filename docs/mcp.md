@@ -19,7 +19,6 @@ flowchart LR
   end
   subgraph disk [Vault directory]
     Shards[imprint-NNNN.md]
-    Dash[dashboard.html]
   end
   Agent <-->|JSON-RPC| MCP
   Vault --> Shards
@@ -71,7 +70,7 @@ Every tool returns **pretty-printed JSON** in the tool result text. On failure, 
 | `list` | `imprint list` | Optional `status`, `scope`, `query`, `min_confidence`, `since` (YYYY-MM-DD or RFC3339), `limit`. |
 | `show` | `imprint show` | Optional `limit`. |
 | `sweep` | `imprint sweep` | Optional `decay_days`, `decay_amount`, `dormant_threshold`. |
-| `viz` | `imprint viz` | Optional `out`, `format` (`html` / `mermaid` / `notes`), `include_archived`. Returns path and counts, not full HTML. |
+| `viz` | `imprint viz` | Optional `out`, `format` (`mermaid` / `notes`), `include_archived`. Returns path and counts. Interactive graph: desk plugin. |
 
 **Not exposed:** `init` (one-time setup), `export`, `clear` (irreversible; use CLI with `--confirm --yes` if you really need it).
 

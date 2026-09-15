@@ -40,7 +40,6 @@ func (v *Vault) Reinforce(id, evidence string) (*ReinforceResult, error) {
 	if err := v.save(rec, archived); err != nil {
 		return nil, err
 	}
-	v.refreshDashboard()
 	return &ReinforceResult{
 		ID:                 rec.ID,
 		Confidence:         rec.Confidence,
@@ -105,7 +104,6 @@ func (v *Vault) Supersede(oldID, newClaim string, newScope []string, reason, ori
 	if err := v.save(old, true); err != nil {
 		return nil, err
 	}
-	v.refreshDashboard()
 	return &SupersedeResult{ID: added.ID, SupersededOldID: old.ID}, nil
 }
 
@@ -156,6 +154,5 @@ func (v *Vault) Sweep(decayDays int, decayAmount, dormantThreshold float64) (*Sw
 			}
 		}
 	}
-	v.refreshDashboard()
 	return result, nil
 }

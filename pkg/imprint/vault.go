@@ -243,7 +243,6 @@ func (v *Vault) AddRecord(claim string, scope []string, text string, confidence 
 	if err := v.save(rec, false); err != nil {
 		return nil, err
 	}
-	v.refreshDashboard()
 	return &AddResult{ID: rec.ID, Confidence: rec.Confidence, Path: rec.Path}, nil
 }
 
@@ -425,7 +424,6 @@ func (v *Vault) Forget(id string) (*ForgetResult, error) {
 	if err := v.stripInbound(id); err != nil {
 		return nil, err
 	}
-	v.refreshDashboard()
 	return &ForgetResult{Success: true}, nil
 }
 
@@ -459,15 +457,6 @@ func (v *Vault) stripInbound(id string) error {
 	return nil
 }
 
-func (v *Vault) refreshDashboard() {
-	path := filepath.Join(v.Dir, "dashboard.html")
-	st, err := os.Stat(path)
-	if err != nil || st.IsDir() {
-		return
-	}
-	_, _ = v.Viz(path, "html", false)
-}
-
 // ExportJSON writes every record as a JSON array.
 func (v *Vault) ExportJSON(w io.Writer) error {
 	recs, err := v.loadAll()
@@ -497,6 +486,5 @@ func (v *Vault) Clear() error {
 			return err
 		}
 	}
-	v.refreshDashboard()
 	return nil
 }

@@ -439,7 +439,7 @@ func (a *App) cmdShow(g globals, args []string) int {
 func (a *App) cmdViz(g globals, args []string) int {
 	fs := newFlags()
 	out := fs.String("out", "")
-	format := fs.String("format", "html")
+	format := fs.String("format", "mermaid")
 	archived := fs.Bool("include-archived", false)
 	_, err := fs.parse(args)
 	if err != nil {

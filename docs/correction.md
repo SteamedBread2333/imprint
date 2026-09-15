@@ -10,7 +10,7 @@ When the user fixes the agent, preferences land in `./memory/` and **recall on t
 
 **Agents** run `find`, classify, and call `add` / `reinforce` / `supersede` / `forget`. When the user says “don’t record that” or “we follow STYLE.md now”, the agent queries the vault and acts — never ask the user to repeat a command or id.
 
-**Humans (optional)** audit via `memory/dashboard.html` or `show` / `viz` when curious — that is read-only review, not a daily chore.
+**Humans (optional)** audit via `imprint desk open` or `show` / `viz` when curious — that is read-only review, not a daily chore.
 
 **Review + prune (allowed):** the user may say “review naming memories and cut obsolete branches”. The agent uses `show` / `viz` / `get`, explains in plain language, then `supersede` / `forget` / `sweep` after they agree. Forbidden is making them supply ids or run CLI — not tidying the vault.
 

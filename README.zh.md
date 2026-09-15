@@ -34,14 +34,9 @@ imprint init
 | --- | --- | --- |
 | 1 | 安装 + `imprint init` | 为 Cursor、Claude Code、Codex、Trae、Workbuddy 写入规则 |
 | 2 | 正常写代码、正常纠正 | 智能体 `find` → ADD / REINFORCE / SUPERSEDE / IGNORE → 写入 `./memory/` |
-| 3 | 想看存了什么时打开 `memory/dashboard.html` | 列表 / 关系图审计 |
+| 3 | `imprint host serve` + `imprint desk open` 想审计时 | desk 插件实时列表 / 关系图 |
 
-<p align="center">首页：无筛选时的普查列表视图。</p>
-<img width="1920" height="958" alt="image" src="https://github.com/user-attachments/assets/7795c4bc-2405-4cae-96c1-8fe6509d76ba" />
-<p align="center">关系图：径向关系图，节点按 scope 着色。</p>
-<img width="1920" height="958" alt="image" src="https://github.com/user-attachments/assets/765d9219-464f-420c-895b-0884c1578d30" />
-
-更多细节 → [文档](#文档)（`docs/` 下全部文件）。
+更多细节 → [文档](#文档)（`docs/` 下全部文件）。Desk 截图 → [imprint-desk-plugin](https://github.com/SteamedBread2333/imprint-desk-plugin)。
 
 ```mermaid
 flowchart LR
@@ -61,11 +56,8 @@ flowchart LR
     direction TB
     Shards[imprint-NNNN.md]
     Archive[archive/]
-    Dash[dashboard.html]
     Notes[notes/]
   end
-
-  CLI -.->|刷新| Dash
 ```
 
 ```mermaid
@@ -85,9 +77,6 @@ sequenceDiagram
   alt ADD · REINFORCE · SUPERSEDE
     A->>C: add / reinforce / supersede
     C->>V: 更新 markdown
-    opt 已有 dashboard.html
-      C->>V: 刷新 dashboard
-    end
   else IGNORE
     A->>A: 不写，继续任务
   end
@@ -100,7 +89,7 @@ sequenceDiagram
 | **初始化** | [快速开始](#快速开始) — `imprint init`；可选 MCP（[docs/mcp.zh.md](docs/mcp.zh.md)）。Vault：`./memory/`、`~/.imprint`（`--global`）或 `--vault` / `IMPRINT_VAULT`。 |
 | **智能体循环** | `find` 召回；智能体判 **ADD / REINFORCE / SUPERSEDE / IGNORE**；写入走 `add`、`reinforce`、`supersede`（旧规则进 `archive/`）。`get` 拉单条证据与反向引用。 |
 | **Vault** | 规则打进 `imprint-NNNN.md` 分片；`sweep` 与 `supersede` 归档到 `archive/`；`forget` 硬删并清理入链。 |
-| **人工视图** | 同一套 CLI：`list`、`show`、`get`、`export`。`viz` 生成 `dashboard.html`（列表 / 关系图、筛选、URL 状态、中英）、stdout mermaid，或只读 `notes/` 卡片。 |
+| **人工视图** | 同一套 CLI：`list`、`show`、`get`、`export`。`viz` 输出 mermaid 或只读 `notes/` 卡片。交互式列表 / 关系图用 **desk** 插件。 |
 | **不负责** | 要不要写由智能体判断（ADD / REINFORCE / SUPERSEDE / IGNORE）。 |
 
 智能体用 MCP 工具或 `imprint --json`。`notes/` 是生成出来的，不要手改。
@@ -136,7 +125,6 @@ memory/
   imprint-0001.md
   archive/
     imprint-0001.md
-  dashboard.html          # 离线图；若文件已存在，写入后会刷新
   notes/                  # 可选：imprint viz --format notes（只读卡片）
     r-2026-09-11-001.md
 ```
@@ -199,12 +187,15 @@ imprint list --status active --scope python,naming --min-confidence 0.85
 imprint get r-2026-09-11-001          # 含 evidence_log 与 referenced_by
 imprint show
 imprint sweep
-imprint viz                          # ./memory/dashboard.html（无 CDN）
-imprint viz --format mermaid
+imprint viz                          # stdout 输出 mermaid
+imprint viz --format mermaid --out graph.mmd
 imprint viz --format notes           # ./memory/notes/*.md，覆盖写，不要手改
 imprint export
 imprint init                         # Cursor / Claude / Codex / Trae / Workbuddy
 imprint init --cursor --force        # 仅某一编辑器
+imprint host serve                   # vault 只读 HTTP API（供插件）
+imprint plugin list|enable|disable|reload
+imprint desk open                    # 打开 desk 插件 UI
 imprint forget r-2026-09-11-001
 imprint clear --confirm --yes        # 不可逆
 ```
@@ -212,6 +203,23 @@ imprint clear --confirm --yes        # 不可逆
 `--json` 在 stdout 打印机器可读的 JSON，方便智能体和脚本解析。
 
 全局参数：`--vault PATH`、`--global`、`--json`。
+
+## 插件
+
+可选 UI 与文档检索在**独立仓库**，通过 [`.imprint/plugins.yaml`](.imprint/plugins.yaml) 启用：
+
+| 插件 | 仓库 | 职责 |
+| --- | --- | --- |
+| **desk** | [imprint-desk-plugin](https://github.com/SteamedBread2333/imprint-desk-plugin) | 实时 dashboard SPA（列表 / 关系图、筛选、URL 状态、中英） |
+| **shelves** | [imprint-shelves-plugin](https://github.com/SteamedBread2333/imprint-shelves-plugin) | 工作区文档索引；`doc_search` 经 **imprint-mcp** 代理 |
+
+```bash
+imprint host serve
+imprint plugin reload
+imprint desk open
+```
+
+Agent 仍只挂 **imprint-mcp** 一个 MCP；工具名来自各插件 `imprint.plugin.json`，宿主不写死 shelves API。
 
 ## 文档
 
