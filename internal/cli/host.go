@@ -10,7 +10,26 @@ import (
 
 	"github.com/SteamedBread2333/imprint/internal/host"
 	"github.com/SteamedBread2333/imprint/internal/plugin"
+	"github.com/SteamedBread2333/imprint/pkg/imprint"
 )
+
+// resolveHostVault picks the vault directory for host serve.
+// Order: --vault, --global, IMPRINT_VAULT, imprint.yaml vault, walk-up default.
+func (a *App) resolveHostVault(g globals, pcfg *plugin.Config) (string, error) {
+	if strings.TrimSpace(g.vault) != "" {
+		return g.vault, nil
+	}
+	if g.global {
+		return imprint.ResolveDir("", true, a.Environ, a.Getwd, a.Home)
+	}
+	if a.Environ != nil && strings.TrimSpace(a.Environ("IMPRINT_VAULT")) != "" {
+		return a.Environ("IMPRINT_VAULT"), nil
+	}
+	if pcfg != nil {
+		return pcfg.ResolveVaultAbs(), nil
+	}
+	return imprint.ResolveDir("", false, a.Environ, a.Getwd, a.Home)
+}
 
 func (a *App) cmdHost(g globals, rest []string) int {
 	if len(rest) == 0 || rest[0] != "serve" {
@@ -22,15 +41,19 @@ func (a *App) cmdHost(g globals, rest []string) int {
 	if _, err := fs.parse(rest[1:]); err != nil {
 		return a.fail(g.json, err)
 	}
-	v, err := a.openVault(g)
-	if err != nil {
-		return a.fail(g.json, err)
-	}
 	cfgPath, err := plugin.ResolveConfigPath(a.Getwd)
 	if err != nil {
 		return a.fail(g.json, err)
 	}
 	pcfg, err := plugin.Load(cfgPath)
+	if err != nil {
+		return a.fail(g.json, err)
+	}
+	vaultDir, err := a.resolveHostVault(g, pcfg)
+	if err != nil {
+		return a.fail(g.json, err)
+	}
+	v, err := imprint.OpenWithNow(vaultDir, a.now)
 	if err != nil {
 		return a.fail(g.json, err)
 	}

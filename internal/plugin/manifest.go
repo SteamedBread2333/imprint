@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/SteamedBread2333/imprint/pkg/imprint"
 )
 
 // Manifest is imprint.plugin.json in a plugin package root.
@@ -94,5 +96,5 @@ func ResolveTools(pluginID string, tools []ManifestTool, taken map[string]struct
 
 // BaseURL returns the plugin HTTP root from port.
 func BaseURL(port int) string {
-	return fmt.Sprintf("http://127.0.0.1:%d", port)
+	return imprint.LocalURL(port)
 }

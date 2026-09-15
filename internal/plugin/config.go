@@ -31,11 +31,12 @@ type Config struct {
 	workspace string
 }
 
-// DefaultHostListen is the vault read-only API address.
-const DefaultHostListen = "127.0.0.1:9470"
-
 // ResolveConfigPath walks up from cwd for .imprint/imprint.yaml.
+// IMPRINT_WORKSPACE (absolute project root) overrides cwd when set.
 func ResolveConfigPath(getwd func() (string, error)) (string, error) {
+	if ws := strings.TrimSpace(os.Getenv("IMPRINT_WORKSPACE")); ws != "" {
+		return imprint.ConfigPath(ws), nil
+	}
 	if getwd == nil {
 		getwd = os.Getwd
 	}
@@ -60,7 +61,7 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("plugins config path is empty")
 	}
 	cfg := &Config{
-		Host:     HostConfig{Listen: DefaultHostListen},
+		Host:     HostConfig{Listen: imprint.DefaultHostListen},
 		Plugins:  map[string]PluginEntry{},
 		filePath: path,
 	}
@@ -77,7 +78,7 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("parse %s: %w", path, err)
 	}
 	if cfg.Host.Listen == "" {
-		cfg.Host.Listen = DefaultHostListen
+		cfg.Host.Listen = imprint.DefaultHostListen
 	}
 	if cfg.Plugins == nil {
 		cfg.Plugins = map[string]PluginEntry{}
@@ -153,7 +154,7 @@ func DefaultShelvesStateDir(projectRoot string) string {
 func (c *Config) HostURL() string {
 	listen := c.Host.Listen
 	if listen == "" {
-		listen = DefaultHostListen
+		listen = imprint.DefaultHostListen
 	}
 	if strings.HasPrefix(listen, "http://") || strings.HasPrefix(listen, "https://") {
 		return listen

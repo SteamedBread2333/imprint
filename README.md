@@ -209,7 +209,7 @@ Optional UI and doc search ship as **separate repos**, enabled via [`.imprint/im
 
 | Plugin | Repo | Role |
 | --- | --- | --- |
-| **desk** | [imprint-desk-plugin](https://github.com/SteamedBread2333/imprint-desk-plugin) | Live dashboard SPA (list / graph, filters, URL state, EN/中文) |
+| **desk** | [imprint-desk-plugin](https://github.com/SteamedBread2333/imprint-desk-plugin) | Live dashboard SPA (list / graph, IndexedDB cache, shelves doc search, EN/中文) |
 | **shelves** | [imprint-shelves-plugin](https://github.com/SteamedBread2333/imprint-shelves-plugin) | Workspace doc index (SQLite + BM25); `doc_search` proxied through **imprint-mcp** |
 
 ```bash
@@ -219,6 +219,14 @@ imprint desk open
 ```
 
 Agent still mounts **one** MCP (`imprint-mcp`). Plugin tools come from each plugin's `imprint.plugin.json`; the host does not hardcode shelves APIs.
+
+### Integration test fixture
+
+Sibling repo **`memory-test`** simulates the **Mercury** hotel-booking team — 3000 realistic vault rules and 20 engineering docs:
+
+```bash
+cd ../memory-test && ./scripts/seed.sh && ./scripts/selftest.sh
+```
 
 ## Documentation
 

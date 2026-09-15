@@ -24,6 +24,11 @@ func DefaultVaultDir(projectRoot string) string {
 	return filepath.Join(ImprintDir(projectRoot), VaultDirName)
 }
 
+// DefaultVaultRel is the vault path relative to project root (for imprint.yaml).
+func DefaultVaultRel() string {
+	return filepath.ToSlash(filepath.Join(ImprintDirName, VaultDirName))
+}
+
 // ConfigPath returns repo/.imprint/imprint.yaml.
 func ConfigPath(projectRoot string) string {
 	return filepath.Join(ImprintDir(projectRoot), ConfigFileName)

@@ -33,7 +33,7 @@ func Serve(ctx context.Context, cfg Config) error {
 	}
 	listen := strings.TrimSpace(cfg.Listen)
 	if listen == "" {
-		listen = "127.0.0.1:9470"
+		listen = imprint.DefaultHostListen
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {

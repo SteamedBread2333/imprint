@@ -209,7 +209,7 @@ imprint clear --confirm --yes        # 不可逆
 
 | 插件 | 仓库 | 职责 |
 | --- | --- | --- |
-| **desk** | [imprint-desk-plugin](https://github.com/SteamedBread2333/imprint-desk-plugin) | 实时 dashboard SPA（列表 / 关系图、筛选、URL 状态、中英） |
+| **desk** | [imprint-desk-plugin](https://github.com/SteamedBread2333/imprint-desk-plugin) | 实时 dashboard SPA（列表 / 关系图、IndexedDB 缓存、shelves 文档搜索、中英） |
 | **shelves** | [imprint-shelves-plugin](https://github.com/SteamedBread2333/imprint-shelves-plugin) | 工作区文档索引（SQLite + BM25）；`doc_search` 经 **imprint-mcp** 代理 |
 
 ```bash
@@ -219,6 +219,14 @@ imprint desk open
 ```
 
 Agent 仍只挂 **imprint-mcp** 一个 MCP；工具名来自各插件 `imprint.plugin.json`，宿主不写死 shelves API。
+
+### 集成测试 fixture
+
+同级目录 **`memory-test`** 含 3000 条合成规则与 20 篇文档，用于端到端自测：
+
+```bash
+cd ../memory-test && ./scripts/seed.sh && ./scripts/selftest.sh
+```
 
 ## 文档
 

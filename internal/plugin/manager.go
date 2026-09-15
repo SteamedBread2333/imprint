@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/SteamedBread2333/imprint/pkg/imprint"
 )
 
 // Status is one plugin row for list/reload.
@@ -57,7 +59,7 @@ func (m *Manager) List() ([]Status, error) {
 }
 
 func (m *Manager) statusFor(id string, entry PluginEntry) Status {
-	port := PluginPort(entry, defaultPort(id))
+	port := PluginPort(entry, imprint.DefaultPortForPlugin(id))
 	st := Status{
 		ID:      id,
 		Enabled: entry.Enabled,
@@ -82,17 +84,6 @@ func (m *Manager) statusFor(id string, entry PluginEntry) Status {
 		st.Healthy = checkHealth(st.Manifest.Entry.Health, port)
 	}
 	return st
-}
-
-func defaultPort(id string) int {
-	switch id {
-	case "desk":
-		return 4173
-	case "shelves":
-		return 4174
-	default:
-		return 4180
-	}
 }
 
 // Reload stops enabled plugins and starts them again.
@@ -133,7 +124,7 @@ func (m *Manager) startOne(ctx context.Context, id string, entry PluginEntry) er
 	if err != nil {
 		return err
 	}
-	port := PluginPort(entry, defaultPort(id))
+	port := PluginPort(entry, imprint.DefaultPortForPlugin(id))
 	start := strings.TrimSpace(man.Entry.Start)
 	if start == "" {
 		return fmt.Errorf("plugin %q: entry.start is empty", id)
@@ -167,6 +158,12 @@ func (m *Manager) startOne(ctx context.Context, id string, entry PluginEntry) er
 			}
 		}
 		cmd.Env = append(cmd.Env, "IMPRINT_SHELVES_STATE="+stateDir)
+	}
+	if id == "desk" {
+		if shelvesEntry, ok := m.cfg.Plugins["shelves"]; ok && shelvesEntry.Enabled {
+			port := PluginPort(shelvesEntry, imprint.DefaultShelvesPort)
+			cmd.Env = append(cmd.Env, "IMPRINT_SHELVES_URL="+BaseURL(port))
+		}
 	}
 	if roots, ok := entry.Config["roots"]; ok {
 		if b, err := jsonRoots(roots); err == nil {
@@ -262,7 +259,7 @@ func (m *Manager) DeskURL() (string, error) {
 	if !ok || !entry.Enabled {
 		return "", fmt.Errorf("desk plugin is not enabled")
 	}
-	port := PluginPort(entry, 4173)
+	port := PluginPort(entry, imprint.DefaultDeskPort)
 	if !checkHealth("GET http://127.0.0.1:${port}/health", port) {
 		return "", fmt.Errorf("desk plugin is not running on port %d", port)
 	}
@@ -292,7 +289,7 @@ func EnabledTools(cfg *Config) ([]ToolRoute, error) {
 		if !hasTools {
 			continue
 		}
-		port := PluginPort(entry, defaultPort(id))
+		port := PluginPort(entry, imprint.DefaultPortForPlugin(id))
 		base := BaseURL(port)
 		resolved := ResolveTools(id, man.Tools, taken)
 		for _, t := range resolved {

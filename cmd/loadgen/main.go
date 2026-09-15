@@ -17,7 +17,7 @@ var projs = []string{"proj:imprint", "proj:acme", "proj:web"}
 
 func main() {
 	n := flag.Int("n", 3000, "number of rules to write")
-	vault := flag.String("vault", "tests/loadvault", "vault directory")
+	vault := flag.String("vault", "loadvault", "vault directory (use a gitignored path; memory-test uses tests/loadvault)")
 	flag.Parse()
 
 	start := time.Now()

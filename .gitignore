@@ -30,7 +30,7 @@ go.work.sum
 # --- vault & plugin caches (user data, never commit) ---
 .imprint/memory/
 .imprint/.shelves/.cache/
-/tests/loadvault/
+/loadvault/
 
 # --- release packages ---
 /dist/
