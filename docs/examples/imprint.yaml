@@ -1,0 +1,22 @@
+# Copy to .imprint/imprint.yaml at your project root.
+# Paths are relative to the repo root unless absolute.
+
+vault: .imprint/memory
+
+host:
+  listen: 127.0.0.1:9470
+
+shelves:
+  enabled: true
+  config:
+    roots:
+      - docs
+      - .cursor/skills
+
+plugins:
+  desk:
+    enabled: false   # opt-in: clone imprint-desk-plugin, set enabled: true
+    package: ../imprint-desk-plugin
+    config:
+      port: 4173
+      hostUrl: http://127.0.0.1:9470

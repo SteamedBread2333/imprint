@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "imprint": {
+      "command": "imprint-mcp",
+      "args": ["--global"]
+    }
+  }
+}
