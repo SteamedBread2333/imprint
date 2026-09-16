@@ -1,6 +1,6 @@
 <div align="center">
 
-<img alt="imprint" width="200" src="https://github.com/user-attachments/assets/5c546072-5913-446b-b092-d255fc4fca90" />
+<img alt="imprint logo" width="200" src="assets/logo.png" />
 
 # imprint
 
