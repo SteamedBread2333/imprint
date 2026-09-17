@@ -3,7 +3,48 @@
 > **上手：** [README.zh.md](../README.zh.md#快速开始) — 安装、`imprint init`、可选 MCP。  
 > 本文是**参考**（工具列表、参数、挂载示例）。
 
-**imprint-mcp** 经 [MCP](https://modelcontextprotocol.io/)（stdio）暴露 vault 操作。可选 — CLI 始终可用。
+**imprint-mcp** 经 [MCP](https://modelcontextprotocol.io/)（stdio）暴露 vault + shelves 操作。**CLI 可读写 vault；要完整使用 shelves（文档召回、规则↔文档关联），必须挂载 MCP。**
+
+## MCP vs CLI
+
+| 能力 | MCP（shelves 开） | CLI `imprint --json` |
+| --- | --- | --- |
+| 写规则 + `sources` | `add` / `supersede` | 同左 |
+| 写代码前召回 | `find(scope, query)` → rules + **documents** + **links** | `find` → **vault rules only** |
+| 查规则文档依据 | `get r-…` → **resolved_sources** | `get r-…` → vault only |
+| 查 chunk 被哪些规则引用 | `get <chunk-id>` → **referenced_rules** + **cited_rules** | 不支持 |
+| 规则关系图 | `viz` / desk | 同左 |
+
+CLI `find` / `get` **刻意不增强 shelves** — 给脚本/automation 用；智能体写代码前召回请走 MCP。
+
+## 关联方式
+
+### 规则 ↔ 规则（vault，持久）
+
+| 字段 | 方向 | 写入 | 读取 |
+| --- | --- | --- | --- |
+| `supersedes` | 新 → 旧 | `supersede` | `get`, `/graph`, desk `/` |
+| `related` | rule → rule | vault | 同上 |
+| `conflicts_with` | rule → rule | vault | 同上 |
+| `referenced_by` | 反向 | 自动 | `get r-…` |
+
+### 规则 ↔ 文档（持久）
+
+| 名称 | 方向 | 写入 | 读取（MCP / host / desk） |
+| --- | --- | --- | --- |
+| **`sources`** | rule → doc | `add` / `supersede` 传 `[{path, heading?, chunk?}]` — 只写 vault | `get r-…` → **`resolved_sources`** |
+| **`referenced_rules`** | doc → rule | 自动（vault `sources` 反查） | **`get <chunk-id>`** |
+| **`cited_rules`** | doc → rule | 正文 `[[r-…]]` / `[imprint:r-…]`；rebuild 扫描 | **`get <chunk-id>`**；desk `/unified` **`cited_by`** |
+
+### `find` 的 `links`（当次有效，不持久）
+
+| `kind` | 含义 |
+| --- | --- |
+| `sources` | vault `sources` 指向本次命中的 chunk |
+| `cited_by` | chunk 正文引用规则 |
+| `co_search` | 同 query 下 rules 与 documents BM25 共现 — 辅助判断，**不写回 vault** |
+
+详见 [imprint-shelves-linking.zh.md](imprint-shelves-linking.zh.md)。
 
 ## 架构
 
@@ -36,7 +77,7 @@ flowchart LR
 | 层级        | 作用                                                                            |
 | --------- | ----------------------------------------------------------------------------- |
 | **宿主**    | Cursor、Claude Desktop 等启动 `imprint-mcp`，经 stdin/stdout 通信。                    |
-| **工具**    | 每个 vault 命令对应一个 MCP 工具（`find`、`add` …）。结果为 JSON 文本 — 与 `imprint --json` 结构相同。 |
+| **工具**    | vault 命令对应 MCP 工具（`find`、`add` …）。**MCP** 在 shelves 开时 enrich `find`/`get`；**CLI** `find`/`get` 仅 vault。 |
 | **Vault** | `.imprint/memory/` 分片；`find`/`get`/`add` 读写 claim、evidence、**sources**。 |
 | **Shelves** | 读 `.imprint/imprint.yaml` 的 `roots`；`find`+query 时 BM25 文档并返回 `documents`、`links`；`get chunk` 返回 `referenced_rules`。 |
 | **判断**    | ADD / REINFORCE / SUPERSEDE / IGNORE 与是否写 **sources** 均由智能体负责。 |
@@ -91,12 +132,13 @@ go install github.com/SteamedBread2333/imprint/cmd/imprint-mcp@latest
 
 ### 智能体流程
 
-1. 写代码或答风格问题前 → **窄** `scope` + **query** 调 `find`（shelves 开 → rules、documents、links）。
-2. 分析需求；分类 **ADD / REINFORCE / SUPERSEDE / IGNORE**。
-3. **ADD** 且 document 命中 → 同轮 `add` 带 **`sources`**（只写 vault，不改项目 markdown）。
-4. 不重复已有 imprint；只记录用户**原话**。
-5. 用户说忘记 / 不要记 → `forget` 或跳过。
-6. 用户要看存了什么 → `show` / desk；条目多时用 `viz`。
+1. **确认 MCP 已挂载**（shelves 开）— 否则只有 vault，无 documents / links / resolved_sources。
+2. 写代码或答风格问题前 → **窄** `scope` + **query** 调 **`find`** → rules、`documents`、`links`。
+3. 分析需求；分类 **ADD / REINFORCE / SUPERSEDE / IGNORE**。
+4. **ADD** 且 document 命中 → 同轮 `add` 带 **`sources`**（只写 vault，不改项目 markdown）。
+5. 不重复已有 imprint；只记录用户**原话**。
+6. 用户说忘记 / 不要记 → `forget` 或跳过。
+7. 用户要看存了什么 → `show` / desk（`/`、`/docs`、`/unified`）；条目多时用 `viz`。
 
 
 

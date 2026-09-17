@@ -13,12 +13,12 @@ import (
 func registerTools(server *sdkmcp.Server, v *imprint.Vault, shelvesSvc *shelves.Service) {
 	s := &vaultTools{v: v, shelves: shelvesSvc}
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
-		Name:        "find",
-		Description: "Search active rules: scope tags are AND-filtered, then optional BM25 query ranks matches. When shelves is enabled and query is set, returns enriched rules (resolved_sources), documents, and links.",
+		Name: "find",
+		Description: "Search active rules (scope tags AND-filtered; optional BM25 query). Shelves+MCP only: with query → { rules (resolved_sources), documents, links }. links kinds: sources (vault rule→doc), cited_by ([[r-…]] in doc), co_search (same-query boost; not persisted). Without query or shelves off → rules only. CLI find omits documents/links/resolution.",
 	}, s.find)
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
 		Name:        "add",
-		Description: "Add a rule after classifying ADD. claim, scope, and text are required. Optional sources link the rule to workspace docs.",
+		Description: "Add after ADD classification. Required: claim, scope, text. Optional sources [{path, heading?, chunk?}] persist rule→doc links in vault (default: no project markdown edits). Use when user points at docs or find returned a matching document.",
 	}, s.add)
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
 		Name:        "reinforce",
@@ -26,15 +26,15 @@ func registerTools(server *sdkmcp.Server, v *imprint.Vault, shelvesSvc *shelves.
 	}, s.reinforce)
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
 		Name:        "supersede",
-		Description: "Archive old_id and write a new rule with claim and scope. Inherits old sources unless sources is set.",
+		Description: "Archive old_id; write new rule (claim, scope). Inherits old sources unless sources is set. Optional sources [{path, heading?, chunk?}] replace inherited rule→doc links in vault.",
 	}, s.supersede)
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
 		Name:        "forget",
 		Description: "Delete a rule and strip inbound links.",
 	}, s.forget)
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
-		Name:        "get",
-		Description: "Load one rule with evidence_log, referenced_by, and resolved_sources; or a document chunk with referenced_rules (vault sources) and optional cited_rules ([[r-…]] in text).",
+		Name: "get",
+		Description: "Load by id. r-… → vault + referenced_by + resolved_sources (MCP+shelves). chunk id → document + referenced_rules (vault sources reverse; no markdown edits) + cited_rules ([[r-…]] / [imprint:r-…] only). CLI get is vault-only for rules; no chunk ids.",
 	}, s.get)
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
 		Name:        "list",

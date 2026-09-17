@@ -431,6 +431,13 @@ func TestVizMermaidAndGraph(t *testing.T) {
 	if len(g.Nodes) != 2 || len(g.Edges) < 1 {
 		t.Fatalf("graph = %+v", g)
 	}
+	active, err := v.Graph(false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(active.Nodes) != 2 || len(active.Edges) != 1 {
+		t.Fatalf("active graph should include linked archived node: nodes=%d edges=%d", len(active.Nodes), len(active.Edges))
+	}
 	if _, err := v.Viz("", "html", true); err == nil {
 		t.Fatal("html viz should be removed")
 	}

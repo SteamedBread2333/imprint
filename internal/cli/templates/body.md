@@ -2,18 +2,71 @@
 
 This project's long-term memory is **imprint**, not chat history. **Nothing syncs automatically** — you must call imprint tools in the same turn when the user states something durable.
 
-- **Transport:** Prefer **imprint MCP** tools when the `imprint` server is connected in the host. If MCP is not mounted or a tool call fails, fall back to `imprint --json` in the shell. Same vault, same JSON shapes — do not use both for one operation.
-- **Users never maintain the vault.** They speak normally while coding. You run `find` / `add` / `reinforce` / `supersede` / `forget` — never ask them to say imprint commands, rule ids, or "delete rule X". Confirm in plain language only.
-- **You maintain the vault, not the chat.** imprint does not read or append to the vault on its own. A message that should be remembered stays unwritten until you call a write tool.
-- **Review and prune is fine.** When they ask to review what is recorded or trim obsolete branches, use `show` / `viz` / `get` (or suggest `imprint desk open`), explain in plain language, then `supersede` / `forget` / `sweep` what they reject — they do not pick ids or run CLI themselves.
-- Vault: `.imprint/memory/` (override with `IMPRINT_VAULT` or `--vault` / `--global`)
-- MCP mount: see `docs/mcp.md` and `docs/examples/cursor-mcp.json`. Correction loop + coding examples: `docs/correction.md` / `docs/correction.zh.md`.
-- `path` on add/get is the shard file (`imprint-NNNN.md`), not a per-rule filename. `.imprint/memory/notes/` is generated and read-only.
-- Effects: `find` tags are **AND**, then `--query` is optional BM25 (not embeddings); `add` only after ADD (`claim`, `--scope`, `--text` required; optional `sources` when find hits a matching doc); `reinforce` +0.1 (cap 0.95); `supersede` archives the old rule and writes a new one (inherits `sources` unless overridden); `get` on `r-…` includes `resolved_sources`; chunk `get` includes `referenced_rules` (vault reverse; no doc edits) and optional `cited_rules` (`[[r-…]]` only); `find` with query returns enriched rules, `documents`, and `links` when shelves is on; `forget` strips inbound links; `list` accepts `--scope`, `--query`, `--min-confidence`, `--since`.
+## MCP + shelves（必读）
+
+**要完整使用 shelves（文档 BM25 召回 + 规则↔文档关联），必须挂载并调用 imprint MCP。**  
+CLI `imprint --json` 仍可读写 vault，但 **`find` / `get` 刻意不走路 shelves 增强** — 无 `documents`、`links`、`resolved_sources`、`referenced_rules`、chunk `get`。
+
+| 能力 | MCP（shelves 开） | CLI |
+| --- | --- | --- |
+| 写规则 + 挂文档 | `add` / `supersede` + `sources` | 同左（写 vault） |
+| 写代码前召回 | `find(scope, query)` → rules + **documents** + **links** | `find` → vault rules only |
+| 查规则依据 | `get r-…` → **resolved_sources** | `get r-…` → vault only |
+| 查文档被谁引用 | `get <chunk-id>` → **referenced_rules** + **cited_rules** | 不支持 chunk `get` |
+| 规则关系图 | `viz` / desk `/` | 同左 |
+| 人审 rule↔doc | 建议 `imprint desk open` → `/unified` | — |
+
+Mount: `docs/mcp.md`, `docs/examples/cursor-mcp.json`. Correction loop: `docs/correction.md` / `docs/correction.zh.md`.
+
+- **Transport:** Prefer **imprint MCP** when connected. CLI fallback = vault read/write only — **not** a shelves substitute. Same vault; do not use both for one operation.
+- **Users never maintain the vault.** They speak normally; you run `find` / `add` / `reinforce` / `supersede` / `forget` — never ask for imprint commands or rule ids.
+- **You maintain the vault, not the chat.** A durable preference stays unwritten until you call a write tool in the same turn.
+- **Review and prune is fine.** `show` / `viz` / `get` (or `imprint desk open`); explain in plain language; then `supersede` / `forget` / `sweep` after they agree.
+- Vault: `.imprint/memory/` (`IMPRINT_VAULT`, `--vault`, `--global`). `path` on add/get = shard file (`imprint-NNNN.md`). `.imprint/memory/notes/` is generated — do not hand-edit.
+
+## 关联方式（全部）
+
+### 规则 ↔ 规则（vault，持久）
+
+| 关联 | 方向 | 写入 | 读取 |
+| --- | --- | --- | --- |
+| `supersedes` | 新 rule → 旧 rule | `supersede` | `get`, `/graph`, desk `/` |
+| `related` | rule → rule | `add` / vault 维护 | 同上 |
+| `conflicts_with` | rule → rule | `add` | 同上 |
+| `referenced_by` | 反向（谁指向我） | 自动 | `get r-…` |
+
+### 规则 ↔ 文档（vault + shelves，持久）
+
+| 关联 | 方向 | 写入 | 读取（需 MCP 或 host/desk） |
+| --- | --- | --- | --- |
+| **`sources`** | rule → doc | **`add` / `supersede` 传 `[{path, heading?, chunk?}]`** — 只写 vault，**默认不改项目 markdown** | `get r-…` → **`resolved_sources`**；MCP `find`+`query` 规则命中也带 |
+| **`referenced_rules`** | doc → rule | **自动** — vault `sources` 反查 | **`get <chunk-id>`**（MCP） |
+| **`cited_rules`** | doc → rule | 维护者在正文写 `[[r-…]]` / `[imprint:r-…]`；shelves rebuild | **`get <chunk-id>`**（MCP）；desk unified **`cited_by`** 边 |
+
+默认路径：用户纠正 → MCP **`find(scope, query)`** → 判断 document 命中 → 同轮 **`add`/`supersede` + `sources`**。不需要用户在 markdown 里 @ 规则。
+
+### `find` 的 `links`（当次召回，不持久）
+
+| `kind` | 含义 |
+| --- | --- |
+| `sources` | vault 里已有 `sources` 指向本次命中的 chunk |
+| `cited_by` | chunk 正文 `[[r-…]]` 指向规则 |
+| `co_search` | 同一次 query 下 rules 与 documents BM25 共现 — **仅辅助判断，不写回 vault** |
+
+### 人审（desk，非 agent 召回）
+
+`imprint desk open` → **`/`** 规则图（`supersedes` / `related` / `conflicts_with`）· **`/docs`** shelves · **`/unified`** 规则+文档+**`sources` / `cited_by`** 跨边。
+
+## Writes & filters
+
+- `find` scope tags = **AND**; optional BM25 `query` (not embeddings).
+- `add` after ADD only: `claim`, `scope`, `text` required; optional **`sources`** when user points at docs or MCP find hits a matching document.
+- `reinforce` +0.1 (cap 0.95); `supersede` inherits `sources` unless overridden; `forget` strips inbound links.
+- `list`: `--scope`, `--query`, `--min-confidence`, `--since`.
 
 ```bash
-imprint --json --vault ./.imprint/memory find --scope go,naming
-imprint --json --vault ./.imprint/memory find --scope go --query PascalCase
+# CLI fallback — vault only; no shelves enrichment on find/get
+imprint --json --vault ./.imprint/memory find --scope go,naming --query PascalCase
 imprint --json --vault ./.imprint/memory add "CLAIM" --scope tag,tag --text "user's original words"
 imprint --json --vault ./.imprint/memory reinforce ID --evidence "..."
 imprint --json --vault ./.imprint/memory supersede ID --claim "NEW" --scope tag,tag --reason "..."
@@ -23,23 +76,23 @@ imprint --json --vault ./.imprint/memory list --status active --scope go --min-c
 imprint --json --vault ./.imprint/memory show
 imprint --json --vault ./.imprint/memory sweep
 imprint --json --vault ./.imprint/memory viz
-imprint --json --vault ./.imprint/memory viz --format notes
 ```
 
 ## Must do
 
-1. Before coding or answering style/convention questions, `find` (MCP tool or CLI) with a **narrow scope** (e.g. `go,naming`) and a **query** from the task when shelves is on — use `resolved_sources` / `links` in the response. Cite `[r-id]` when a hit shapes behavior; cite doc paths when excerpts apply.
-2. **Same-turn write trigger:** When the user states a durable preference, correction, or constraint (e.g. "from now on", "always", "never", "use X not Y", or negates an old rule) → `find` with a narrow scope, classify ADD / REINFORCE / SUPERSEDE / IGNORE, and **call the write tool in this turn** before coding. When the user points at project docs (`STYLE.md`, a skill, CONTRIBUTING section), pass **`sources`** on `add` / `supersede`. Do not defer to the end of the task.
-3. **IGNORE vs write:** IGNORE one-off Q&A, session-only task steps, and choices that are not reusable policy. ADD / REINFORCE / SUPERSEDE only for explicit, cross-session rules in the user's own words.
-4. Before modifying anything, analyze the requirement until it is complete.
-5. Before every write, classify again; never add a duplicate. Starting confidence 0.6; corrections 0.85; "from now on always" 0.9.
-6. User negates in normal speech ("don't record that", "we follow STYLE.md now") → you `find` and `forget` or `supersede`; user does not maintain memory.
-7. User asks what is recorded / to see the picture → `show`; if more than ~20 items, `viz` (`--format mermaid` or `--format notes`) or suggest `imprint desk open` for the graph UI.
-8. After development on this project, update README (including the flowchart) and all docs; self-test thoroughly.
+1. Before coding or style answers → **MCP `find`** with **narrow scope** + **query** (shelves on). Use **`resolved_sources`**, **`documents`**, **`links`**. Cite `[r-id]` when a rule shapes behavior; cite doc paths when excerpts apply. CLI fallback = vault rules only.
+2. **Same-turn write:** durable preference / correction → MCP `find` → classify ADD / REINFORCE / SUPERSEDE / IGNORE → **write in this turn**. Document hit or user points at docs → pass **`sources`** on `add` / `supersede`.
+3. **IGNORE** one-off tasks and session-only steps. **ADD / REINFORCE / SUPERSEDE** only for cross-session policy in the user's words.
+4. Analyse the requirement before modifying code.
+5. Before every write, classify again; no duplicates. Confidence: default 0.6; corrections 0.85; "always" 0.9.
+6. User negates in plain speech → `find` then `forget` or `supersede`.
+7. User asks what's recorded → `show`; many items → `viz` or **`imprint desk open`** (`/`, `/docs`, `/unified`).
+8. After imprint feature work here → update README flowchart and docs; self-test.
 
 ## Must not
 
-- Assume the vault updates from conversation. Do not backfill preferences from chat history unless the user asks to review or record something.
-- Infer preferences. Don't store secrets. Don't archive by hand (`imprint sweep` only). Don't hand-edit `.imprint/memory/notes/`.
-- Call the system "memory store" in user-facing text — it is **imprint**.
-- Ask the user to maintain imprint (commands, ids, "forget r-…"). Cite `[r-id]` only when shaping code or when they ask what is recorded.
+- Use CLI `find`/`get` expecting shelves fields — use **MCP**.
+- Assume vault updates from chat. Don't backfill from history unless asked.
+- Infer preferences. Don't store secrets. Don't hand-edit `notes/` or archive by hand (`sweep` only).
+- Call it "memory store" — it is **imprint**.
+- Ask the user to maintain imprint (commands, ids). Cite `[r-id]` only when shaping code or when they ask what's recorded.

@@ -143,7 +143,7 @@ Without query, or shelves off: **rules array** only (enriched with `resolved_sou
 
 ## Desk UI
 
-Desk proxies `/api/docs/*` and `/api/graph/unified` to the host. Three tabs: **rules** (vault graph), **docs** (shelves search), **unified** (rules + files/chunks + `sources` / `cited_by` edges). Rule detail shows `resolved_sources`; doc chunks show `referenced_rules` / `cited_rules`. **Agents use MCP `find` / `get`**, not desk, for recall.
+Desk proxies `/api/docs/*` and `/api/graph/unified` to the host. Three routes — **`/`** (rules graph), **`/docs`** (shelves search), **`/unified`** (rules + files/chunks + `sources` / `cited_by` edges) — each with **its own URL query state** (switching tabs does not carry filters across). Rule detail shows `resolved_sources`; doc chunks show `referenced_rules` / `cited_rules`. **Agents use MCP `find` / `get`**, not desk, for recall.
 
 ---
 

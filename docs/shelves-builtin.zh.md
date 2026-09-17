@@ -168,7 +168,7 @@ Agent 约定见 `imprint init` 写入的编辑器规则与 [correction.zh.md](co
 
 ## Desk UI
 
-desk 将 `/api/docs/*`、`/api/graph/unified` 代理到 host。三个标签：**规则**（vault 图）、**文档**（shelves 搜索）、**统一**（规则 + 文件/chunk + `sources` / `cited_by` 边）。规则详情展示 `resolved_sources`；文档 chunk 展示 `referenced_rules` / `cited_rules`。**Agent 主路径仍是 MCP `find` / `get`**。
+desk 将 `/api/docs/*`、`/api/graph/unified` 代理到 host。三个独立路由 — **`/`**（规则图）、 **`/docs`**（shelves 搜索）、 **`/unified`**（规则 + 文件/chunk + `sources` / `cited_by` 边）— **各自维护 URL 查询参数**，切换标签不会把筛选条件带过去。规则详情展示 `resolved_sources`；文档 chunk 展示 `referenced_rules` / `cited_rules`。**Agent 主路径仍是 MCP `find` / `get`**。
 
 ---
 

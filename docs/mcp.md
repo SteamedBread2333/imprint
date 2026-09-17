@@ -3,7 +3,48 @@
 > **Setup:** [README.md](../README.md#quick-start) — install, `imprint init`, optional MCP merge.  
 > This page is **reference** (tools, flags, mount snippets).
 
-**imprint-mcp** exposes vault operations over [MCP](https://modelcontextprotocol.io/) (stdio). Optional — CLI always works.
+**imprint-mcp** exposes vault + shelves over [MCP](https://modelcontextprotocol.io/) (stdio). **CLI can read/write the vault; MCP is required for full shelves** (document recall and rule↔doc links).
+
+## MCP vs CLI
+
+| Capability | MCP (shelves on) | CLI `imprint --json` |
+| --- | --- | --- |
+| Write rules + `sources` | `add` / `supersede` | same |
+| Pre-coding recall | `find(scope, query)` → rules + **documents** + **links** | `find` → **vault rules only** |
+| Rule doc basis | `get r-…` → **resolved_sources** | `get r-…` → vault only |
+| Chunk → rules | `get <chunk-id>` → **referenced_rules** + **cited_rules** | not supported |
+| Rule graph | `viz` / desk | same |
+
+CLI `find` / `get` **intentionally skip shelves enrichment** — for scripts/automation. Agents should use MCP before coding.
+
+## Link kinds
+
+### Rule ↔ rule (vault, persistent)
+
+| Field | Direction | Write | Read |
+| --- | --- | --- | --- |
+| `supersedes` | new → old | `supersede` | `get`, `/graph`, desk `/` |
+| `related` | rule → rule | vault | same |
+| `conflicts_with` | rule → rule | vault | same |
+| `referenced_by` | reverse | automatic | `get r-…` |
+
+### Rule ↔ document (persistent)
+
+| Name | Direction | Write | Read (MCP / host / desk) |
+| --- | --- | --- | --- |
+| **`sources`** | rule → doc | `add` / `supersede` with `[{path, heading?, chunk?}]` — vault only | `get r-…` → **`resolved_sources`** |
+| **`referenced_rules`** | doc → rule | automatic vault reverse scan | **`get <chunk-id>`** |
+| **`cited_rules`** | doc → rule | `[[r-…]]` / `[imprint:r-…]` in text; rebuild | **`get <chunk-id>`**; desk `/unified` **`cited_by`** |
+
+### `find` `links` (session-only, not persisted)
+
+| `kind` | Meaning |
+| --- | --- |
+| `sources` | vault `sources` point at a hit chunk |
+| `cited_by` | chunk text cites a rule |
+| `co_search` | same-query BM25 co-occurrence — aids judgment, **not written back** |
+
+See [imprint-shelves-linking.md](imprint-shelves-linking.md).
 
 ## Architecture
 
@@ -33,7 +74,7 @@ flowchart LR
 | Layer | Role |
 | --- | --- |
 | **Host** | Cursor, Claude Desktop, etc. spawns `imprint-mcp` and talks over stdin/stdout. |
-| **Tools** | One MCP tool per vault command (`find`, `add`, …). Results are JSON text — same shapes as `imprint --json`. |
+| **Tools** | One MCP tool per vault command (`find`, `add`, …). **MCP** enriches `find`/`get` when shelves is on; **CLI** `find`/`get` are vault-only. |
 | **Vault** | `.imprint/memory/` shards; `find` / `get` / `add` read and write claim, evidence, **sources**. |
 | **Shelves** | Reads `roots` from `.imprint/imprint.yaml`; `find`+query adds BM25 **documents** and **links**; chunk `get` adds **referenced_rules**. |
 | **Judgment** | ADD / REINFORCE / SUPERSEDE / IGNORE and whether to set **sources** stay on the agent. |
@@ -83,12 +124,13 @@ Every tool returns **pretty-printed JSON** in the tool result text. On failure, 
 
 ### Agent workflow
 
-1. Before coding or style answers → **`find`** with narrow `scope` + **`query`** (shelves on → rules, documents, links).
-2. Analyse; classify **ADD / REINFORCE / SUPERSEDE / IGNORE**.
-3. On **ADD** when a document hit matches → same-turn **`add`** with **`sources`** (vault only — no markdown edits).
-4. Never duplicate an imprint; record only what the user **said**.
-5. User says forget / don't record → **`forget`** or skip.
-6. User asks what is stored → **`show`** / desk; many items → **`viz`**.
+1. **Confirm MCP is mounted** (shelves on) — otherwise only vault, no documents / links / resolved_sources.
+2. Before coding or style answers → **`find`** with narrow `scope` + **`query`** → rules, documents, links.
+3. Analyse; classify **ADD / REINFORCE / SUPERSEDE / IGNORE**.
+4. On **ADD** when a document hit matches → same-turn **`add`** with **`sources`** (vault only — no markdown edits).
+5. Never duplicate an imprint; record only what the user **said**.
+6. User says forget / don't record → **`forget`** or skip.
+7. User asks what is stored → **`show`** / desk (`/`, `/docs`, `/unified`); many items → **`viz`**.
 
 ## Mounting examples
 

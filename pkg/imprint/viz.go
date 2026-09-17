@@ -44,10 +44,31 @@ func (v *Vault) Graph(includeArchived bool) (GraphData, error) {
 	return data, err
 }
 
+func graphNode(recs []*Record, r *Record) GraphNode {
+	return GraphNode{
+		ID:                 r.ID,
+		Claim:              r.Claim,
+		Scope:              r.Scope,
+		Confidence:         r.Confidence,
+		Status:             string(r.Status),
+		ReinforcementCount: r.ReinforcementCount,
+		Supersedes:         r.Supersedes,
+		Related:            r.Related,
+		ConflictsWith:      r.ConflictsWith,
+		EvidenceLog:        r.EvidenceLog,
+		LastTouchedAt:      r.LastTouchedAt,
+		ReferencedBy:       backlinksFrom(recs, r.ID),
+	}
+}
+
 func (v *Vault) graph(includeArchived bool) (GraphData, []*Record, error) {
 	recs, err := v.loadAll()
 	if err != nil {
 		return GraphData{}, nil, err
+	}
+	byID := make(map[string]*Record, len(recs))
+	for _, r := range recs {
+		byID[r.ID] = r
 	}
 	data := GraphData{
 		GeneratedAt: v.instant().Format(time.RFC3339),
@@ -62,20 +83,34 @@ func (v *Vault) graph(includeArchived bool) (GraphData, []*Record, error) {
 		}
 		ids[r.ID] = struct{}{}
 		kept = append(kept, r)
-		data.Nodes = append(data.Nodes, GraphNode{
-			ID:                 r.ID,
-			Claim:              r.Claim,
-			Scope:              r.Scope,
-			Confidence:         r.Confidence,
-			Status:             string(r.Status),
-			ReinforcementCount: r.ReinforcementCount,
-			Supersedes:         r.Supersedes,
-			Related:            r.Related,
-			ConflictsWith:      r.ConflictsWith,
-			EvidenceLog:        r.EvidenceLog,
-			LastTouchedAt:      r.LastTouchedAt,
-			ReferencedBy:       backlinksFrom(recs, r.ID),
-		})
+		data.Nodes = append(data.Nodes, graphNode(recs, r))
+	}
+	// Active-only graph still needs archived endpoints referenced by active rules,
+	// otherwise supersedes/related/conflict edges are dropped entirely.
+	if !includeArchived {
+		linked := map[string]struct{}{}
+		for _, r := range kept {
+			for _, id := range r.Supersedes {
+				linked[id] = struct{}{}
+			}
+			for _, id := range r.Related {
+				linked[id] = struct{}{}
+			}
+			for _, id := range r.ConflictsWith {
+				linked[id] = struct{}{}
+			}
+		}
+		for id := range linked {
+			if _, ok := ids[id]; ok {
+				continue
+			}
+			r, ok := byID[id]
+			if !ok {
+				continue
+			}
+			ids[id] = struct{}{}
+			data.Nodes = append(data.Nodes, graphNode(recs, r))
+		}
 	}
 	addEdge := func(src, dst, kind string) {
 		if src == "" || dst == "" || src == dst {

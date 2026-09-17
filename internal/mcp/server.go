@@ -27,7 +27,15 @@ var Home = os.UserHomeDir
 // Now returns the current time for vault operations.
 var Now = time.Now
 
-const serverInstructions = `imprint long-term memory tools. Users never maintain the vault — they speak normally; you run find/add/reinforce/supersede/forget. Never ask for imprint commands or rule ids. Review-and-prune requests are fine: show/viz/get, explain, then supersede/forget/sweep after they agree. Before coding or style questions, find with a narrow scope (tags are AND) and optional query. Before every write, classify ADD / REINFORCE / SUPERSEDE / IGNORE; never duplicate. Record only what the user said. User negates in plain speech → find then forget or supersede. Results are JSON like imprint --json. When shelves is enabled and find has a query, results include enriched rules (resolved_sources), documents, and links. get on a rule returns resolved_sources; get on a chunk id returns referenced_rules (vault sources reverse lookup; no markdown edits required) and optional cited_rules. On add/supersede when find hits a matching document, pass sources [{path, heading?, chunk?}].`
+const serverInstructions = `imprint long-term memory (vault + shelves). MCP is REQUIRED for full shelves: CLI find/get are vault-only and omit documents, links, resolved_sources, referenced_rules, and chunk get.
+
+Users never maintain the vault — speak normally; you run find/add/reinforce/supersede/forget. Never ask for imprint commands or rule ids. Review-and-prune: show/viz/get or desk, explain, then supersede/forget/sweep after they agree. Before every write classify ADD / REINFORCE / SUPERSEDE / IGNORE; never duplicate; record only what the user said. User negates in plain speech → find then forget or supersede.
+
+Before coding or style answers: find with narrow scope (tags AND) + query when shelves is on → { rules with resolved_sources, documents, links }. Link kinds in find.links (session-only except sources field): sources (vault rule→doc), cited_by ([[r-…]] in doc), co_search (same-query BM25; not persisted).
+
+Persistent links: Rule↔rule in vault — supersedes, related, conflicts_with; referenced_by on get. Rule→doc — sources on add/supersede [{path, heading?, chunk?}] (vault only; default no markdown edits) → resolved_sources on get/find. Doc→rule — referenced_rules (vault reverse scan) and optional cited_rules from markdown on get chunk id.
+
+On ADD when find hits a matching document, same-turn add/supersede with sources. Results are JSON.`
 
 // Run starts the MCP server on stdio using cfg for vault resolution.
 func Run(ctx context.Context, cfg Config) error {
