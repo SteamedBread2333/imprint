@@ -2,10 +2,10 @@
 # Cross-compile imprint and pack platform archives into dist/.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
-VERSION="${VERSION:-$(bash "${ROOT}/scripts/version.sh")}"
+VERSION="${VERSION:-$(bash "${ROOT}/scripts/release/version.sh")}"
 VERSION="${VERSION:-devel}"
 NAME="imprint"
 OUT="${ROOT}/dist"

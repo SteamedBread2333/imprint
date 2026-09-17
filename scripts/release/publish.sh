@@ -9,7 +9,7 @@
 # --local does Release + GHCR from this machine instead of waiting for Actions.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
 VERSION=""
@@ -20,7 +20,7 @@ ALLOW_DIRTY=0
 
 usage() {
   cat <<'EOF'
-Usage: scripts/publish.sh [v]X.Y.Z [flags]
+Usage: scripts/release/publish.sh [v]X.Y.Z [flags]
 
 Flags:
   --dry-run       Print actions; do not tag, push, or upload
@@ -30,8 +30,8 @@ Flags:
   -h, --help      Show this help
 
 Examples:
-  scripts/publish.sh X.Y.Z              # tag vX.Y.Z and push (CI publishes)
-  scripts/publish.sh vX.Y.Z --local     # tag, push, and upload from this machine
+  scripts/release/publish.sh X.Y.Z              # tag vX.Y.Z and push (CI publishes)
+  scripts/release/publish.sh vX.Y.Z --local     # tag, push, and upload from this machine
   make publish V=X.Y.Z
 EOF
 }
@@ -106,9 +106,9 @@ fi
 
 echo "→ dist $VERSION"
 if [[ "$DRY_RUN" -eq 0 ]]; then
-  VERSION="$VERSION" bash scripts/dist.sh
+  VERSION="$VERSION" bash scripts/release/dist.sh
 else
-  echo "+ VERSION=$VERSION bash scripts/dist.sh"
+  echo "+ VERSION=$VERSION bash scripts/release/dist.sh"
 fi
 
 notes="imprint ${TAG}
