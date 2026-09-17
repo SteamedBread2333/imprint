@@ -277,7 +277,7 @@ See the Chinese doc §8 for full scenarios (user points at `STYLE.md`, CONTRIBUT
 | **P0** | `Record.sources` + add/supersede/get resolution | vault stores readable sources |
 | **P1** | rebuild scans `[[r-…]]` → `rule_refs` | doc → rule back-edges |
 | **P2** | enriched get/find; host `/find` aligned with MCP | agent recall sees links |
-| **P3** | `GET /graph/unified` + desk unified view | human audit across systems |
+| **P3** | `GET /graph/unified` + desk unified view | **done** — host `/graph/unified`; desk **unified** tab |
 | **P4** | link/unlink tools; scope_match boost | ergonomics |
 
 **MVP recommendation:** P0 + P1.

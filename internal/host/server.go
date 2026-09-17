@@ -13,6 +13,7 @@ import (
 
 	"github.com/SteamedBread2333/imprint/internal/linking"
 	"github.com/SteamedBread2333/imprint/internal/shelves"
+	"github.com/SteamedBread2333/imprint/internal/shelves/index"
 	"github.com/SteamedBread2333/imprint/pkg/imprint"
 )
 
@@ -59,6 +60,23 @@ func Serve(ctx context.Context, cfg Config) error {
 		}
 		inc := r.URL.Query().Get("include_archived") == "true"
 		data, err := cfg.Vault.Graph(inc)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJSON(w, data)
+	})
+	mux.HandleFunc("/graph/unified", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			methodNotAllowed(w)
+			return
+		}
+		inc := r.URL.Query().Get("include_archived") == "true"
+		var st *index.Store
+		if cfg.Shelves != nil {
+			st = cfg.Shelves.IndexStore()
+		}
+		data, err := linking.BuildUnifiedGraph(cfg.Vault, st, inc)
 		if err != nil {
 			writeErr(w, http.StatusInternalServerError, err)
 			return

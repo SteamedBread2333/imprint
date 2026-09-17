@@ -397,7 +397,7 @@ rebuild 后 `get <chunk>` 的 `cited_rules` 包含该规则；desk 统一图显�
 | **P0** | `Record.sources` schema + `add`/`supersede`/`get` 解析 | vault 可存可读来源 |
 | **P1** | shelves rebuild 扫描 `[[r-…]]` → `rule_refs` | 文档 → 规则反向边 |
 | **P2** | `get` / `find` enriched；host `/find` 对齐 MCP | 智能体召回时看到关联 |
-| **P3** | `GET /graph/unified` + desk 统一视图 | 人可审计跨系统图 |
+| **P3** | `GET /graph/unified` + desk 统一视图 | **已实现** — host `/graph/unified`；desk「统一」标签 |
 | **P4** | `link`/`unlink` CLI + MCP；scope_match 运行时 boost | 完善 ergonomics |
 
 建议 **P0 + P1** 作为 MVP：持久双向链接的最小闭环。
@@ -463,6 +463,8 @@ rebuild 后 `get <chunk>` 的 `cited_rules` 包含该规则；desk 统一图显�
 | Chunk scan | `internal/shelves/index/chunk.go` | +extractRuleRefs |
 | MCP find/get | `internal/mcp/tools.go` | +links / resolved fields |
 | Host find | `internal/host/server.go` | 对齐 MCP |
+| Host unified graph | `internal/host/server.go` | `GET /graph/unified` |
+| Unified graph builder | `internal/linking/unified.go` | vault + shelves + cross edges |
 | Doc graph | `internal/shelves/graph.go` | 不变；统一图新模块 |
 | Vault graph | `pkg/imprint/viz.go` | 不变；统一图新模块 |
 
