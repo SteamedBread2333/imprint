@@ -28,6 +28,7 @@ func Rebuild(workspace string, roots []string, stateDir string) (*Store, bool, e
 		BuiltAt:     time.Now().UTC(),
 		FileCount:   fileCount,
 		Chunks:      chunks,
+		RuleRefs:    ExtractAllRuleRefs(chunks),
 	}
 	if err := SaveStore(stateDir, s); err != nil {
 		return nil, false, err

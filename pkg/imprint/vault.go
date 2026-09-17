@@ -203,11 +203,16 @@ func (v *Vault) save(r *Record, archived bool) error {
 
 // Add writes a new active rule. confidence <= 0 means 0.6.
 func (v *Vault) Add(claim string, scope []string, text string, confidence float64) (*AddResult, error) {
-	return v.AddRecord(claim, scope, text, confidence, nil, nil, nil)
+	return v.AddRecord(claim, scope, text, confidence, nil, nil, nil, nil)
+}
+
+// AddWithSources is Add plus document sources for agent traceability.
+func (v *Vault) AddWithSources(claim string, scope []string, text string, confidence float64, sources []DocRef) (*AddResult, error) {
+	return v.AddRecord(claim, scope, text, confidence, nil, nil, nil, sources)
 }
 
 // AddRecord is Add plus optional relationship fields (abstraction lift).
-func (v *Vault) AddRecord(claim string, scope []string, text string, confidence float64, supersedes, related, conflicts []string) (*AddResult, error) {
+func (v *Vault) AddRecord(claim string, scope []string, text string, confidence float64, supersedes, related, conflicts []string, sources []DocRef) (*AddResult, error) {
 	claim = strings.TrimSpace(claim)
 	if claim == "" {
 		return nil, fmt.Errorf("claim is required")
@@ -234,6 +239,7 @@ func (v *Vault) AddRecord(claim string, scope []string, text string, confidence 
 		Supersedes:         cleanScope(supersedes),
 		Related:            cleanScope(related),
 		ConflictsWith:      cleanScope(conflicts),
+		Sources:            cleanDocRefs(sources),
 		EvidenceLog: []Evidence{{
 			At:   now,
 			Kind: EvidenceOriginal,
@@ -312,6 +318,34 @@ func dropID(ids []string, id string) ([]string, bool) {
 		return ids, false
 	}
 	return kept, true
+}
+
+// SourcesForIDs returns sources for the given rule ids in one vault read.
+func (v *Vault) SourcesForIDs(ids []string) (map[string][]DocRef, error) {
+	want := map[string]struct{}{}
+	for _, id := range ids {
+		id = strings.TrimSpace(id)
+		if id != "" {
+			want[id] = struct{}{}
+		}
+	}
+	if len(want) == 0 {
+		return map[string][]DocRef{}, nil
+	}
+	recs, err := v.loadAll()
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string][]DocRef, len(want))
+	for _, r := range recs {
+		if _, ok := want[r.ID]; !ok {
+			continue
+		}
+		if len(r.Sources) > 0 {
+			out[r.ID] = r.Sources
+		}
+	}
+	return out, nil
 }
 
 // List returns summaries, optionally filtered by status.

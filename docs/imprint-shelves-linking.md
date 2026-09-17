@@ -1,6 +1,6 @@
 # imprint ↔ shelves data linking design
 
-> **Status:** Draft for review  
+> **Status:** P0–P2 implemented (2026-09-16)  
 > **Audience:** Developers working on imprint, shelves, and desk  
 > **See also:** [shelves-builtin.md](shelves-builtin.md) · [correction.md](correction.md) · [mcp.md](mcp.md)
 
@@ -56,6 +56,21 @@ Typical gaps:
 
 ---
 
+## 3.1 Recommended: keep project markdown clean
+
+Most projects **do not** need `[[r-…]]` in doc bodies.
+
+| Need | Approach | Edit docs? |
+| --- | --- | --- |
+| “Which doc supports this imprint?” | vault `sources` + `resolved_sources` | **No** |
+| “Which imprints reference this chunk?” (**durable**) | **`referenced_rules`** on `get chunk` (vault reverse scan) | **No** |
+| “What matches this task right now?” | `find` `links` (session-only) | **No** |
+| Maintainer @ in doc body | Optional `[[r-…]]` → `cited_rules` | Yes (**optional**) |
+
+**Default agent path:** one ADD with `sources` → bidirectional read; **zero markdown edits**.
+
+---
+
 ## 4. Link model
 
 ### 4.1 Link kinds
@@ -64,7 +79,7 @@ Typical gaps:
 | --- | --- | --- | --- |
 | `sources` | rule → doc | vault YAML `sources` | agent `add` / `supersede` / future `link` |
 | `cited_by` | doc → rule | shelves SQLite `rule_refs` | rebuild scans markdown |
-| `scope_match` | rule ↔ doc | **not persisted** | runtime in `find` (scope tags vs path prefix) |
+| `scope_match` | rule ↔ doc | **not persisted** | **P4** — runtime in `find` (scope vs path prefix; not implemented) |
 | `co_search` | rule ↔ doc | **not persisted** | BM25 co-occurrence in one `find` call |
 
 ### 4.2 DocRef (rule-side reference)
@@ -176,13 +191,20 @@ flowchart TB
 
   subgraph read_path [Read merge]
     H[get rule id] --> I[load Record + sources]
-    I --> J[resolve DocRef → chunk/snippet]
+    I --> J[ResolveSources → resolved_sources]
     K[get chunk id] --> L[load Chunk]
-    L --> M[rule_refs + vault reverse lookup]
+    L --> M[vault reverse → referenced_rules]
+    L --> N[rule_refs → cited_rules optional]
+    F --> N
+  end
+
+  subgraph find_path [find + query]
+    P[rules topK + documents topK] --> Q[BuildFindLinks]
+    Q --> R[sources · vault reverse · cited_by · co_search]
   end
 
   B -.->|stable path| J
-  F --> M
+  B -.->|persisted sources| M
 ```
 
 **Rebuild triggers:** shelves enabled → `imprint up`, fingerprint change, `POST /docs/rebuild`. Vault changes do **not** trigger shelves rebuild.
@@ -222,9 +244,9 @@ imprint add "..." --scope python,naming --text "..." \
 Keeps `{ rules, documents }`; adds edges among top-K hits:
 
 1. rule `sources` → chunk (`kind=sources`, score=1)
-2. chunk `cited_rules` (`kind=cited_by`)
-3. scope vs path prefix (`kind=scope_match`)
-4. optional co-search boost (`kind=co_search`, not persisted)
+2. vault `sources` reverse on each document hit (`kind=sources`, even if rule not in rules topK)
+3. markdown `[[r-…]]` on chunk (`kind=cited_by`)
+4. co-search boost in same query (`kind=co_search`, not persisted)
 
 Without query: may attach `resolved_sources` for scope-matched rules only.
 

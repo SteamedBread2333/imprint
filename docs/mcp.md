@@ -12,24 +12,31 @@ flowchart LR
   subgraph host [MCP host]
     Agent[Agent]
   end
-  subgraph proc [imprint-mcp process]
-    MCP[MCP stdio server]
-    Vault[pkg/imprint.Vault]
+  subgraph proc [imprint-mcp]
+    MCP[MCP stdio]
+    Vault[Vault]
+    Shelves[Shelves index]
     MCP --> Vault
+    MCP --> Shelves
   end
-  subgraph disk [Vault directory]
-    Shards[imprint-NNNN.md]
+  subgraph disk [On disk]
+    Memory[".imprint/memory/"]
+    Cache[".shelves/.cache/"]
+    Roots["markdown under roots"]
   end
-  Agent <-->|JSON-RPC| MCP
-  Vault --> Shards
+  Agent <-->|find · add · get| MCP
+  Vault --> Memory
+  Shelves --> Cache
+  Shelves -.->|rebuild| Roots
 ```
 
 | Layer | Role |
 | --- | --- |
 | **Host** | Cursor, Claude Desktop, etc. spawns `imprint-mcp` and talks over stdin/stdout. |
 | **Tools** | One MCP tool per vault command (`find`, `add`, …). Results are JSON text — same shapes as `imprint --json`. |
-| **Vault** | Resolved once at startup: `--vault`, `--global`, `IMPRINT_VAULT`, walk-up `.imprint/memory/`, or `./.imprint/memory`. |
-| **Judgment** | ADD / REINFORCE / SUPERSEDE / IGNORE stays on the agent. The server does not decide whether to write. |
+| **Vault** | `.imprint/memory/` shards; `find` / `get` / `add` read and write claim, evidence, **sources**. |
+| **Shelves** | Reads `roots` from `.imprint/imprint.yaml`; `find`+query adds BM25 **documents** and **links**; chunk `get` adds **referenced_rules**. |
+| **Judgment** | ADD / REINFORCE / SUPERSEDE / IGNORE and whether to set **sources** stay on the agent. |
 
 Logging goes to **stderr** only so stdout stays clean for MCP framing.
 
@@ -61,12 +68,12 @@ Every tool returns **pretty-printed JSON** in the tool result text. On failure, 
 
 | Tool | CLI equivalent | Notes |
 | --- | --- | --- |
-| `find` | `imprint find` | `scope` (comma-separated, AND filter), optional `query`, optional `top_k` (default 5). When shelves is enabled and `query` is set, returns `{ rules, documents }` instead of a bare array. |
-| `add` | `imprint add` | `claim`, `scope`, `text` required; optional `confidence` (0 = default 0.6). |
+| `find` | `imprint find` | `scope` (comma-separated, AND filter), optional `query`, optional `top_k` (default 5). With shelves + query → `{ rules, documents, links }`; rules include `resolved_sources`. |
+| `add` | `imprint add` | `claim`, `scope`, `text` required; optional `confidence`, `sources` (`[{path, heading?, chunk?}]`). |
 | `reinforce` | `imprint reinforce` | `id`, optional `evidence`. |
-| `supersede` | `imprint supersede` | `old_id`, `claim`, `scope`; optional `reason`, `text`. |
+| `supersede` | `imprint supersede` | `old_id`, `claim`, `scope`; optional `reason`, `text`, `sources` (omit to inherit). |
 | `forget` | `imprint forget` | `id`. |
-| `get` | `imprint get` | `id` — vault rule (with `evidence_log`, `referenced_by`) **or** shelves document chunk by chunk id. |
+| `get` | `imprint get` | `r-…` → vault + `resolved_sources`; chunk id → chunk + `referenced_rules` (vault reverse) + optional `cited_rules`. |
 | `list` | `imprint list` | Optional `status`, `scope`, `query`, `min_confidence`, `since` (YYYY-MM-DD or RFC3339), `limit`. |
 | `show` | `imprint show` | Optional `limit`. |
 | `sweep` | `imprint sweep` | Optional `decay_days`, `decay_amount`, `dormant_threshold`. |
@@ -74,13 +81,14 @@ Every tool returns **pretty-printed JSON** in the tool result text. On failure, 
 
 **Not exposed:** `init` (one-time setup), `export`, `clear` (irreversible; use CLI with `--confirm --yes` if you really need it).
 
-### Agent workflow (unchanged)
+### Agent workflow
 
-1. Before coding or style questions → **`find`** with a **narrow** `scope`.
-2. Analyse the requirement; classify **ADD / REINFORCE / SUPERSEDE / IGNORE**.
-3. Never duplicate an existing rule; record only what the user **said**.
-4. User says forget / don’t record → **`forget`** or skip.
-5. User asks what is stored → **`show`**; if many rules, **`viz`** and open the returned path.
+1. Before coding or style answers → **`find`** with narrow `scope` + **`query`** (shelves on → rules, documents, links).
+2. Analyse; classify **ADD / REINFORCE / SUPERSEDE / IGNORE**.
+3. On **ADD** when a document hit matches → same-turn **`add`** with **`sources`** (vault only — no markdown edits).
+4. Never duplicate an imprint; record only what the user **said**.
+5. User says forget / don't record → **`forget`** or skip.
+6. User asks what is stored → **`show`** / desk; many items → **`viz`**.
 
 ## Mounting examples
 

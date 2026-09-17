@@ -22,34 +22,39 @@
 sequenceDiagram
   participant U as 用户
   participant A as 智能体
-  participant I as imprint
+  participant V as vault
+  participant S as shelves
 
   U->>A: 偏好 / 纠正 / 「不要那样做」
-  A->>I: find（窄 scope，可选 query）
-  I-->>A: 已有规则 ranked 列表
+  A->>V: find（窄 scope + query）
+  V->>S: BM25 文档（shelves 开）
+  V-->>A: rules · documents · links
 
-  alt 无相关规则
+  alt 无相关 imprint · document 未命中
     A->>A: ADD
-    A->>I: add
+    A->>V: add
+  else ADD 且 find 命中 document
+    A->>A: ADD
+    A->>V: add + sources[{path}]
   else 同一句话再说一遍
     A->>A: REINFORCE
-    A->>I: reinforce
-  else 说法变了 / 范围变了 / 旧规则错了
+    A->>V: reinforce
+  else 说法变了 / 范围变了 / 旧 imprint 错了
     A->>A: SUPERSEDE
-    A->>I: supersede
+    A->>V: supersede（继承 sources）
   else 用户说别记 / 一次性的
     A->>A: IGNORE 或 forget
   end
 
-  Note over A,I: 下次写代码前再 find，引用 [r-id]
+  Note over A,V: 下次写代码前 find；cite [r-id]；文档零改动
 ```
 
 | 步骤 | 谁做 | 做什么 |
 | --- | --- | --- |
-| **召回** | 智能体 | `find --scope tag,tag`（标签 **AND**），必要时加 `--query` BM25 |
+| **召回** | 智能体 | `find --scope tag,tag` + `--query` → rules、`documents`、`links`（shelves 开） |
 | **分类** | 智能体 | ADD / REINFORCE / SUPERSEDE / IGNORE（见下表） |
-| **写入** | imprint | `add` / `reinforce` / `supersede` / `forget` |
-| **审计** | 人 | `get`、`show`、`viz`；旧规则在 `archive/`，可追溯 |
+| **写入** | imprint | `add`（可选 `sources`）/ `reinforce` / `supersede` / `forget` |
+| **审计** | 人 | `get`、`show`、`viz`、desk；旧 imprint 在 `archive/` |
 
 优先 **MCP 工具**；未挂载时用 **`imprint --json`**（见 [mcp.zh.md](mcp.zh.md)）。
 
@@ -57,7 +62,7 @@ sequenceDiagram
 
 | 分类 | 何时用 | 命令 | 对 vault 的影响 |
 | --- | --- | --- | --- |
-| **ADD** | `find` 无匹配；用户**新**偏好 | `add` | 新 `active` 规则，默认 confidence **0.6** |
+| **ADD** | `find` 无匹配；用户**新**偏好（document 命中时可带 `sources`） | `add` | 新 `active` imprint，默认 confidence **0.6** |
 | **REINFORCE** | 已有规则；用户**再次确认**同一偏好 | `reinforce` | confidence **+0.1**（上限 **0.95**），`reinforcement_count++`，可唤醒 `dormant` |
 | **SUPERSEDE** | 偏好**改了**、范围**扩大/缩小**、旧 claim **不再成立** | `supersede` | 旧规则 → `superseded` 并进 `archive/`；新规则 `active`，链上 `supersedes: [old_id]` |
 | **IGNORE** | 一次性指令、闲聊、智能体**推断**出的偏好 | （不写） | 无 |

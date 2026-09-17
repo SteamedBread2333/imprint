@@ -510,11 +510,11 @@ func TestLegacyCompactOnOpen(t *testing.T) {
 func TestForgetStripsInboundAndGetBacklinks(t *testing.T) {
 	dir := t.TempDir()
 	v := frozen(t, dir, day(0))
-	a, err := v.AddRecord("Keep related A", []string{"demo"}, "a", 0.6, nil, nil, nil)
+	a, err := v.AddRecord("Keep related A", []string{"demo"}, "a", 0.6, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := v.AddRecord("Keep related B", []string{"demo"}, "b", 0.6, nil, []string{a.ID}, nil)
+	b, err := v.AddRecord("Keep related B", []string{"demo"}, "b", 0.6, nil, []string{a.ID}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -650,6 +650,35 @@ func TestListFilterAndNotes(t *testing.T) {
 	}
 	if !strings.Contains(string(body), "[[") && !strings.Contains(string(body), "(none)") {
 		t.Fatalf("note = %s", body)
+	}
+}
+
+func TestAddWithSourcesAndSupersedeInherit(t *testing.T) {
+	dir := t.TempDir()
+	v := frozen(t, dir, day(0))
+	added, err := v.AddWithSources("Use Vitest", []string{"testing"}, "user said vitest", 0.85, []DocRef{
+		{Path: "docs/testing.md", Heading: "Unit tests"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := v.Get(added.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Sources) != 1 || got.Sources[0].Path != "docs/testing.md" {
+		t.Fatalf("sources = %+v", got.Sources)
+	}
+	replaced, err := v.Supersede(added.ID, "Use Vitest and Playwright", []string{"testing"}, "extended", "e2e too")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fresh, err := v.Get(replaced.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(fresh.Sources) != 1 || fresh.Sources[0].Path != "docs/testing.md" {
+		t.Fatalf("inherited sources = %+v", fresh.Sources)
 	}
 }
 

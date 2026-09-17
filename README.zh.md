@@ -31,16 +31,74 @@ cd your-project && imprint init
 | | 你 | imprint |
 | --- | --- | --- |
 | **1** | 安装 + `init` | 写入编辑器规则（Cursor、Claude Code、Codex、Trae、Workbuddy） |
-| **2** | 正常写代码、正常纠正 | 智能体 `find` → ADD / REINFORCE / SUPERSEDE / IGNORE → 写入分片 |
-| **3** | 浏览器审计 | `imprint up` → `imprint desk open` |
+| **2** | 正常写代码、正常纠正 | 智能体 `find`（imprint + shelves）→ 分类 → `add`/`reinforce`/…（可选 `sources`） |
+| **3** | 浏览器审计（可选） | `imprint up` → `imprint desk open` |
 
 ```mermaid
-flowchart LR
-  User((用户)) --> Agent[智能体]
-  Agent <-->|find · add · get| CLI[imprint]
-  CLI <-->|读 / 写| Vault[(.imprint/memory/)]
-  Human((你)) <-->|list · show · desk| CLI
+flowchart TB
+  U((用户<br/>正常说话))
+
+  subgraph Agent["智能体 · imprint-mcp"]
+    direction TB
+    F["find(scope, query)"]
+    C{"分类<br/>ADD · REINFORCE · SUPERSEDE · IGNORE"}
+    W["add / supersede<br/>可选 sources"]
+    R["写代码前再 find · cite [r-id]"]
+  end
+
+  subgraph Store["imprint 存储"]
+    direction LR
+    Vault[(".imprint/memory/<br/>claim · evidence · sources")]
+    Shelves[(".shelves/.cache/<br/>roots 文档 BM25")]
+  end
+
+  subgraph FindOut["find 一次返回"]
+    direction LR
+    FR["rules<br/>resolved_sources"]
+    FD["documents<br/>snippet"]
+    FL["links"]
+  end
+
+  subgraph Audit["可选 · 人工审计"]
+    H((你)) --> Desk["desk · show · viz"]
+  end
+
+  UP["imprint up"] -.->|host 索引| Shelves
+
+  U -->|纠正 / 任务| Agent
+  F --> Vault
+  F --> Shelves
+  Vault --> FR
+  Shelves --> FD
+  Vault --> FL
+  Shelves --> FL
+  FR & FD & FL --> C
+  C -->|持久写入| W
+  W --> Vault
+  R --> F
+  Desk --> Vault
+  Desk --> Shelves
 ```
+
+<details>
+<summary>写代码前召回（sequence）</summary>
+
+```mermaid
+sequenceDiagram
+  participant U as 用户
+  participant A as 智能体
+  participant V as vault
+  participant S as shelves
+
+  U->>A: 新任务 / 继续开发
+  A->>V: find(scope, query)
+  V->>S: BM25 文档（shelves 开）
+  V-->>A: rules · documents · links
+  A->>A: 按 imprint + excerpt 写代码
+  Note over A: cite [r-id] 与 doc path
+```
+
+</details>
 
 ---
 
@@ -55,8 +113,8 @@ flowchart LR
 | 命令 | 作用 |
 | --- | --- |
 | `imprint init` | 写入智能体规则；不写 MCP 配置 |
-| `imprint find [--scope a,b] [--query TEXT]` | 召回规则（scope 标签 **AND**；可选 BM25） |
-| `imprint add CLAIM --scope a,b --text ORIG` | 新建规则 |
+| `imprint find [--scope a,b] [--query TEXT]` | 召回 imprint（scope **AND**）；shelves 开且带 query → 含 documents、links |
+| `imprint add CLAIM --scope a,b --text ORIG` | 新建 imprint（MCP 可带 `sources` 关联文档） |
 | `imprint reinforce ID [--evidence TEXT]` | 加强规则（置信度 +0.1） |
 | `imprint supersede OLD --claim NEW --scope a,b` | 替换规则；旧规则进 `archive/` |
 | `imprint forget ID` | 永久删除 |
@@ -122,10 +180,11 @@ shelves 是 **host 配置**（顶层 `shelves:`），不是插件。见 [docs/sh
 
 ```
 .imprint/
-  imprint.yaml          # host + shelves + plugins
-  memory/               # 规则（imprint-NNNN.md 分片）
-  .shelves/.cache/      # 文档索引（SQLite，gitignore）
-docs/                   # shelves 启用时会索引
+  imprint.yaml          # host + shelves.roots + plugins
+  memory/               # imprint 分片（含 sources）
+  .shelves/.cache/      # roots 下文档索引（SQLite，gitignore）
+docs/                   # 常见 roots 之一
+.cursor/rules/          # 常见 roots 之一
 ```
 
 规则打进 `imprint-NNNN.md` 分片（32768 行或 1 MiB 换新文件）。ID：`r-YYYY-MM-DD-NNN`。`supersede`、`sweep` 归档；`forget` 删除。
@@ -140,6 +199,9 @@ claim: Python function names must always be snake_case
 scope: [python, naming]
 confidence: 0.6
 status: active
+sources:
+  - path: docs/correction.md
+    heading: Naming
 evidence_log:
   - { at: 2026-09-11T12:00:00Z, kind: original, text: use snake_case }
 ---
@@ -163,7 +225,13 @@ status: active
 | **Shelves** | **host** | `shelves` · [imprint.yaml](docs/examples/imprint.yaml) |
 | **Desk** | 外部插件 | `plugins.desk` · [imprint-desk-plugin](https://github.com/SteamedBread2333/imprint-desk-plugin) |
 
-只挂一个 MCP（`imprint-mcp`）。shelves 开启且 `find` 带 query 时，响应可有 `documents` 字段。
+**Shelves 做什么：** 在 `imprint.yaml` 的 `roots` 下建本地文档索引（默认如 `docs/`、`.cursor/rules/`），不是「LLM 已读过整个仓库」。Agent 写代码前 `find(scope, query)` 可**一次**拿到 vault 里的 imprint、相关文档段落（snippet）、以及 `links`。BM25 本地索引，无 embedding API。
+
+**为何需要 `roots`：** 只有列进 `roots` 的目录会被索引和搜索；用来划定 Agent 应对照的项目文档范围，并控制 rebuild 成本。详见 [docs/shelves-builtin.zh.md](docs/shelves-builtin.zh.md)。
+
+**与 vault 关联：** 用户纠正后，Agent 可在 ADD 时写 vault 的 `sources`（规则→文档），**不必改项目 markdown**。`get r-…` 返回 `resolved_sources`。关联设计：[docs/imprint-shelves-linking.zh.md](docs/imprint-shelves-linking.zh.md)。
+
+只挂一个 MCP（`imprint-mcp`）。shelves 开启且 `find` 带 query 时，响应含 `rules`、`documents`、`links`（规则带 `resolved_sources` 时含 excerpt）。
 
 ---
 
@@ -185,7 +253,7 @@ make publish V=X.Y.Z  # 打 tag，CI 上传 Release + GHCR
 | --- | --- | --- |
 | MCP 挂载 | [docs/mcp.zh.md](docs/mcp.zh.md) | [docs/mcp.md](docs/mcp.md) |
 | 编辑器 `init` | [docs/editors.zh.md](docs/editors.zh.md) | [docs/editors.md](docs/editors.md) |
-| Shelves | [docs/shelves-builtin.zh.md](docs/shelves-builtin.zh.md) | [docs/shelves-builtin.md](docs/shelves-builtin.md) |
+| Shelves 与关联 | [docs/shelves-builtin.zh.md](docs/shelves-builtin.zh.md) · [docs/imprint-shelves-linking.zh.md](docs/imprint-shelves-linking.zh.md) | [docs/shelves-builtin.md](docs/shelves-builtin.md) · [docs/imprint-shelves-linking.md](docs/imprint-shelves-linking.md) |
 | 纠偏与编码场景 | [docs/correction.zh.md](docs/correction.zh.md) | [docs/correction.md](docs/correction.md) |
 
 MCP 示例（需手动合并）：[cursor-mcp.json](docs/examples/cursor-mcp.json) · [cursor-mcp-global.json](docs/examples/cursor-mcp-global.json)

@@ -25,6 +25,13 @@ CREATE TABLE IF NOT EXISTS chunks (
   line_end   INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_chunks_path ON chunks(path);
+CREATE TABLE IF NOT EXISTS rule_refs (
+  chunk_id  TEXT NOT NULL,
+  rule_id   TEXT NOT NULL,
+  line_no   INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (chunk_id, rule_id, line_no)
+);
+CREATE INDEX IF NOT EXISTS idx_rule_refs_rule ON rule_refs(rule_id);
 `
 
 // Store is the persisted index on disk.
@@ -33,6 +40,7 @@ type Store struct {
 	BuiltAt     time.Time `json:"built_at"`
 	FileCount   int       `json:"file_count"`
 	Chunks      []Chunk   `json:"chunks"`
+	RuleRefs    []RuleRef `json:"rule_refs,omitempty"`
 }
 
 // DBPath returns the SQLite index file path.
@@ -112,7 +120,22 @@ func LoadStore(stateDir string) (*Store, error) {
 		}
 		s.Chunks = append(s.Chunks, c)
 	}
-	return s, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	refRows, err := db.Query(`SELECT chunk_id, rule_id, line_no FROM rule_refs ORDER BY chunk_id, line_no`)
+	if err != nil {
+		return nil, err
+	}
+	defer refRows.Close()
+	for refRows.Next() {
+		var ref RuleRef
+		if err := refRows.Scan(&ref.ChunkID, &ref.RuleID, &ref.LineNo); err != nil {
+			return nil, err
+		}
+		s.RuleRefs = append(s.RuleRefs, ref)
+	}
+	return s, refRows.Err()
 }
 
 // SaveStore writes index.db atomically.
@@ -132,6 +155,9 @@ func SaveStore(stateDir string, s *Store) error {
 	if _, err := tx.Exec(`DELETE FROM chunks`); err != nil {
 		return err
 	}
+	if _, err := tx.Exec(`DELETE FROM rule_refs`); err != nil {
+		return err
+	}
 	stmt, err := tx.Prepare(`INSERT INTO chunks(id, path, heading, text, line_start, line_end) VALUES(?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return err
@@ -139,6 +165,16 @@ func SaveStore(stateDir string, s *Store) error {
 	defer stmt.Close()
 	for _, c := range s.Chunks {
 		if _, err := stmt.Exec(c.ID, c.Path, c.Heading, c.Text, c.LineStart, c.LineEnd); err != nil {
+			return err
+		}
+	}
+	refStmt, err := tx.Prepare(`INSERT INTO rule_refs(chunk_id, rule_id, line_no) VALUES(?, ?, ?)`)
+	if err != nil {
+		return err
+	}
+	defer refStmt.Close()
+	for _, ref := range s.RuleRefs {
+		if _, err := refStmt.Exec(ref.ChunkID, ref.RuleID, ref.LineNo); err != nil {
 			return err
 		}
 	}

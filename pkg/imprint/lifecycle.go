@@ -70,7 +70,74 @@ func (v *Vault) Supersede(oldID, newClaim string, newScope []string, reason, ori
 	if strings.TrimSpace(text) == "" {
 		text = reason
 	}
-	added, err := v.AddRecord(newClaim, newScope, text, old.Confidence, []string{old.ID}, []string{old.ID}, nil)
+	sources := old.Sources
+	if len(sources) == 0 {
+		sources = nil
+	}
+	added, err := v.AddRecord(newClaim, newScope, text, old.Confidence, []string{old.ID}, []string{old.ID}, nil, sources)
+	if err != nil {
+		return nil, err
+	}
+	if reason != "" || originalText != "" {
+		fresh, err := v.load(added.ID)
+		if err != nil {
+			return nil, err
+		}
+		if reason != "" {
+			fresh.EvidenceLog = append(fresh.EvidenceLog, Evidence{
+				At:   now,
+				Kind: EvidenceSupersede,
+				Text: reason,
+			})
+			if err := v.save(fresh, false); err != nil {
+				return nil, err
+			}
+		}
+	}
+	old.Status = StatusSuperseded
+	old.UpdatedAt = now
+	note := "superseded by " + added.ID
+	if reason != "" {
+		note += ": " + reason
+	}
+	old.EvidenceLog = append(old.EvidenceLog, Evidence{
+		At:   now,
+		Kind: EvidenceSupersede,
+		Text: note,
+	})
+	if err := v.save(old, true); err != nil {
+		return nil, err
+	}
+	return &SupersedeResult{ID: added.ID, SupersededOldID: old.ID}, nil
+}
+
+// SupersedeWithSources archives oldID and writes a new rule, optionally replacing inherited sources.
+func (v *Vault) SupersedeWithSources(oldID, newClaim string, newScope []string, reason, originalText string, sources []DocRef) (*SupersedeResult, error) {
+	if len(sources) == 0 {
+		return v.Supersede(oldID, newClaim, newScope, reason, originalText)
+	}
+	oldID = strings.TrimSpace(oldID)
+	newClaim = strings.TrimSpace(newClaim)
+	if oldID == "" {
+		return nil, fmt.Errorf("old_id is required")
+	}
+	if newClaim == "" {
+		return nil, fmt.Errorf("new_claim is required")
+	}
+	newScope = cleanScope(newScope)
+	if len(newScope) == 0 {
+		return nil, fmt.Errorf("new_scope is required")
+	}
+	old, err := v.load(oldID)
+	if err != nil {
+		return nil, err
+	}
+	now := v.instant()
+	text := originalText
+	if strings.TrimSpace(text) == "" {
+		text = reason
+	}
+	added, err := v.AddRecord(newClaim, newScope, text, old.Confidence, []string{old.ID}, []string{old.ID}, nil, sources)
 	if err != nil {
 		return nil, err
 	}

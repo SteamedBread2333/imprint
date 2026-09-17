@@ -11,7 +11,8 @@ shelves:
   config:
     roots:
       - docs
-      - .cursor/skills
+      - .cursor/rules   # agent/editor rules — add dirs agents should recall
+      # - .cursor/skills
 
 plugins:
   desk:

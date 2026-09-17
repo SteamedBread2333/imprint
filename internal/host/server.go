@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/SteamedBread2333/imprint/internal/linking"
 	"github.com/SteamedBread2333/imprint/internal/shelves"
 	"github.com/SteamedBread2333/imprint/pkg/imprint"
 )
@@ -123,6 +124,10 @@ func Serve(ctx context.Context, cfg Config) error {
 			writeErr(w, http.StatusNotFound, err)
 			return
 		}
+		if cfg.Shelves != nil {
+			writeJSON(w, linking.EnrichRuleGet(cfg.Shelves.IndexStore(), rec))
+			return
+		}
 		writeJSON(w, rec)
 	})
 	mux.HandleFunc("/find", func(w http.ResponseWriter, r *http.Request) {
@@ -141,21 +146,31 @@ func Serve(ctx context.Context, cfg Config) error {
 		}
 		query := r.URL.Query().Get("query")
 		scope := splitCSV(r.URL.Query().Get("scope"))
+		if cfg.Shelves != nil && shelves.MatchQuery(cfg.Shelves.Config(), query) {
+			enriched, _, err := linking.EnrichFind(cfg.Vault, cfg.Shelves.IndexStore(), scope, query, topK)
+			if err != nil {
+				writeErr(w, http.StatusInternalServerError, err)
+				return
+			}
+			writeJSON(w, enriched)
+			return
+		}
 		hits, err := cfg.Vault.Find(scope, query, topK)
 		if err != nil {
 			writeErr(w, http.StatusInternalServerError, err)
 			return
 		}
-		if cfg.Shelves != nil && shelves.MatchQuery(cfg.Shelves.Config(), query) {
-			docHits, err := cfg.Shelves.Search(query, topK)
+		if cfg.Shelves != nil && cfg.Shelves.IndexStore() != nil && len(hits) > 0 {
+			ids := make([]string, len(hits))
+			for i, h := range hits {
+				ids[i] = h.ID
+			}
+			sourcesByID, err := shelves.SourcesByIDs(cfg.Vault, ids)
 			if err != nil {
-				writeErr(w, http.StatusServiceUnavailable, err)
+				writeErr(w, http.StatusInternalServerError, err)
 				return
 			}
-			writeJSON(w, map[string]any{
-				"rules":     hits,
-				"documents": docHits,
-			})
+			writeJSON(w, shelves.EnrichFindHits(cfg.Shelves.IndexStore(), hits, sourcesByID))
 			return
 		}
 		writeJSON(w, hits)
@@ -170,7 +185,7 @@ func Serve(ctx context.Context, cfg Config) error {
 			writeErr(w, http.StatusInternalServerError, err)
 		}
 	})
-	registerDocsRoutes(mux, cfg.Shelves)
+	registerDocsRoutes(mux, cfg.Vault, cfg.Shelves)
 
 	srv := &http.Server{
 		Addr:              listen,
@@ -190,7 +205,7 @@ func Serve(ctx context.Context, cfg Config) error {
 	return srv.Serve(ln)
 }
 
-func registerDocsRoutes(mux *http.ServeMux, svc *shelves.Service) {
+func registerDocsRoutes(mux *http.ServeMux, vault *imprint.Vault, svc *shelves.Service) {
 	mux.HandleFunc("/docs/search", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			methodNotAllowed(w)
@@ -281,7 +296,12 @@ func registerDocsRoutes(mux *http.ServeMux, svc *shelves.Service) {
 			writeErr(w, http.StatusNotFound, fmt.Errorf("chunk not found"))
 			return
 		}
-		writeJSON(w, c)
+		out, err := linking.EnrichChunkGet(vault, svc.IndexStore(), c)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJSON(w, out)
 	})
 	mux.HandleFunc("/docs/file", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {

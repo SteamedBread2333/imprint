@@ -2,6 +2,48 @@
 
 工作区文档索引跑在 **host 进程**（`imprint up` 或调试时 `imprint host serve`）和 **imprint-mcp** 里 — 不是外部插件。
 
+Shelves 不是「替 LLM 读遍整个仓库」，而是：**在配置的目录里建本地索引，让 Agent 写代码前一次 `find` 同时召回 vault 里的 imprint 和项目文档段落**，并可与 vault 的 `sources` 关联。详见 [imprint ↔ shelves 关联](imprint-shelves-linking.zh.md)。
+
+---
+
+## 为什么需要 shelves（Agent 视角）
+
+LLM 每次对话**不会**自动加载仓库里所有 markdown。即使用 grep/读文件，也缺少：统一排序、段落级 excerpt、与 vault 同一次召回、可持久关联。
+
+| | 让 LLM 自己翻文件 | shelves |
+| --- | --- | --- |
+| **与 imprint 协同** | 需多次工具调用 | `find` 一次返回 rules + documents + links |
+| **结果形态** | 整文件或零散行 | 按标题切 **chunk**，带 path、heading、行号、snippet |
+| **排序** | 无统一 BM25 | 与 vault 规则同一 query 下可对照 |
+| **持久关联** | 无 | vault `sources`（规则→文档）；可选文档内 `[[r-…]]` |
+| **成本** | 多读文件、耗 token | 本地 SQLite 索引，无 embedding API |
+
+Shelves 用的是 **BM25**，不是向量语义搜索。优势在于 **集成、结构化、本地、与 imprint 同流程**，而非泛泛的「比人搜更准」。
+
+```mermaid
+flowchart LR
+  subgraph recall [写代码前 · 一次 find]
+    F["find(scope, query)"]
+    F --> R[rules + resolved_sources]
+    F --> D[documents + snippet]
+    F --> L[links 当次]
+  end
+
+  subgraph persist [纠正时 · 只写 vault]
+    A[add / supersede] --> S[sources path/heading]
+    S --> V[(.imprint/memory/)]
+  end
+
+  subgraph reverse [读 chunk · 不改文档]
+    G["get chunk"] --> RR[referenced_rules]
+    G --> CR[cited_rules 可选]
+  end
+
+  V --> RR
+```
+
+---
+
 ## 配置
 
 在 `.imprint/imprint.yaml`：
@@ -15,17 +57,47 @@ shelves:
   config:
     roots:
       - docs
-      - .cursor/skills
+      - .cursor/rules
+      # - .cursor/skills
     # stateDir: .imprint/.shelves/.cache   # 可选
 ```
 
 | 字段 | 含义 |
 | --- | --- |
 | `enabled` | `true` 时扫描 `roots` 并提供搜索；`false` 时停止索引与搜索，缓存只读保留 |
-| `config.roots` | 工作区下要索引的目录（`.md`、`.mdc`、`.txt`）。默认 `docs` |
+| `config.roots` | **要纳入索引的目录**（`.md`、`.mdc`、`.txt`），路径相对仓库根。不是「LLM 能读什么」——而是 **shelves 搜什么** |
 | `config.stateDir` | SQLite 缓存目录。默认 `.imprint/.shelves/.cache` |
 
-改完后执行 `imprint up`（或调试时重启前台 `host serve`）。
+### `roots` 不是可有可无
+
+- **未列入 `roots` 的文件**：shelves **不会**索引；`find` / `/docs/search` **搜不到**（Agent 仍可用读文件工具单独打开，但不进 shelves 召回）。
+- **列入 `roots` 的文件**：rebuild 后进入 BM25；`find` 带 query 时可与 vault imprint **同屏返回**。
+- **为何要配**：控制索引范围（少噪音、少 rebuild 成本）、明确 Agent「写代码前对照哪些文档」——例如 `docs/`、`.cursor/rules/`、技能目录等。
+
+改 `roots` 或 `enabled` 后执行 `imprint up`（或重启 `host serve`）。
+
+---
+
+## 与 vault 关联（不污染文档的推荐做法）
+
+关联分 **持久** 与 **临时** 两层：
+
+| 方向 | 持久？ | 写在哪 | 要不要改项目 markdown |
+| --- | --- | --- | --- |
+| imprint → 文档 | **是** | vault `sources` | **否** |
+| 文档 → imprint（反查） | **是** | **同上** — 读 chunk 时扫 vault `sources` 得 `referenced_rules` | **否** |
+| 文档正文 @ imprint | 可选 | `[[r-…]]` → shelves `rule_refs` → `cited_rules` | 是（**可选**，非默认） |
+| 一次 find 内的关系 | **否** | 响应 `links` | **否** |
+
+**持久双向关联的默认做法：只写 vault `sources` 一次。**
+
+- Agent ADD 时：`sources: [{ path: "docs/foo.md", heading: "..." }]`
+- `get r-…` → `resolved_sources`（imprint → 文档）
+- `get <chunk>` → `referenced_rules`（文档 → imprint，**从 vault 反查，不改文档**）
+
+`[[r-…]]` 仅当维护者想在 markdown 里显式 @ 某条 imprint 时使用；与 `referenced_rules` 可并存，不是必需。
+
+---
 
 ## 禁用时
 
@@ -33,8 +105,10 @@ shelves:
 
 - 不扫描、不 rebuild
 - `POST /docs/search` → **503**
-- MCP `find` 带 query 时只返回规则（无 `documents` 字段）
+- MCP `find` 带 query 时只返回规则（无 `documents` / `links`）
 - `GET /docs/graph`、`/docs/chunks/:id`、`/docs/stats` 仍可读磁盘缓存
+
+---
 
 ## Host API
 
@@ -43,27 +117,65 @@ shelves:
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | GET | `/health` | 含 `shelves: { enabled, indexed, chunk_count, … }` |
+| GET | `/find` | 与 MCP 类似；带 query 且 shelves 开时返回 rules + documents + links |
 | POST | `/docs/search` | `{ query, top_k? }` → `{ hits: [...] }` |
-| GET | `/docs/chunks/{id}` | 完整 chunk |
-| GET | `/docs/graph` | 文档关联图 |
+| GET | `/docs/chunks/{id}` | chunk 全文 + `referenced_rules` + 可选 `cited_rules` |
+| GET | `/docs/graph` | 文档结构图 |
 | GET | `/docs/stats` | 索引元数据 |
 | POST | `/docs/rebuild` | enabled 时强制 rebuild |
 
+---
+
 ## MCP
 
-只挂 **imprint-mcp**。shelves 启用且 `find` 带 query 时，响应可含：
+只挂 **imprint-mcp**。shelves 启用且 `find` **带 query** 时，响应示例：
 
 ```json
 {
-  "rules": [ ... ],
-  "documents": [ { "id", "path", "heading", "score", "snippet" } ]
+  "rules": [
+    {
+      "id": "r-2026-09-16-003",
+      "title": "...",
+      "scope": ["python", "naming"],
+      "confidence": 0.85,
+      "score": 0.92,
+      "sources": [{ "path": "docs/correction.md" }],
+      "resolved_sources": [
+        {
+          "path": "docs/correction.md",
+          "heading": "Naming",
+          "chunk_id": "a1b2c3d4...",
+          "snippet": "..."
+        }
+      ]
+    }
+  ],
+  "documents": [
+    { "id", "path", "heading", "score", "snippet" }
+  ],
+  "links": [
+    { "rule_id", "chunk_id", "kind": "sources|cited_by|co_search", "score" }
+  ]
 }
 ```
 
-无 query 或 shelves 禁用时，响应为**规则数组**。
+- **无 query** 或 shelves 禁用：响应为 **规则数组**（或带 `resolved_sources` 的 enriched hits，若规则已有 `sources`）。
+- **`get`**：`r-…` → vault 条目 + `resolved_sources`；16 位 hex chunk id → 文档 chunk + **`referenced_rules`**（+ `cited_rules` 若正文含 `[[r-…]]`）。
 
-`get` 在 `id` 命中 shelves 索引时返回 chunk；否则按 vault 规则加载。
+Agent 约定见 `imprint init` 写入的编辑器规则与 [correction.zh.md](correction.zh.md)。
+
+---
 
 ## Desk UI
 
-desk 将 `/api/docs/*` 代理到 host。页眉显示 shelves 开/关（来自 `GET /health` → `shelves.enabled`）。
+desk 将 `/api/docs/*` 代理到 host。页眉显示 shelves 开/关（来自 `GET /health` → `shelves.enabled`）。图谱审计为主；**Agent 主路径是 MCP `find` / `get`**。
+
+---
+
+## 相关文档
+
+| 文档 | 内容 |
+| --- | --- |
+| [imprint-shelves-linking.zh.md](imprint-shelves-linking.zh.md) | 关联模型、存储位置、Agent 工作流 |
+| [mcp.zh.md](mcp.zh.md) | MCP 工具与挂载 |
+| [correction.zh.md](correction.zh.md) | ADD / REINFORCE / SUPERSEDE 与 `sources` 时机 |

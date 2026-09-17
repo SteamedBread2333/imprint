@@ -64,6 +64,7 @@ type Record struct {
 	Supersedes         []string   `yaml:"supersedes" json:"supersedes"`
 	Related            []string   `yaml:"related" json:"related"`
 	ConflictsWith      []string   `yaml:"conflicts_with" json:"conflicts_with"`
+	Sources            []DocRef   `yaml:"sources,omitempty" json:"sources,omitempty"`
 	EvidenceLog        []Evidence `yaml:"evidence_log" json:"evidence_log"`
 	Body               string     `yaml:"-" json:"body,omitempty"`
 	Path               string     `yaml:"-" json:"path,omitempty"`
@@ -130,6 +131,9 @@ func (r *Record) normalize() {
 	}
 	if r.ConflictsWith == nil {
 		r.ConflictsWith = []string{}
+	}
+	if r.Sources == nil {
+		r.Sources = []DocRef{}
 	}
 	if r.EvidenceLog == nil {
 		r.EvidenceLog = []Evidence{}

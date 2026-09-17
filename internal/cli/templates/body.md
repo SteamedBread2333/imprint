@@ -9,7 +9,7 @@ This project's long-term memory is **imprint**, not chat history. **Nothing sync
 - Vault: `.imprint/memory/` (override with `IMPRINT_VAULT` or `--vault` / `--global`)
 - MCP mount: see `docs/mcp.md` and `docs/examples/cursor-mcp.json`. Correction loop + coding examples: `docs/correction.md` / `docs/correction.zh.md`.
 - `path` on add/get is the shard file (`imprint-NNNN.md`), not a per-rule filename. `.imprint/memory/notes/` is generated and read-only.
-- Effects: `find` tags are **AND**, then `--query` is optional BM25 (not embeddings); `add` only after ADD (`claim`, `--scope`, `--text` required); `reinforce` +0.1 (cap 0.95); `supersede` archives the old rule and writes a new one; `get` includes `evidence_log` and `referenced_by`; `forget` strips inbound links; `list` accepts `--scope`, `--query`, `--min-confidence`, `--since`.
+- Effects: `find` tags are **AND**, then `--query` is optional BM25 (not embeddings); `add` only after ADD (`claim`, `--scope`, `--text` required; optional `sources` when find hits a matching doc); `reinforce` +0.1 (cap 0.95); `supersede` archives the old rule and writes a new one (inherits `sources` unless overridden); `get` on `r-…` includes `resolved_sources`; chunk `get` includes `referenced_rules` (vault reverse; no doc edits) and optional `cited_rules` (`[[r-…]]` only); `find` with query returns enriched rules, `documents`, and `links` when shelves is on; `forget` strips inbound links; `list` accepts `--scope`, `--query`, `--min-confidence`, `--since`.
 
 ```bash
 imprint --json --vault ./.imprint/memory find --scope go,naming
@@ -28,8 +28,8 @@ imprint --json --vault ./.imprint/memory viz --format notes
 
 ## Must do
 
-1. Before coding or answering style/convention questions, `find` (MCP tool or CLI) with a **narrow scope** (e.g. `go,naming`). Cite `[r-id]` when a hit shapes behavior.
-2. **Same-turn write trigger:** When the user states a durable preference, correction, or constraint (e.g. "from now on", "always", "never", "use X not Y", or negates an old rule) → `find` with a narrow scope, classify ADD / REINFORCE / SUPERSEDE / IGNORE, and **call the write tool in this turn** before coding. Do not defer to the end of the task.
+1. Before coding or answering style/convention questions, `find` (MCP tool or CLI) with a **narrow scope** (e.g. `go,naming`) and a **query** from the task when shelves is on — use `resolved_sources` / `links` in the response. Cite `[r-id]` when a hit shapes behavior; cite doc paths when excerpts apply.
+2. **Same-turn write trigger:** When the user states a durable preference, correction, or constraint (e.g. "from now on", "always", "never", "use X not Y", or negates an old rule) → `find` with a narrow scope, classify ADD / REINFORCE / SUPERSEDE / IGNORE, and **call the write tool in this turn** before coding. When the user points at project docs (`STYLE.md`, a skill, CONTRIBUTING section), pass **`sources`** on `add` / `supersede`. Do not defer to the end of the task.
 3. **IGNORE vs write:** IGNORE one-off Q&A, session-only task steps, and choices that are not reusable policy. ADD / REINFORCE / SUPERSEDE only for explicit, cross-session rules in the user's own words.
 4. Before modifying anything, analyze the requirement until it is complete.
 5. Before every write, classify again; never add a duplicate. Starting confidence 0.6; corrections 0.85; "from now on always" 0.9.

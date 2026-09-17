@@ -22,34 +22,39 @@ CLI / MCP snippets in this doc are the **agent execution surface**, not a user m
 sequenceDiagram
   participant U as User
   participant A as Agent
-  participant I as imprint
+  participant V as vault
+  participant S as shelves
 
   U->>A: preference / correction / "don't do that"
-  A->>I: find (narrow scope, optional query)
-  I-->>A: ranked existing rules
+  A->>V: find (narrow scope + query)
+  V->>S: BM25 docs (when shelves on)
+  V-->>A: rules · documents · links
 
   alt no match
     A->>A: ADD
-    A->>I: add
+    A->>V: add
+  else ADD and document hit
+    A->>A: ADD
+    A->>V: add + sources[{path}]
   else user repeats the same preference
     A->>A: REINFORCE
-    A->>I: reinforce
-  else wording or scope changed / old rule wrong
+    A->>V: reinforce
+  else wording or scope changed / old imprint wrong
     A->>A: SUPERSEDE
-    A->>I: supersede
+    A->>V: supersede (inherits sources)
   else user says don't record / one-off
     A->>A: IGNORE or forget
   end
 
-  Note over A,I: find again before coding; cite [r-id]
+  Note over A,V: find before coding; cite [r-id]; docs unchanged
 ```
 
 | Step | Who | What |
 | --- | --- | --- |
-| **Recall** | Agent | `find --scope tag,tag` (tags are **AND**), optional `--query` BM25 |
+| **Recall** | Agent | `find --scope tag,tag` + `--query` → rules, `documents`, `links` (shelves on) |
 | **Classify** | Agent | ADD / REINFORCE / SUPERSEDE / IGNORE |
-| **Write** | imprint | `add` / `reinforce` / `supersede` / `forget` |
-| **Audit** | Human | `get`, `show`, `viz`; old rules in `archive/` |
+| **Write** | imprint | `add` (optional `sources`) / `reinforce` / `supersede` / `forget` |
+| **Audit** | Human | `get`, `show`, `viz`, desk; archived imprints in `archive/` |
 
 Prefer **MCP tools**; fall back to **`imprint --json`** ([mcp.md](mcp.md)).
 
@@ -57,7 +62,7 @@ Prefer **MCP tools**; fall back to **`imprint --json`** ([mcp.md](mcp.md)).
 
 | Class | When | Command | Vault effect |
 | --- | --- | --- | --- |
-| **ADD** | `find` empty; **new** user preference | `add` | New `active` rule, default confidence **0.6** |
+| **ADD** | `find` empty; **new** preference (optional `sources` when document hit) | `add` | New `active` imprint, default confidence **0.6** |
 | **REINFORCE** | Rule exists; user **confirms again** | `reinforce` | confidence **+0.1** (cap **0.95**), `reinforcement_count++`, may wake `dormant` |
 | **SUPERSEDE** | Preference **changed**, scope **widened/narrowed**, old claim **invalid** | `supersede` | Old → `superseded` in `archive/`; new `active` with `supersedes: [old_id]` |
 | **IGNORE** | One-off task, chit-chat, agent-**inferred** preference | (no write) | — |

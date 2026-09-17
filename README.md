@@ -31,16 +31,74 @@ Optional: merge [docs/examples/cursor-mcp.json](docs/examples/cursor-mcp.json) i
 | | You | imprint |
 | --- | --- | --- |
 | **1** | Install + `init` | Writes editor rules (Cursor, Claude Code, Codex, Trae, Workbuddy) |
-| **2** | Code and correct in plain language | Agent `find` → ADD / REINFORCE / SUPERSEDE / IGNORE → writes shards |
-| **3** | Audit in the browser | `imprint up` → `imprint desk open` |
+| **2** | Code and correct in plain language | Agent `find` (vault + shelves) → classify → `add`/`reinforce`/… (optional `sources`) |
+| **3** | Browser audit (optional) | `imprint up` → `imprint desk open` |
 
 ```mermaid
-flowchart LR
-  User((User)) --> Agent[Agent]
-  Agent <-->|find · add · get| CLI[imprint]
-  CLI <-->|read / write| Vault[(.imprint/memory/)]
-  Human((You)) <-->|list · show · desk| CLI
+flowchart TB
+  U((User<br/>speaks normally))
+
+  subgraph Agent["Agent · imprint-mcp"]
+    direction TB
+    F["find(scope, query)"]
+    C{"Classify<br/>ADD · REINFORCE · SUPERSEDE · IGNORE"}
+    W["add / supersede<br/>optional sources"]
+    R["find again before coding · cite [r-id]"]
+  end
+
+  subgraph Store["imprint storage"]
+    direction LR
+    Vault[(".imprint/memory/<br/>claim · evidence · sources")]
+    Shelves[(".shelves/.cache/<br/>roots doc BM25")]
+  end
+
+  subgraph FindOut["one find call"]
+    direction LR
+    FR["rules<br/>resolved_sources"]
+    FD["documents<br/>snippet"]
+    FL["links"]
+  end
+
+  subgraph Audit["Optional · human audit"]
+    H((You)) --> Desk["desk · show · viz"]
+  end
+
+  UP["imprint up"] -.->|host indexes| Shelves
+
+  U -->|correct / task| Agent
+  F --> Vault
+  F --> Shelves
+  Vault --> FR
+  Shelves --> FD
+  Vault --> FL
+  Shelves --> FL
+  FR & FD & FL --> C
+  C -->|persist| W
+  W --> Vault
+  R --> F
+  Desk --> Vault
+  Desk --> Shelves
 ```
+
+<details>
+<summary>Before coding (sequence)</summary>
+
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant A as Agent
+  participant V as vault
+  participant S as shelves
+
+  U->>A: new task / continue coding
+  A->>V: find(scope, query)
+  V->>S: BM25 docs (when shelves on)
+  V-->>A: rules · documents · links
+  A->>A: code from imprints + excerpts
+  Note over A: cite [r-id] and doc path
+```
+
+</details>
 
 ---
 
@@ -55,8 +113,8 @@ Direct read/write. **No host required.**
 | Command | What it does |
 | --- | --- |
 | `imprint init` | Write agent rules; does not write MCP config |
-| `imprint find [--scope a,b] [--query TEXT]` | Recall rules (scope tags are **AND**; optional BM25) |
-| `imprint add CLAIM --scope a,b --text ORIG` | Create a rule |
+| `imprint find [--scope a,b] [--query TEXT]` | Recall imprints (scope **AND**); with query + shelves → also `documents`, `links` |
+| `imprint add CLAIM --scope a,b --text ORIG` | Create an imprint (MCP may include `sources` linking docs) |
 | `imprint reinforce ID [--evidence TEXT]` | Strengthen a rule (+0.1 confidence) |
 | `imprint supersede OLD --claim NEW --scope a,b` | Replace a rule; old → `archive/` |
 | `imprint forget ID` | Delete permanently |
@@ -122,10 +180,11 @@ Default: `./.imprint/memory/` (walk up for `.imprint/`). `--global` → `~/.impr
 
 ```
 .imprint/
-  imprint.yaml          # host + shelves + plugins
-  memory/               # rules (imprint-NNNN.md shards)
-  .shelves/.cache/      # doc index (SQLite, gitignored)
-docs/                   # indexed by shelves when enabled
+  imprint.yaml          # host + shelves.roots + plugins
+  memory/               # imprint shards (incl. sources)
+  .shelves/.cache/      # doc index under roots (SQLite, gitignored)
+docs/                   # typical root
+.cursor/rules/          # typical root
 ```
 
 Rules pack into `imprint-NNNN.md` shards (new file at 32768 lines or 1 MiB). IDs: `r-YYYY-MM-DD-NNN`. `supersede` and `sweep` archive; `forget` deletes.
@@ -140,6 +199,9 @@ claim: Python function names must always be snake_case
 scope: [python, naming]
 confidence: 0.6
 status: active
+sources:
+  - path: docs/correction.md
+    heading: Naming
 evidence_log:
   - { at: 2026-09-11T12:00:00Z, kind: original, text: use snake_case }
 ---
@@ -163,7 +225,13 @@ status: active
 | **Shelves** | **host** | `shelves.enabled`, `config.roots` in [imprint.yaml](docs/examples/imprint.yaml) |
 | **Desk** | External plugin | `plugins.desk` + [imprint-desk-plugin](https://github.com/SteamedBread2333/imprint-desk-plugin) |
 
-One MCP mount (`imprint-mcp`). When shelves is on, `find` with a query can return a `documents` array.
+**What shelves does:** Indexes markdown under `roots` in `imprint.yaml` (e.g. `docs/`, `.cursor/rules/`) — **not** “the LLM already read the whole repo.” Before coding, agents `find(scope, query)` get vault imprints, document snippets, and `links` in **one** call. Local BM25 index; no embedding API.
+
+**Why `roots` matters:** Only listed directories are indexed and searchable — scope what agents recall and keep rebuilds fast. See [docs/shelves-builtin.md](docs/shelves-builtin.md).
+
+**Linking:** After a user correction, agents can set vault `sources` (imprint→doc) on ADD **without editing project markdown**. `get r-…` returns `resolved_sources`. Design: [docs/imprint-shelves-linking.md](docs/imprint-shelves-linking.md).
+
+One MCP mount (`imprint-mcp`). With shelves on and `find` + query, the response includes `rules`, `documents`, and `links`.
 
 ---
 
@@ -185,7 +253,7 @@ Local builds without a tag print `devel`.
 | --- | --- | --- |
 | MCP mount | [docs/mcp.md](docs/mcp.md) | [docs/mcp.zh.md](docs/mcp.zh.md) |
 | Editor `init` | [docs/editors.md](docs/editors.md) | [docs/editors.zh.md](docs/editors.zh.md) |
-| Shelves | [docs/shelves-builtin.md](docs/shelves-builtin.md) | [docs/shelves-builtin.zh.md](docs/shelves-builtin.zh.md) |
+| Shelves & linking | [docs/shelves-builtin.md](docs/shelves-builtin.md) · [docs/imprint-shelves-linking.md](docs/imprint-shelves-linking.md) | [docs/shelves-builtin.zh.md](docs/shelves-builtin.zh.md) · [docs/imprint-shelves-linking.zh.md](docs/imprint-shelves-linking.zh.md) |
 | Correction loop | [docs/correction.md](docs/correction.md) | [docs/correction.zh.md](docs/correction.zh.md) |
 
 MCP examples (merge manually): [cursor-mcp.json](docs/examples/cursor-mcp.json) · [cursor-mcp-global.json](docs/examples/cursor-mcp-global.json)

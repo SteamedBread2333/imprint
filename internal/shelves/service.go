@@ -122,3 +122,8 @@ func (s *Service) Rebuild() (*index.Store, error) {
 func (s *Service) HasChunk(id string) bool {
 	return HasChunk(s.snap(), id)
 }
+
+// IndexStore returns the loaded shelves index (may be nil).
+func (s *Service) IndexStore() *index.Store {
+	return s.snap()
+}

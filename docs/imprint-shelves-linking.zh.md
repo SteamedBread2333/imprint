@@ -1,6 +1,6 @@
 # imprint ↔ shelves 数据关联设计
 
-> **状态：** 设计草案，待 review  
+> **状态：** P0–P2 已实现（2026-09-16）  
 > **读者：** 维护 imprint / shelves / desk 的开发者  
 > **相关：** [shelves-builtin.zh.md](shelves-builtin.zh.md) · [correction.zh.md](correction.zh.md) · [mcp.zh.md](mcp.zh.md)
 
@@ -15,9 +15,9 @@ imprint（vault 规则）和 shelves（工作区文档索引）目前是**两套
 | **imprint** | `.imprint/memory/imprint-NNNN.md` | `r-YYYY-MM-DD-NNN` | `/graph` — 规则间 `supersedes` / `related` / `conflicts_with` |
 | **shelves** | `.imprint/.shelves/.cache/index.db` | 16 位 hex chunk id | `/docs/graph` — 文件 / 目录 / chunk 层级 |
 
-仅有的交集：`find` 带 `query` 时，MCP / host 并行返回 `rules` + `documents`，**没有交叉引用、没有统一图、没有持久链接**。
+仅有的交集（改造前）：`find` 带 `query` 时并行返回 rules + documents。**现已实现** vault `sources`、`referenced_rules` 反查、`find` 的 `links`；见下文。
 
-典型缺口：
+改造前的典型缺口：
 
 1. 用户说「以后按 `STYLE.md` 来」→ 规则写进 vault，但和文档之间没有可追溯的 `sources` 链。
 2. 智能体 `get r-…` 看到 claim，看不到对应文档段落；`get <chunk>` 看到文档，看不到相关规则。
@@ -54,6 +54,21 @@ imprint（vault 规则）和 shelves（工作区文档索引）目前是**两套
 
 ---
 
+## 3.1 推荐：不污染项目 markdown
+
+多数项目**不需要**在文档正文写 `[[r-…]]`。
+
+| 需求 | 做法 | 改文档？ |
+| --- | --- | --- |
+| 「这条 imprint 依据哪段文档？」 | vault `sources` + `resolved_sources` | **否** |
+| 「这段文档被哪些 imprint 引用？」（**持久**） | 同上 — `get chunk` 的 **`referenced_rules`**（扫 vault 反查） | **否** |
+| 「写这个任务时 imprint 和文档怎么对上？」 | `find` 的 `links`（当次有效） | **否** |
+| 维护者在正文里显式 @ imprint | 可选 `[[r-…]]` → `cited_rules` | 是（**可选**） |
+
+**Agent 默认路径：** 用户纠正 → `find` → 判断 document 命中 → ADD 带 `sources`。一次写入，双向可读；**项目 markdown 零改动**。
+
+---
+
 ## 4. 链接模型
 
 ### 4.1 链接类型
@@ -62,7 +77,7 @@ imprint（vault 规则）和 shelves（工作区文档索引）目前是**两套
 | --- | --- | --- | --- |
 | `sources` | rule → doc | vault YAML `sources` | 智能体 `add` / `supersede` / 后续 `link` |
 | `cited_by` | doc → rule | shelves SQLite `rule_refs` | rebuild 扫描 markdown |
-| `scope_match` | rule ↔ doc | **不持久化** | `find` 运行时（scope 标签 vs 路径前缀） |
+| `scope_match` | rule ↔ doc | **不持久化** | **P4** — `find` 运行时（scope vs path 前缀，未实现） |
 | `co_search` | rule ↔ doc | **不持久化** | 同一次 `find` query 的 BM25 共现 boost |
 
 ### 4.2 DocRef（规则侧引用）
@@ -176,13 +191,20 @@ flowchart TB
 
   subgraph read_path [读取时合并]
     H[get rule id] --> I[加载 Record + sources]
-    I --> J[解析 DocRef → chunk/snippet]
+    I --> J[ResolveSources → resolved_sources]
     K[get chunk id] --> L[加载 Chunk]
-    L --> M[查询 rule_refs + vault sources 反向]
+    L --> M[vault 反查 → referenced_rules]
+    L --> N[rule_refs → cited_rules 可选]
+    F --> N
+  end
+
+  subgraph find_path [find + query]
+    P[rules topK + documents topK] --> Q[BuildFindLinks]
+    Q --> R[sources · vault 反查 · cited_by · co_search]
   end
 
   B -.->|path 稳定| J
-  F --> M
+  B -.->|sources 持久| M
 ```
 
 **Rebuild 触发：**
@@ -290,9 +312,9 @@ imprint add "..." --scope python,naming --text "..." \
 `links` 构建顺序：
 
 1. 命中规则上的 `sources` 解析到 chunk（kind=`sources`，score=1）
-2. 命中 chunk 的 `cited_rules`（kind=`cited_by`）
-3. 同一 query 下 rules 与 documents 各取 topK，scope 与 path 前缀匹配（kind=`scope_match`）
-4. 可选：共现 boost（kind=`co_search`，不持久化）
+2. 命中 chunk 上 vault `sources` 反查（kind=`sources`，即使规则未进 rules topK）
+3. 命中 chunk 的 markdown `[[r-…]]`（kind=`cited_by`）
+4. 同一 query 下 rules 与 documents 共现（kind=`co_search`，不持久化）
 
 `find` 无 query 时：若 `--scope` 命中规则，可附带这些规则的 `resolved_sources`（不跑文档 BM25）。
 

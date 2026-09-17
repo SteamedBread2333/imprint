@@ -12,16 +12,22 @@ flowchart LR
   subgraph host [MCP 宿主]
     Agent[智能体]
   end
-  subgraph proc [imprint-mcp 进程]
-    MCP[MCP stdio 服务]
-    Vault[pkg/imprint.Vault]
+  subgraph proc [imprint-mcp]
+    MCP[MCP stdio]
+    Vault[Vault]
+    Shelves[Shelves 索引]
     MCP --> Vault
+    MCP --> Shelves
   end
-  subgraph disk [Vault 目录]
-    Shards[imprint-NNNN.md]
+  subgraph disk [磁盘]
+    Memory[".imprint/memory/"]
+    Cache[".shelves/.cache/"]
+    Roots["roots 下 .md"]
   end
-  Agent <-->|JSON-RPC| MCP
-  Vault --> Shards
+  Agent <-->|find · add · get| MCP
+  Vault --> Memory
+  Shelves --> Cache
+  Shelves -.->|rebuild| Roots
 ```
 
 
@@ -31,8 +37,9 @@ flowchart LR
 | --------- | ----------------------------------------------------------------------------- |
 | **宿主**    | Cursor、Claude Desktop 等启动 `imprint-mcp`，经 stdin/stdout 通信。                    |
 | **工具**    | 每个 vault 命令对应一个 MCP 工具（`find`、`add` …）。结果为 JSON 文本 — 与 `imprint --json` 结构相同。 |
-| **Vault** | 启动时解析一次：`--vault`、`--global`、`IMPRINT_VAULT`、向上查找 `.imprint/memory/`，或 `./.imprint/memory`。 |
-| **判断**    | ADD / REINFORCE / SUPERSEDE / IGNORE 仍由智能体负责；服务不会替你决定是否写入。                    |
+| **Vault** | `.imprint/memory/` 分片；`find`/`get`/`add` 读写 claim、evidence、**sources**。 |
+| **Shelves** | 读 `.imprint/imprint.yaml` 的 `roots`；`find`+query 时 BM25 文档并返回 `documents`、`links`；`get chunk` 返回 `referenced_rules`。 |
+| **判断**    | ADD / REINFORCE / SUPERSEDE / IGNORE 与是否写 **sources** 均由智能体负责。 |
 
 
 日志只写 **stderr**，stdout 留给 MCP 帧。
@@ -68,12 +75,12 @@ go install github.com/SteamedBread2333/imprint/cmd/imprint-mcp@latest
 
 | 工具          | 对应 CLI              | 说明                                                                                    |
 | ----------- | ------------------- | ------------------------------------------------------------------------------------- |
-| `find`      | `imprint find`      | `scope`（逗号分隔，AND 过滤），可选 `query`、`top_k`（默认 5）。                                        |
-| `add`       | `imprint add`       | 必填 `claim`、`scope`、`text`；可选 `confidence`（0 表示默认 0.6）。                                |
-| `reinforce` | `imprint reinforce` | `id`，可选 `evidence`。                                                                   |
-| `supersede` | `imprint supersede` | `old_id`、`claim`、`scope`；可选 `reason`、`text`。                                          |
-| `forget`    | `imprint forget`    | `id`。                                                                                 |
-| `get`       | `imprint get`       | `id` — 含 `evidence_log`、`referenced_by`。                                              |
+| `find`      | `imprint find`      | `scope`（AND），可选 `query`、`top_k`。shelves 开且带 `query` 时返回 `{ rules, documents, links }`；rules 含 `resolved_sources`。 |
+| `add`       | `imprint add`       | 必填 `claim`、`scope`、`text`；可选 `confidence`、`sources`（`[{path, heading?, chunk?}]`）。 |
+| `reinforce` | `imprint reinforce` | `id`，可选 `evidence`。 |
+| `supersede` | `imprint supersede` | `old_id`、`claim`、`scope`；可选 `reason`、`text`、`sources`（省略则继承旧条目的 sources）。 |
+| `forget`    | `imprint forget`    | `id`。 |
+| `get`       | `imprint get`       | `r-…` → vault 条目 + `resolved_sources`；chunk id → 文档 chunk + `referenced_rules`（vault 反查）+ 可选 `cited_rules`。 |
 | `list`      | `imprint list`      | 可选 `status`、`scope`、`query`、`min_confidence`、`since`（YYYY-MM-DD 或 RFC3339）、`limit`。   |
 | `show`      | `imprint show`      | 可选 `limit`。                                                                           |
 | `sweep`     | `imprint sweep`     | 可选 `decay_days`、`decay_amount`、`dormant_threshold`。                                   |
@@ -82,13 +89,14 @@ go install github.com/SteamedBread2333/imprint/cmd/imprint-mcp@latest
 
 **未暴露：** `init`（一次性设置）、`export`、`clear`（不可逆；若确需请用 CLI 并加 `--confirm --yes`）。
 
-### 智能体流程（不变）
+### 智能体流程
 
-1. 写代码或答风格问题前 → 用 **窄** `scope` 调 `find`。
+1. 写代码或答风格问题前 → **窄** `scope` + **query** 调 `find`（shelves 开 → rules、documents、links）。
 2. 分析需求；分类 **ADD / REINFORCE / SUPERSEDE / IGNORE**。
-3. 不重复已有规则；只记录用户**原话**。
-4. 用户说忘记 / 不要记 → `forget` 或跳过。
-5. 用户要看存了什么 → `show`；条目多时用 `viz` 并打开返回路径。
+3. **ADD** 且 document 命中 → 同轮 `add` 带 **`sources`**（只写 vault，不改项目 markdown）。
+4. 不重复已有 imprint；只记录用户**原话**。
+5. 用户说忘记 / 不要记 → `forget` 或跳过。
+6. 用户要看存了什么 → `show` / desk；条目多时用 `viz`。
 
 
 
