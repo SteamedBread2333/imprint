@@ -14,7 +14,17 @@ English · [中文](README.zh.md)
 
 </div>
 
-User corrections become durable rules in `.imprint/memory/`. Agents recall them before the next edit. **You talk normally; the agent maintains the vault.**
+Durable preferences from normal conversation land in `.imprint/memory/`. **You talk normally; the agent maintains the vault** — classifies each turn, recalls before the next edit.
+
+| | When | Example |
+| --- | --- | --- |
+| **ADD** | New long-term preference | Naming rule, workflow, architecture boundary |
+| **REINFORCE** | Same policy again | “Yes, still PascalCase for exports” |
+| **SUPERSEDE** | Policy changed | Narrow scope, widen scope, replace claim |
+| **forget** | User rejects a stored rule | “Stop recording that naming rule” |
+| **IGNORE** | Task-only turn | One-off refactor, chit-chat, secrets |
+
+Vault stores claim, evidence, and optional doc pointers (`sources`). Shelves indexes markdown under `roots` for BM25 recall alongside rules.
 
 ---
 
@@ -26,12 +36,12 @@ go install github.com/SteamedBread2333/imprint/cmd/imprint-mcp@latest
 cd your-project && imprint init
 ```
 
-Optional: merge [docs/examples/cursor-mcp.json](docs/examples/cursor-mcp.json) into `.cursor/mcp.json` and restart the editor. Without MCP, agents can use `imprint --json` directly.
+Merge [docs/examples/cursor-mcp.json](docs/examples/cursor-mcp.json) into `.cursor/mcp.json` and restart the editor. CLI fallback: `imprint --json`.
 
 | | You | imprint |
 | --- | --- | --- |
 | **1** | Install + `init` | Writes editor rules (Cursor, Claude Code, Codex, Trae, Workbuddy) |
-| **2** | Code and correct in plain language | Agent `find` (vault + shelves) → classify → `add`/`reinforce`/… (optional `sources`) |
+| **2** | Speak normally | Agent `find` (vault + shelves) → classify → `add`/`reinforce`/… (optional `sources`) |
 | **3** | Browser audit (optional) | `imprint up` → `imprint desk open` |
 
 ```mermaid
@@ -65,7 +75,7 @@ flowchart TB
 
   UP["imprint up"] -.->|host indexes| Shelves
 
-  U -->|correct / task| Agent
+  U -->|speak / task| Agent
   F --> Vault
   F --> Shelves
   Vault --> FR
@@ -108,11 +118,11 @@ Global flags: `--vault PATH` · `--global` · `--json` (machine-readable stdout 
 
 ### Everyday — vault
 
-Direct read/write. **No host required.**
+Read and write the vault directly from the CLI.
 
 | Command | What it does |
 | --- | --- |
-| `imprint init` | Write agent rules; does not write MCP config |
+| `imprint init` | Write editor agent rules |
 | `imprint find [--scope a,b] [--query TEXT]` | Recall imprints (scope **AND**); with query + shelves → also `documents`, `links` |
 | `imprint add CLAIM --scope a,b --text ORIG` | Create an imprint (MCP may include `sources` linking docs) |
 | `imprint reinforce ID [--evidence TEXT]` | Strengthen a rule (+0.1 confidence) |
@@ -127,15 +137,13 @@ imprint add "Use snake_case" --scope python,naming --text "user said snake_case"
 imprint get r-2026-09-11-001
 ```
 
-### Everyday — local stack
-
-For desk and the vault graph, **these two are enough**:
+### Local stack
 
 | Command | What it does |
 | --- | --- |
 | `imprint up` | Start the local stack (vault API, shelves, enabled desk, …) |
 | `imprint down` | Stop the local stack |
-| `imprint desk open` | Open desk in the browser (**does not start** services; run `up` first) |
+| `imprint desk open` | Open desk in the browser (requires `up` first) |
 | `imprint status` | Snapshot of running services |
 
 ```bash
@@ -155,11 +163,9 @@ After editing `imprint.yaml`: run `down` then `up`.
 | `imprint plugin start` / `plugin stop` | External plugins only |
 | `plugin list` · `enable` · `disable` | Toggle plugins in yaml |
 
-For everyday use, `up` / `down` is enough — you do not need these subcommands.
-
 </details>
 
-Shelves is **host config** (top-level `shelves:`), not a plugin. See [docs/shelves-builtin.md](docs/shelves-builtin.md).
+Shelves is top-level host config (`shelves:` in `imprint.yaml`). See [docs/shelves-builtin.md](docs/shelves-builtin.md).
 
 ### Debug & advanced
 
@@ -198,11 +204,11 @@ Rules live in `memory/vault.db`. IDs: `r-YYYY-MM-DD-NNN`. Status: `active` | `do
 | **Shelves** | **host** | `shelves.enabled`, `config.roots` in [imprint.yaml](docs/examples/imprint.yaml) |
 | **Desk** | External plugin | `plugins.desk` + [imprint-desk-plugin](https://github.com/SteamedBread2333/imprint-desk-plugin) |
 
-**What shelves does:** Indexes markdown under `roots` in `imprint.yaml` (e.g. `docs/`, `.cursor/rules/`) — **not** “the LLM already read the whole repo.” Before coding, agents `find(scope, query)` get vault imprints, document snippets, and `links` in **one** call. Local BM25 index; no embedding API.
+**Shelves** indexes markdown under `roots` in `imprint.yaml` (e.g. `docs/`, `.cursor/rules/`). Before coding, `find(scope, query)` returns vault rules, document snippets, and `links` in one call. Local BM25 index.
 
-**Why `roots` matters:** Only listed directories are indexed and searchable — scope what agents recall and keep rebuilds fast. See [docs/shelves-builtin.md](docs/shelves-builtin.md).
+**`roots`** lists which directories enter the index — scoped recall and fast rebuilds. See [docs/shelves-builtin.md](docs/shelves-builtin.md).
 
-**Linking:** After a user correction, agents can set vault `sources` (imprint→doc) on ADD **without editing project markdown**. `get r-…` returns `resolved_sources`. Design: [docs/imprint-shelves-linking.md](docs/imprint-shelves-linking.md).
+**Linking:** Vault `sources` point rules at doc paths or headings; `get r-…` returns `resolved_sources`. Design: [docs/imprint-shelves-linking.md](docs/imprint-shelves-linking.md).
 
 One MCP mount (`imprint-mcp`). With shelves on and `find` + query, the response includes `rules`, `documents`, and `links`.
 
@@ -227,7 +233,7 @@ Local builds without a tag print `devel`.
 | MCP mount | [docs/mcp.md](docs/mcp.md) | [docs/mcp.zh.md](docs/mcp.zh.md) |
 | Editor `init` | [docs/editors.md](docs/editors.md) | [docs/editors.zh.md](docs/editors.zh.md) |
 | Shelves & linking | [docs/shelves-builtin.md](docs/shelves-builtin.md) · [docs/imprint-shelves-linking.md](docs/imprint-shelves-linking.md) | [docs/shelves-builtin.zh.md](docs/shelves-builtin.zh.md) · [docs/imprint-shelves-linking.zh.md](docs/imprint-shelves-linking.zh.md) |
-| Correction loop | [docs/correction.md](docs/correction.md) | [docs/correction.zh.md](docs/correction.zh.md) |
+| Write loop & scenarios | [docs/correction.md](docs/correction.md) | [docs/correction.zh.md](docs/correction.zh.md) |
 
 MCP examples (merge manually): [cursor-mcp.json](docs/examples/cursor-mcp.json) · [cursor-mcp-global.json](docs/examples/cursor-mcp-global.json)
 
@@ -242,7 +248,5 @@ v, _ := imprint.Open("./.imprint/memory")
 v.Add("Use gofmt", []string{"go"}, "gofmt", 0.6)
 v.Find([]string{"go"}, "", 5)
 ```
-
-Classification (ADD / REINFORCE / SUPERSEDE / IGNORE) and “should I write this?” are the **agent’s** job. imprint is the store: write, recall, reinforce, supersede, decay.
 
 MIT

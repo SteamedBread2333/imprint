@@ -14,7 +14,17 @@
 
 </div>
 
-用户纠正变成 `.imprint/memory/` 里的持久规则，下次写代码前召回。**你正常说话即可，vault 由智能体维护。**
+日常对话里的长期偏好写入 `.imprint/memory/`。**你正常说话即可，vault 由智能体维护**——每轮分类，写代码前召回。
+
+| | 何时 | 例子 |
+| --- | --- | --- |
+| **ADD** | 新的长期偏好 | 命名规则、工作流、架构边界 |
+| **REINFORCE** | 同一政策再次确认 | 「对，export 还是 PascalCase」 |
+| **SUPERSEDE** | 政策变更 | 收窄 scope、扩大 scope、替换 claim |
+| **forget** | 用户否定已存规则 | 「别记那条命名规则了」 |
+| **IGNORE** | 仅当次任务 | 一次性重构、闲聊、密钥 |
+
+Vault 存 claim、evidence 和可选文档指针（`sources`）。Shelves 在 `roots` 下索引 markdown，与规则一起做 BM25 召回。
 
 ---
 
@@ -26,12 +36,12 @@ go install github.com/SteamedBread2333/imprint/cmd/imprint-mcp@latest
 cd your-project && imprint init
 ```
 
-可选：把 [docs/examples/cursor-mcp.json](docs/examples/cursor-mcp.json) 合并进 `.cursor/mcp.json` 并重启编辑器。不用 MCP 时，智能体可直接走 `imprint --json`。
+将 [docs/examples/cursor-mcp.json](docs/examples/cursor-mcp.json) 合并进 `.cursor/mcp.json` 并重启编辑器。CLI 回退：`imprint --json`。
 
 | | 你 | imprint |
 | --- | --- | --- |
 | **1** | 安装 + `init` | 写入编辑器规则（Cursor、Claude Code、Codex、Trae、Workbuddy） |
-| **2** | 正常写代码、正常纠正 | 智能体 `find`（imprint + shelves）→ 分类 → `add`/`reinforce`/…（可选 `sources`） |
+| **2** | 正常说话 | 智能体 `find`（imprint + shelves）→ 分类 → `add`/`reinforce`/…（可选 `sources`） |
 | **3** | 浏览器审计（可选） | `imprint up` → `imprint desk open` |
 
 ```mermaid
@@ -65,7 +75,7 @@ flowchart TB
 
   UP["imprint up"] -.->|host 索引| Shelves
 
-  U -->|纠正 / 任务| Agent
+  U -->|说话 / 任务| Agent
   F --> Vault
   F --> Shelves
   Vault --> FR
@@ -108,11 +118,11 @@ sequenceDiagram
 
 ### 常用 — vault
 
-直接读写。**不需要 host。**
+CLI 直接读写 vault。
 
 | 命令 | 作用 |
 | --- | --- |
-| `imprint init` | 写入智能体规则；不写 MCP 配置 |
+| `imprint init` | 写入编辑器智能体规则 |
 | `imprint find [--scope a,b] [--query TEXT]` | 召回 imprint（scope **AND**）；shelves 开且带 query → 含 documents、links |
 | `imprint add CLAIM --scope a,b --text ORIG` | 新建 imprint（MCP 可带 `sources` 关联文档） |
 | `imprint reinforce ID [--evidence TEXT]` | 加强规则（置信度 +0.1） |
@@ -127,15 +137,13 @@ imprint add "函数名用 snake_case" --scope python,naming --text "用户要求
 imprint get r-2026-09-11-001
 ```
 
-### 常用 — 本地服务
-
-开 desk、看 vault 图谱时，**记这两条就够了**：
+### 本地服务
 
 | 命令 | 作用 |
 | --- | --- |
 | `imprint up` | 启动本地服务（vault API、shelves、已启用的 desk 等） |
 | `imprint down` | 停止本地服务 |
-| `imprint desk open` | 浏览器打开 desk（**不启动**服务；需先 `up`） |
+| `imprint desk open` | 浏览器打开 desk（需先 `up`） |
 | `imprint status` | 本地服务快照 |
 
 ```bash
@@ -155,11 +163,9 @@ imprint down
 | `imprint plugin start` / `plugin stop` | 仅外部插件 |
 | `plugin list` · `enable` · `disable` | 改 yaml 里的插件开关 |
 
-日常用 `up` / `down` 即可，不必记这些子命令。
-
 </details>
 
-shelves 是 **host 配置**（顶层 `shelves:`），不是插件。见 [docs/shelves-builtin.zh.md](docs/shelves-builtin.zh.md)。
+shelves 在 `imprint.yaml` 顶层 host 配置（`shelves:`）。见 [docs/shelves-builtin.zh.md](docs/shelves-builtin.zh.md)。
 
 ### 调试与进阶
 
@@ -198,13 +204,13 @@ docs/                   # 常见 roots 之一
 | **Shelves** | **host** | `shelves` · [imprint.yaml](docs/examples/imprint.yaml) |
 | **Desk** | 外部插件 | `plugins.desk` · [imprint-desk-plugin](https://github.com/SteamedBread2333/imprint-desk-plugin) |
 
-**Shelves 做什么：** 在 `imprint.yaml` 的 `roots` 下建本地文档索引（默认如 `docs/`、`.cursor/rules/`），不是「LLM 已读过整个仓库」。Agent 写代码前 `find(scope, query)` 可**一次**拿到 vault 里的 imprint、相关文档段落（snippet）、以及 `links`。BM25 本地索引，无 embedding API。
+**Shelves** 在 `imprint.yaml` 的 `roots` 下建文档索引（默认如 `docs/`、`.cursor/rules/`）。写代码前 `find(scope, query)` 一次返回 vault 规则、文档 snippet 和 `links`。本地 BM25 索引。
 
-**为何需要 `roots`：** 只有列进 `roots` 的目录会被索引和搜索；用来划定 Agent 应对照的项目文档范围，并控制 rebuild 成本。详见 [docs/shelves-builtin.zh.md](docs/shelves-builtin.zh.md)。
+**`roots`** 指定哪些目录进入索引——召回范围可控、rebuild 更快。详见 [docs/shelves-builtin.zh.md](docs/shelves-builtin.zh.md)。
 
-**与 vault 关联：** 用户纠正后，Agent 可在 ADD 时写 vault 的 `sources`（规则→文档），**不必改项目 markdown**。`get r-…` 返回 `resolved_sources`。关联设计：[docs/imprint-shelves-linking.zh.md](docs/imprint-shelves-linking.zh.md)。
+**与 vault 关联：** vault 的 `sources` 指向文档 path 或 heading；`get r-…` 返回 `resolved_sources`。设计：[docs/imprint-shelves-linking.zh.md](docs/imprint-shelves-linking.zh.md)。
 
-只挂一个 MCP（`imprint-mcp`）。shelves 开启且 `find` 带 query 时，响应含 `rules`、`documents`、`links`（规则带 `resolved_sources` 时含 excerpt）。
+挂载 MCP（`imprint-mcp`）。shelves 开启且 `find` 带 query 时，响应含 `rules`、`documents`、`links`。
 
 ---
 
@@ -227,7 +233,7 @@ make publish V=X.Y.Z  # 打 tag，CI 上传 Release + GHCR
 | MCP 挂载 | [docs/mcp.zh.md](docs/mcp.zh.md) | [docs/mcp.md](docs/mcp.md) |
 | 编辑器 `init` | [docs/editors.zh.md](docs/editors.zh.md) | [docs/editors.md](docs/editors.md) |
 | Shelves 与关联 | [docs/shelves-builtin.zh.md](docs/shelves-builtin.zh.md) · [docs/imprint-shelves-linking.zh.md](docs/imprint-shelves-linking.zh.md) | [docs/shelves-builtin.md](docs/shelves-builtin.md) · [docs/imprint-shelves-linking.md](docs/imprint-shelves-linking.md) |
-| 纠偏与编码场景 | [docs/correction.zh.md](docs/correction.zh.md) | [docs/correction.md](docs/correction.md) |
+| 写入循环与场景 | [docs/correction.zh.md](docs/correction.zh.md) | [docs/correction.md](docs/correction.md) |
 
 MCP 示例（需手动合并）：[cursor-mcp.json](docs/examples/cursor-mcp.json) · [cursor-mcp-global.json](docs/examples/cursor-mcp-global.json)
 
@@ -242,7 +248,5 @@ v, _ := imprint.Open("./.imprint/memory")
 v.Add("Use gofmt", []string{"go"}, "gofmt", 0.6)
 v.Find([]string{"go"}, "", 5)
 ```
-
-分类（ADD / REINFORCE / SUPERSEDE / IGNORE）和「该不该写」由**智能体**判断。imprint 只负责存、召回、强化、替换、衰减。
 
 MIT
