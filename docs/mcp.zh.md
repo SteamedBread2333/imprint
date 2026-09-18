@@ -13,7 +13,7 @@
 | 写代码前召回 | `find(scope, query)` → rules + **documents** + **links** | `find` → **vault rules only** |
 | 查规则文档依据 | `get r-…` → **resolved_sources** | `get r-…` → vault only |
 | 查 chunk 被哪些规则引用 | `get <chunk-id>` → **referenced_rules** + **cited_rules** | 不支持 |
-| 规则关系图 | `viz` / desk | 同左 |
+| 规则关系图 | desk `/` | host `GET /graph` |
 
 CLI `find` / `get` **刻意不增强 shelves** — 给脚本/automation 用；智能体写代码前召回请走 MCP。
 
@@ -78,7 +78,7 @@ flowchart LR
 | --------- | ----------------------------------------------------------------------------- |
 | **宿主**    | Cursor、Claude Desktop 等启动 `imprint-mcp`，经 stdin/stdout 通信。                    |
 | **工具**    | vault 命令对应 MCP 工具（`find`、`add` …）。**MCP** 在 shelves 开时 enrich `find`/`get`；**CLI** `find`/`get` 仅 vault。 |
-| **Vault** | `.imprint/memory/` 分片；`find`/`get`/`add` 读写 claim、evidence、**sources**。 |
+| **Vault** | `.imprint/memory/vault.db`（SQLite）；`find`/`get`/`add` 读写 claim、evidence、**sources**。 |
 | **Shelves** | 读 `.imprint/imprint.yaml` 的 `roots`；`find`+query 时 BM25 文档并返回 `documents`、`links`；`get chunk` 返回 `referenced_rules`。 |
 | **判断**    | ADD / REINFORCE / SUPERSEDE / IGNORE 与是否写 **sources** 均由智能体负责。 |
 
@@ -125,7 +125,6 @@ go install github.com/SteamedBread2333/imprint/cmd/imprint-mcp@latest
 | `list`      | `imprint list`      | 可选 `status`、`scope`、`query`、`min_confidence`、`since`（YYYY-MM-DD 或 RFC3339）、`limit`。   |
 | `show`      | `imprint show`      | 可选 `limit`。                                                                           |
 | `sweep`     | `imprint sweep`     | 可选 `decay_days`、`decay_amount`、`dormant_threshold`。                                   |
-| `viz`       | `imprint viz`       | 可选 `out`、`format`（`mermaid` / `notes`）、`include_archived`。返回路径与统计。交互式关系图见 desk 插件。 |
 
 
 **未暴露：** `init`（一次性设置）、`export`、`clear`（不可逆；若确需请用 CLI 并加 `--confirm --yes`）。
@@ -138,7 +137,7 @@ go install github.com/SteamedBread2333/imprint/cmd/imprint-mcp@latest
 4. **ADD** 且 document 命中 → 同轮 `add` 带 **`sources`**（只写 vault，不改项目 markdown）。
 5. 不重复已有 imprint；只记录用户**原话**。
 6. 用户说忘记 / 不要记 → `forget` 或跳过。
-7. 用户要看存了什么 → `show` / desk（`/`、`/docs`、`/unified`）；条目多时用 `viz`。
+7. 用户要看存了什么 → `show` 或 desk（`/`、`/docs`、`/unified`）。
 
 
 

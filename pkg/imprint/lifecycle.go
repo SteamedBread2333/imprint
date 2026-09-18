@@ -36,8 +36,7 @@ func (v *Vault) Reinforce(id, evidence string) (*ReinforceResult, error) {
 		Kind: EvidenceReinforce,
 		Text: evidence,
 	})
-	archived := rec.Status != StatusActive
-	if err := v.save(rec, archived); err != nil {
+	if err := v.save(rec); err != nil {
 		return nil, err
 	}
 	return &ReinforceResult{
@@ -49,73 +48,11 @@ func (v *Vault) Reinforce(id, evidence string) (*ReinforceResult, error) {
 
 // Supersede archives oldID as superseded and writes a new active rule that points at it.
 func (v *Vault) Supersede(oldID, newClaim string, newScope []string, reason, originalText string) (*SupersedeResult, error) {
-	oldID = strings.TrimSpace(oldID)
-	newClaim = strings.TrimSpace(newClaim)
-	if oldID == "" {
-		return nil, fmt.Errorf("old_id is required")
-	}
-	if newClaim == "" {
-		return nil, fmt.Errorf("new_claim is required")
-	}
-	newScope = cleanScope(newScope)
-	if len(newScope) == 0 {
-		return nil, fmt.Errorf("new_scope is required")
-	}
-	old, err := v.load(oldID)
-	if err != nil {
-		return nil, err
-	}
-	now := v.instant()
-	text := originalText
-	if strings.TrimSpace(text) == "" {
-		text = reason
-	}
-	sources := old.Sources
-	if len(sources) == 0 {
-		sources = nil
-	}
-	added, err := v.AddRecord(newClaim, newScope, text, old.Confidence, []string{old.ID}, []string{old.ID}, nil, sources)
-	if err != nil {
-		return nil, err
-	}
-	if reason != "" || originalText != "" {
-		fresh, err := v.load(added.ID)
-		if err != nil {
-			return nil, err
-		}
-		if reason != "" {
-			fresh.EvidenceLog = append(fresh.EvidenceLog, Evidence{
-				At:   now,
-				Kind: EvidenceSupersede,
-				Text: reason,
-			})
-			if err := v.save(fresh, false); err != nil {
-				return nil, err
-			}
-		}
-	}
-	old.Status = StatusSuperseded
-	old.UpdatedAt = now
-	note := "superseded by " + added.ID
-	if reason != "" {
-		note += ": " + reason
-	}
-	old.EvidenceLog = append(old.EvidenceLog, Evidence{
-		At:   now,
-		Kind: EvidenceSupersede,
-		Text: note,
-	})
-	if err := v.save(old, true); err != nil {
-		return nil, err
-	}
-	return &SupersedeResult{ID: added.ID, SupersededOldID: old.ID}, nil
+	return v.SupersedeWithSources(oldID, newClaim, newScope, reason, originalText, nil)
 }
 
 // SupersedeWithSources archives oldID and writes a new rule, optionally replacing inherited sources.
 func (v *Vault) SupersedeWithSources(oldID, newClaim string, newScope []string, reason, originalText string, sources []DocRef) (*SupersedeResult, error) {
-	if len(sources) == 0 {
-		return v.Supersede(oldID, newClaim, newScope, reason, originalText)
-	}
 	oldID = strings.TrimSpace(oldID)
 	newClaim = strings.TrimSpace(newClaim)
 	if oldID == "" {
@@ -137,41 +74,51 @@ func (v *Vault) SupersedeWithSources(oldID, newClaim string, newScope []string, 
 	if strings.TrimSpace(text) == "" {
 		text = reason
 	}
-	added, err := v.AddRecord(newClaim, newScope, text, old.Confidence, []string{old.ID}, []string{old.ID}, nil, sources)
+	useSources := old.Sources
+	if len(sources) > 0 {
+		useSources = cleanDocRefs(sources)
+	}
+	newID, err := v.store.NextID(now)
 	if err != nil {
 		return nil, err
 	}
-	if reason != "" || originalText != "" {
-		fresh, err := v.load(added.ID)
-		if err != nil {
-			return nil, err
-		}
-		if reason != "" {
-			fresh.EvidenceLog = append(fresh.EvidenceLog, Evidence{
-				At:   now,
-				Kind: EvidenceSupersede,
-				Text: reason,
-			})
-			if err := v.save(fresh, false); err != nil {
-				return nil, err
-			}
-		}
+	newRec := &Record{
+		ID:                 newID,
+		Claim:              newClaim,
+		Scope:              newScope,
+		Confidence:         old.Confidence,
+		Status:             StatusActive,
+		ReinforcementCount: 0,
+		CreatedAt:          now,
+		UpdatedAt:          now,
+		LastTouchedAt:      now,
+		Supersedes:         []string{old.ID},
+		Related:            []string{old.ID},
+		Sources:            useSources,
+		EvidenceLog:        []Evidence{{At: now, Kind: EvidenceOriginal, Text: text}},
+		Path:               old.Path,
+	}
+	if reason != "" {
+		newRec.EvidenceLog = append(newRec.EvidenceLog, Evidence{
+			At: now, Kind: EvidenceSupersede, Text: reason,
+		})
+	}
+	if err := v.store.InsertRecord(newRec); err != nil {
+		return nil, err
 	}
 	old.Status = StatusSuperseded
 	old.UpdatedAt = now
-	note := "superseded by " + added.ID
+	note := "superseded by " + newID
 	if reason != "" {
 		note += ": " + reason
 	}
 	old.EvidenceLog = append(old.EvidenceLog, Evidence{
-		At:   now,
-		Kind: EvidenceSupersede,
-		Text: note,
+		At: now, Kind: EvidenceSupersede, Text: note,
 	})
-	if err := v.save(old, true); err != nil {
+	if err := v.save(old); err != nil {
 		return nil, err
 	}
-	return &SupersedeResult{ID: added.ID, SupersededOldID: old.ID}, nil
+	return &SupersedeResult{ID: newID, SupersededOldID: old.ID}, nil
 }
 
 // Sweep decays untouched rules and archives those below the dormant threshold.
@@ -185,7 +132,7 @@ func (v *Vault) Sweep(decayDays int, decayAmount, dormantThreshold float64) (*Sw
 	if dormantThreshold <= 0 {
 		dormantThreshold = DefaultDormantThresh
 	}
-	recs, err := v.loadAll()
+	recs, err := v.store.AllRecords(false)
 	if err != nil {
 		return nil, err
 	}
@@ -209,14 +156,14 @@ func (v *Vault) Sweep(decayDays int, decayAmount, dormantThreshold float64) (*Sw
 		if rec.Confidence < dormantThreshold {
 			rec.Status = StatusDormant
 			rec.UpdatedAt = now
-			if err := v.save(rec, true); err != nil {
+			if err := v.save(rec); err != nil {
 				return nil, err
 			}
 			result.Archived++
 			continue
 		}
 		if changed {
-			if err := v.save(rec, false); err != nil {
+			if err := v.save(rec); err != nil {
 				return nil, err
 			}
 		}

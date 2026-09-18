@@ -248,15 +248,9 @@ func (v *Vault) Find(scope []string, query string, topK int) ([]FindHit, error) 
 		topK = DefaultTopK
 	}
 	scope = cleanScope(scope)
-	recs, err := v.loadAll()
+	corpus, err := v.store.ActiveCandidates(scope, MinRecallConfidence)
 	if err != nil {
 		return nil, err
-	}
-	var corpus []*Record
-	for _, r := range recs {
-		if r.Status == StatusActive && r.Confidence >= MinRecallConfidence {
-			corpus = append(corpus, r)
-		}
 	}
 	idx := buildIndex(corpus)
 	type scored struct {

@@ -9,6 +9,7 @@ Shell helpers and dev-only utilities. Release scripts are invoked from the Makef
 | [`release/version.sh`](release/version.sh) | Print version from git tags |
 | [`dev/imprint-mcp.sh`](dev/imprint-mcp.sh) | Run MCP bound to this repo (`--project`) |
 | [`demo/seed-vault/`](demo/seed-vault/) | Idempotent demo vault + doc `sources` for desk unified graph |
+| [`migrate-markdown-vault/`](migrate-markdown-vault/) | One-off: import legacy `imprint-*.md` shards into `vault.db` |
 
 ## Common commands
 

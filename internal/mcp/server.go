@@ -29,7 +29,7 @@ var Now = time.Now
 
 const serverInstructions = `imprint long-term memory (vault + shelves). MCP is REQUIRED for full shelves: CLI find/get are vault-only and omit documents, links, resolved_sources, referenced_rules, and chunk get.
 
-Users never maintain the vault — speak normally; you run find/add/reinforce/supersede/forget. Never ask for imprint commands or rule ids. Review-and-prune: show/viz/get or desk, explain, then supersede/forget/sweep after they agree. Before every write classify ADD / REINFORCE / SUPERSEDE / IGNORE; never duplicate; record only what the user said. User negates in plain speech → find then forget or supersede.
+Users never maintain the vault — speak normally; you run find/add/reinforce/supersede/forget. Never ask for imprint commands or rule ids. Review-and-prune: show/get or desk, explain, then supersede/forget/sweep after they agree. Before every write classify ADD / REINFORCE / SUPERSEDE / IGNORE; never duplicate; record only what the user said. User negates in plain speech → find then forget or supersede.
 
 Before coding or style answers: find with narrow scope (tags AND) + query when shelves is on → { rules with resolved_sources, documents, links }. Link kinds in find.links (session-only except sources field): sources (vault rule→doc), cited_by ([[r-…]] in doc), co_search (same-query BM25; not persisted).
 

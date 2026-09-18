@@ -60,7 +60,7 @@ flowchart TB
   end
 
   subgraph Audit["可选 · 人工审计"]
-    H((你)) --> Desk["desk · show · viz"]
+    H((你)) --> Desk["desk · show"]
   end
 
   UP["imprint up"] -.->|host 索引| Shelves
@@ -116,7 +116,7 @@ sequenceDiagram
 | `imprint find [--scope a,b] [--query TEXT]` | 召回 imprint（scope **AND**）；shelves 开且带 query → 含 documents、links |
 | `imprint add CLAIM --scope a,b --text ORIG` | 新建 imprint（MCP 可带 `sources` 关联文档） |
 | `imprint reinforce ID [--evidence TEXT]` | 加强规则（置信度 +0.1） |
-| `imprint supersede OLD --claim NEW --scope a,b` | 替换规则；旧规则进 `archive/` |
+| `imprint supersede OLD --claim NEW --scope a,b` | 替换规则；旧规则标记 `superseded` |
 | `imprint forget ID` | 永久删除 |
 | `imprint list` · `show` · `get ID` | 浏览与查看 |
 | `imprint sweep` · `export` | 衰减陈旧规则 · 导出 JSON |
@@ -166,7 +166,6 @@ shelves 是 **host 配置**（顶层 `shelves:`），不是插件。见 [docs/sh
 | 命令 | 作用 |
 | --- | --- |
 | `imprint host serve [--listen ADDR]` | 前台 host（Ctrl+C）— 调试 API |
-| `imprint viz [--format mermaid\|notes] [--out PATH]` | 关系图或重新生成只读 `notes/` |
 | `imprint clear --confirm --yes` | 删除全部规则 — 不可逆 |
 | `imprint version` | 打印版本 |
 
@@ -181,40 +180,13 @@ shelves 是 **host 配置**（顶层 `shelves:`），不是插件。见 [docs/sh
 ```
 .imprint/
   imprint.yaml          # host + shelves.roots + plugins
-  memory/               # imprint 分片（含 sources）
+  memory/vault.db       # SQLite vault（规则、证据、边、sources）
   .shelves/.cache/      # roots 下文档索引（SQLite，gitignore）
 docs/                   # 常见 roots 之一
 .cursor/rules/          # 常见 roots 之一
 ```
 
-规则打进 `imprint-NNNN.md` 分片（32768 行或 1 MiB 换新文件）。ID：`r-YYYY-MM-DD-NNN`。`supersede`、`sweep` 归档；`forget` 删除。
-
-<details>
-<summary>分片示例（一个文件两条规则）</summary>
-
-```markdown
----
-id: r-2026-09-11-001
-claim: Python function names must always be snake_case
-scope: [python, naming]
-confidence: 0.6
-status: active
-sources:
-  - path: docs/correction.md
-    heading: Naming
-evidence_log:
-  - { at: 2026-09-11T12:00:00Z, kind: original, text: use snake_case }
----
----
-id: r-2026-09-11-002
-claim: Use 4-space indents
-scope: [python, style]
-confidence: 0.85
-status: active
----
-```
-
-</details>
+规则存于 `memory/vault.db`。ID：`r-YYYY-MM-DD-NNN`。状态：`active` | `dormant` | `superseded`。`supersede` 将旧规则标为 superseded；`sweep` 衰减至 dormant；`forget` 删除。交互式规则图：**`imprint desk open`**（host `GET /graph`）。
 
 ---
 

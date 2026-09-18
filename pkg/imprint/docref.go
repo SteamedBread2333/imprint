@@ -1,13 +1,12 @@
 package imprint
 
-import "strings"
+import (
+	"strings"
 
-// DocRef points a rule at a workspace document (path, optional heading, optional chunk id).
-type DocRef struct {
-	Path    string `yaml:"path,omitempty" json:"path,omitempty"`
-	Heading string `yaml:"heading,omitempty" json:"heading,omitempty"`
-	Chunk   string `yaml:"chunk,omitempty" json:"chunk,omitempty"`
-}
+	"github.com/SteamedBread2333/imprint/internal/vault/model"
+)
+
+type DocRef = model.DocRef
 
 // ResolvedSource is a DocRef resolved against the shelves index for agent recall.
 type ResolvedSource struct {
@@ -36,67 +35,11 @@ type EnrichedFindHit struct {
 	ResolvedSources []ResolvedSource `json:"resolved_sources,omitempty"`
 }
 
-// ReferencedRule is an imprint whose vault sources point at a document path or chunk.
-type ReferencedRule struct {
-	ID    string `json:"id"`
-	Kind  string `json:"kind"`
-	Claim string `json:"claim,omitempty"`
-}
+type ReferencedRule = model.ReferencedRule
 
 // RulesReferencingDoc returns imprints whose sources point at path/heading/chunkID.
 func (v *Vault) RulesReferencingDoc(path, heading, chunkID string) ([]ReferencedRule, error) {
-	path = filepathSlash(strings.TrimSpace(strings.TrimPrefix(path, "./")))
-	heading = strings.TrimSpace(heading)
-	chunkID = strings.TrimSpace(chunkID)
-	if path == "" && chunkID == "" {
-		return nil, nil
-	}
-	recs, err := v.loadAll()
-	if err != nil {
-		return nil, err
-	}
-	var out []ReferencedRule
-	seen := map[string]struct{}{}
-	for _, r := range recs {
-		if r.Status != StatusActive {
-			continue
-		}
-		for _, src := range r.Sources {
-			if !sourceMatchesDoc(src, path, heading, chunkID) {
-				continue
-			}
-			if _, ok := seen[r.ID]; ok {
-				break
-			}
-			seen[r.ID] = struct{}{}
-			out = append(out, ReferencedRule{
-				ID:    r.ID,
-				Kind:  "sources",
-				Claim: r.Claim,
-			})
-			break
-		}
-	}
-	return out, nil
-}
-
-func sourceMatchesDoc(src DocRef, path, heading, chunkID string) bool {
-	srcPath := filepathSlash(strings.TrimSpace(strings.TrimPrefix(src.Path, "./")))
-	srcHeading := strings.TrimSpace(src.Heading)
-	srcChunk := strings.TrimSpace(src.Chunk)
-	if srcChunk != "" && chunkID != "" && srcChunk == chunkID {
-		return true
-	}
-	if srcPath == "" || path == "" || srcPath != path {
-		return false
-	}
-	if srcHeading == "" {
-		return true
-	}
-	if heading == "" {
-		return false
-	}
-	return strings.EqualFold(srcHeading, heading) || strings.Contains(strings.ToLower(heading), strings.ToLower(srcHeading))
+	return v.store.RulesReferencingDoc(path, heading, chunkID)
 }
 
 func cleanDocRefs(refs []DocRef) []DocRef {

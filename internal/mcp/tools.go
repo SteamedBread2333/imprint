@@ -48,10 +48,6 @@ func registerTools(server *sdkmcp.Server, v *imprint.Vault, shelvesSvc *shelves.
 		Name:        "sweep",
 		Description: "Decay confidence and archive dormant rules.",
 	}, s.sweep)
-	sdkmcp.AddTool(server, &sdkmcp.Tool{
-		Name:        "viz",
-		Description: "Generate mermaid on stdout or notes/ cards; returns path and stats. Interactive graph: desk plugin.",
-	}, s.viz)
 }
 
 type vaultTools struct {
@@ -252,20 +248,3 @@ func (s *vaultTools) sweep(_ context.Context, _ *sdkmcp.CallToolRequest, args sw
 	return jsonOK(res)
 }
 
-type vizArgs struct {
-	Out             string `json:"out,omitempty" jsonschema:"output path"`
-	Format          string `json:"format,omitempty" jsonschema:"mermaid or notes"`
-	IncludeArchived bool   `json:"include_archived,omitempty"`
-}
-
-func (s *vaultTools) viz(_ context.Context, _ *sdkmcp.CallToolRequest, args vizArgs) (*sdkmcp.CallToolResult, any, error) {
-	format := args.Format
-	if format == "" {
-		format = "mermaid"
-	}
-	res, err := s.v.Viz(args.Out, format, args.IncludeArchived)
-	if err != nil {
-		return toolErr(err), nil, nil
-	}
-	return jsonOK(res)
-}

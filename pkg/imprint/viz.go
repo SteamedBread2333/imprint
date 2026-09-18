@@ -1,12 +1,6 @@
 package imprint
 
-import (
-	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
-	"time"
-)
+import "time"
 
 // GraphNode is one rule in the vault graph JSON.
 type GraphNode struct {
@@ -38,7 +32,7 @@ type GraphData struct {
 	Edges       []GraphEdge `json:"edges"`
 }
 
-// Graph returns vault graph data for HTTP APIs and plugins.
+// Graph returns vault graph data for HTTP APIs and desk.
 func (v *Vault) Graph(includeArchived bool) (GraphData, error) {
 	data, _, err := v.graph(includeArchived)
 	return data, err
@@ -59,6 +53,31 @@ func graphNode(recs []*Record, r *Record) GraphNode {
 		LastTouchedAt:      r.LastTouchedAt,
 		ReferencedBy:       backlinksFrom(recs, r.ID),
 	}
+}
+
+func backlinksFrom(recs []*Record, id string) []Backlink {
+	var out []Backlink
+	for _, r := range recs {
+		if r.ID == id {
+			continue
+		}
+		for _, x := range r.Supersedes {
+			if x == id {
+				out = append(out, Backlink{ID: r.ID, Kind: "supersedes"})
+			}
+		}
+		for _, x := range r.Related {
+			if x == id {
+				out = append(out, Backlink{ID: r.ID, Kind: "related"})
+			}
+		}
+		for _, x := range r.ConflictsWith {
+			if x == id {
+				out = append(out, Backlink{ID: r.ID, Kind: "conflicts_with"})
+			}
+		}
+	}
+	return out
 }
 
 func (v *Vault) graph(includeArchived bool) (GraphData, []*Record, error) {
@@ -85,8 +104,6 @@ func (v *Vault) graph(includeArchived bool) (GraphData, []*Record, error) {
 		kept = append(kept, r)
 		data.Nodes = append(data.Nodes, graphNode(recs, r))
 	}
-	// Active-only graph still needs archived endpoints referenced by active rules,
-	// otherwise supersedes/related/conflict edges are dropped entirely.
 	if !includeArchived {
 		linked := map[string]struct{}{}
 		for _, r := range kept {
@@ -148,100 +165,4 @@ func containsID(ids []string, id string) bool {
 		}
 	}
 	return false
-}
-
-func mermaidGraph(data GraphData) string {
-	var b strings.Builder
-	b.WriteString("graph LR\n")
-	ident := func(id string) string {
-		return strings.ReplaceAll(id, "-", "_")
-	}
-	esc := func(s string) string {
-		s = strings.ReplaceAll(s, `"`, `'`)
-		if len(s) > 42 {
-			s = s[:42] + "…"
-		}
-		return s
-	}
-	if len(data.Nodes) == 0 {
-		b.WriteString("  empty[no imprints]\n")
-		return b.String()
-	}
-	for _, n := range data.Nodes {
-		b.WriteString(fmt.Sprintf("  %s[\"%s<br/>%s\"]\n", ident(n.ID), n.ID, esc(n.Claim)))
-	}
-	for _, e := range data.Edges {
-		arrow := "---"
-		switch e.Kind {
-		case "supersedes":
-			arrow = "-- supersedes -->"
-		case "related":
-			arrow = "-. related .-"
-		case "conflicts_with":
-			arrow = "== conflicts =="
-		}
-		b.WriteString(fmt.Sprintf("  %s %s %s\n", ident(e.Source), arrow, ident(e.Target)))
-	}
-	return b.String()
-}
-
-// Viz writes a mermaid graph or read-only notes/ cards.
-func (v *Vault) Viz(out, format string, includeArchived bool) (*VizResult, error) {
-	format = strings.ToLower(strings.TrimSpace(format))
-	if format == "" {
-		format = "mermaid"
-	}
-	if format == "html" {
-		return nil, fmt.Errorf("html dashboard removed — use imprint desk open (desk plugin) or imprint viz --format mermaid|notes")
-	}
-	data, recs, err := v.graph(includeArchived)
-	if err != nil {
-		return nil, err
-	}
-	result := &VizResult{RulesCount: len(recs)}
-	switch format {
-	case "mermaid":
-		m := mermaidGraph(data)
-		result.Mermaid = m
-		if out == "" {
-			result.SizeBytes = int64(len(m))
-			return result, nil
-		}
-		if err := writeFileAtomic(out, []byte(m)); err != nil {
-			return nil, err
-		}
-		abs, err := filepath.Abs(out)
-		if err != nil {
-			return nil, err
-		}
-		st, err := os.Stat(abs)
-		if err != nil {
-			return nil, err
-		}
-		result.Path = abs
-		result.SizeBytes = st.Size()
-		return result, nil
-	case "notes":
-		if out == "" {
-			out = filepath.Join(v.Dir, "notes")
-		}
-		n, err := v.writeNotes(out, recs)
-		if err != nil {
-			return nil, err
-		}
-		abs, err := filepath.Abs(out)
-		if err != nil {
-			return nil, err
-		}
-		result.Path = abs
-		result.RulesCount = n
-		st, err := os.Stat(abs)
-		if err != nil {
-			return nil, err
-		}
-		result.SizeBytes = st.Size()
-		return result, nil
-	default:
-		return nil, fmt.Errorf("unknown viz format %q (mermaid|notes)", format)
-	}
 }

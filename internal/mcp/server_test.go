@@ -125,7 +125,7 @@ func TestToolsListed(t *testing.T) {
 	}
 	want := map[string]bool{
 		"find": true, "add": true, "reinforce": true, "supersede": true,
-		"forget": true, "get": true, "list": true, "show": true, "sweep": true, "viz": true,
+		"forget": true, "get": true, "list": true, "show": true, "sweep": true,
 	}
 	for _, tool := range tools.Tools {
 		delete(want, tool.Name)

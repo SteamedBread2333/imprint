@@ -1,4 +1,4 @@
-# imprint — generated from the repo shape (Go static binary + markdown vault)
+# imprint — generated from the repo shape (Go static binary + SQLite vault)
 # Base: github/gitignore Go.gitignore, plus vault/release/OS noise this tree actually produces.
 
 # --- binaries (make build / go test -c) ---

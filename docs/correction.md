@@ -10,9 +10,9 @@ When the user fixes the agent, preferences land in `.imprint/memory/` and **reca
 
 **Agents** run `find`, classify, and call `add` / `reinforce` / `supersede` / `forget`. When the user says “don’t record that” or “we follow STYLE.md now”, the agent queries the vault and acts — never ask the user to repeat a command or id.
 
-**Humans (optional)** audit via `imprint desk open` or `show` / `viz` when curious — that is read-only review, not a daily chore.
+**Humans (optional)** audit via `imprint desk open` or `show` when curious — that is read-only review, not a daily chore.
 
-**Review + prune (allowed):** the user may say “review naming memories and cut obsolete branches”. The agent uses `show` / `viz` / `get`, explains in plain language, then `supersede` / `forget` / `sweep` after they agree. Forbidden is making them supply ids or run CLI — not tidying the vault.
+**Review + prune (allowed):** the user may say “review naming memories and cut obsolete branches”. The agent uses `show` / `get`, explains in plain language, then `supersede` / `forget` / `sweep` after they agree. Forbidden is making them supply ids or run CLI — not tidying the vault.
 
 CLI / MCP snippets in this doc are the **agent execution surface**, not a user manual to memorise.
 
@@ -54,7 +54,7 @@ sequenceDiagram
 | **Recall** | Agent | `find --scope tag,tag` + `--query` → rules, `documents`, `links` (shelves on) |
 | **Classify** | Agent | ADD / REINFORCE / SUPERSEDE / IGNORE |
 | **Write** | imprint | `add` (optional `sources`) / `reinforce` / `supersede` / `forget` |
-| **Audit** | Human | `get`, `show`, `viz`, desk; archived imprints in `archive/` |
+| **Audit** | Human | `get`, `show`, desk; superseded/dormant rules in `vault.db` |
 
 Prefer **MCP tools**; fall back to **`imprint --json`** ([mcp.md](mcp.md)).
 
@@ -64,7 +64,7 @@ Prefer **MCP tools**; fall back to **`imprint --json`** ([mcp.md](mcp.md)).
 | --- | --- | --- | --- |
 | **ADD** | `find` empty; **new** preference (optional `sources` when document hit) | `add` | New `active` imprint, default confidence **0.6** |
 | **REINFORCE** | Rule exists; user **confirms again** | `reinforce` | confidence **+0.1** (cap **0.95**), `reinforcement_count++`, may wake `dormant` |
-| **SUPERSEDE** | Preference **changed**, scope **widened/narrowed**, old claim **invalid** | `supersede` | Old → `superseded` in `archive/`; new `active` with `supersedes: [old_id]` |
+| **SUPERSEDE** | Preference **changed**, scope **widened/narrowed**, old claim **invalid** | `supersede` | Old → `superseded` status; new `active` with `supersedes: [old_id]` |
 | **IGNORE** | One-off task, chit-chat, agent-**inferred** preference | (no write) | — |
 
 Also:
@@ -151,7 +151,7 @@ imprint --json --vault ./.imprint/memory supersede r-2026-09-14-001 \
   --text "internal packages can use unexported camelCase; only cross-package exports need PascalCase"
 ```
 
-Old id → `superseded` + `archive/`; new id is `active` and links back.
+Old id → `superseded` status; new id is `active` and links back.
 
 ---
 
@@ -225,7 +225,7 @@ Hit `[r-2026-09-14-002]` → name the method `GetProfile`, not `get_profile`; ci
 | **reinforce** | User repeats | Rule still **valid**, strengthen |
 | **sweep** | Ops / cron | Stale preferences **fade** (default 90d untouched −0.05; &lt; 0.3 → dormant) |
 
-`sweep` does not erase history; `dormant` rules live under `archive/` and `reinforce` can wake them.
+`sweep` does not erase history; `dormant` rules stay in `vault.db` and `reinforce` can wake them.
 
 ---
 
@@ -236,7 +236,7 @@ imprint --json --vault ./.imprint/memory find --scope go,error-handling --query 
 imprint --json --vault ./.imprint/memory get r-2026-09-14-002
 imprint --json --vault ./.imprint/memory list --status active --scope go --min-confidence 0.85
 imprint --json --vault ./.imprint/memory show
-imprint --json --vault ./.imprint/memory viz
+imprint desk open
 ```
 
 ---

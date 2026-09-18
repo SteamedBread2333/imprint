@@ -1,6 +1,10 @@
 package imprint
 
-import "time"
+import (
+	"time"
+
+	"github.com/SteamedBread2333/imprint/internal/vault/model"
+)
 
 // AddResult is the --json shape for add.
 type AddResult struct {
@@ -36,11 +40,7 @@ type ForgetResult struct {
 	Success bool `json:"success"`
 }
 
-// Backlink is another rule that points at this one.
-type Backlink struct {
-	ID   string `json:"id"`
-	Kind string `json:"kind"`
-}
+type Backlink = model.Backlink
 
 // ListFilter is the optional slice for list.
 type ListFilter struct {
@@ -65,14 +65,6 @@ type ListItem struct {
 type SweepResult struct {
 	Decayed  int `json:"decayed"`
 	Archived int `json:"archived"`
-}
-
-// VizResult is the --json shape for viz.
-type VizResult struct {
-	Path       string `json:"path"`
-	RulesCount int    `json:"rules_count"`
-	SizeBytes  int64  `json:"size_bytes"`
-	Mermaid    string `json:"mermaid,omitempty"`
 }
 
 // ErrorBody is printed on stdout when --json commands fail.

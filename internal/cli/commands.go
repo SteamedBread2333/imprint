@@ -473,41 +473,6 @@ func (a *App) cmdShow(g globals, args []string) int {
 	return 0
 }
 
-func (a *App) cmdViz(g globals, args []string) int {
-	fs := newFlags()
-	out := fs.String("out", "")
-	format := fs.String("format", "mermaid")
-	archived := fs.Bool("include-archived", false)
-	_, err := fs.parse(args)
-	if err != nil {
-		if err == errHelp {
-			fmt.Fprint(a.out(), commandHelp("viz"))
-			return 0
-		}
-		return a.fail(g.json, err)
-	}
-	v, err := a.openVault(g)
-	if err != nil {
-		return a.fail(g.json, err)
-	}
-	res, err := v.Viz(*out, *format, *archived)
-	if err != nil {
-		return a.fail(g.json, err)
-	}
-	if g.json {
-		return a.fail(false, a.writeJSON(res))
-	}
-	if res.Mermaid != "" && res.Path == "" {
-		fmt.Fprint(a.out(), res.Mermaid)
-		return 0
-	}
-	c := a.console()
-	c.Heading("viz")
-	c.Done("wrote %s  ·  %d rules  ·  %d bytes", res.Path, res.RulesCount, res.SizeBytes)
-	c.blank()
-	return 0
-}
-
 func (a *App) cmdExport(g globals, args []string) int {
 	fs := newFlags()
 	_, err := fs.parse(args)

@@ -12,7 +12,7 @@ imprint（vault 规则）和 shelves（工作区文档索引）目前是**两套
 
 | 系统 | 存储 | ID 形态 | 图 |
 | --- | --- | --- | --- |
-| **imprint** | `.imprint/memory/imprint-NNNN.md` | `r-YYYY-MM-DD-NNN` | `/graph` — 规则间 `supersedes` / `related` / `conflicts_with` |
+| **imprint** | `.imprint/memory/vault.db` | `r-YYYY-MM-DD-NNN` | `/graph` — 规则间 `supersedes` / `related` / `conflicts_with` |
 | **shelves** | `.imprint/.shelves/.cache/index.db` | 16 位 hex chunk id | `/docs/graph` — 文件 / 目录 / chunk 层级 |
 
 仅有的交集（改造前）：`find` 带 `query` 时并行返回 rules + documents。**现已实现** vault `sources`、`referenced_rules` 反查、`find` 的 `links`；见下文。
@@ -31,7 +31,7 @@ imprint（vault 规则）和 shelves（工作区文档索引）目前是**两套
 
 1. **可追溯**：规则能指向来源文档（路径或 chunk）；文档能反向列出引用它的规则。
 2. **可发现**：`find` / `get` 在召回时附带关联侧的结果（规则 ↔ 文档）。
-3. **可审计**：desk / `viz` 能展示跨系统的边，而不只是两个独立子图。
+3. **可审计**：desk 能展示跨系统的边，而不只是两个独立子图。
 4. **低心智负担**：用户仍正常说话；链接由智能体在写入时附带，或由索引在 rebuild 时从 markdown 解析。
 5. **稳定 ID**：chunk id 已是内容哈希；规则 id 不变；链接不因 rebuild 大面积失效（路径级链接优先于 chunk 级）。
 

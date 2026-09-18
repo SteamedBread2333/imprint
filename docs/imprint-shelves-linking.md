@@ -14,7 +14,7 @@
 
 | System | Storage | ID shape | Graph |
 | --- | --- | --- | --- |
-| **imprint** | `.imprint/memory/imprint-NNNN.md` | `r-YYYY-MM-DD-NNN` | `/graph` — rule-to-rule `supersedes` / `related` / `conflicts_with` |
+| **imprint** | `.imprint/memory/vault.db` | `r-YYYY-MM-DD-NNN` | `/graph` — rule-to-rule `supersedes` / `related` / `conflicts_with` |
 | **shelves** | `.imprint/.shelves/.cache/index.db` | 16-char hex chunk id | `/docs/graph` — file / directory / chunk hierarchy |
 
 The only overlap: when `find` includes a `query`, MCP and host return `rules` and `documents` in parallel — **no cross-references, no unified graph, no durable links**.
@@ -33,7 +33,7 @@ Typical gaps:
 
 1. **Traceability** — rules point at source docs (path or chunk); docs list inbound rules.
 2. **Discoverability** — `find` / `get` return related items on the other side (rule ↔ document).
-3. **Auditability** — desk / `viz` can show cross-system edges, not just two isolated subgraphs.
+3. **Auditability** — desk can show cross-system edges, not just two isolated subgraphs.
 4. **Low burden** — users speak normally; links are attached by the agent on write, or parsed from markdown on rebuild.
 5. **Stable IDs** — chunk ids are content hashes; rule ids are stable; links survive rebuild when path-level refs are used.
 

@@ -18,7 +18,7 @@ CLI `imprint --json` 仍可读写 vault，但 **`find` / `get` 刻意不走路 s
 | 写代码前召回 | `find(scope, query)` → rules + **documents** + **links** | `find` → vault rules only |
 | 查规则依据 | `get r-…` → **resolved_sources** | `get r-…` → vault only |
 | 查文档被谁引用 | `get <chunk-id>` → **referenced_rules** + **cited_rules** | 不支持 chunk `get` |
-| 规则关系图 | `viz` / desk `/` | 同左 |
+| 规则关系图 | desk `/` | host `GET /graph` |
 | 人审 rule↔doc | 建议 `imprint desk open` → `/unified` | — |
 
 Mount: `docs/mcp.md`, `docs/examples/cursor-mcp.json`. Correction loop: `docs/correction.md` / `docs/correction.zh.md`.
@@ -26,8 +26,8 @@ Mount: `docs/mcp.md`, `docs/examples/cursor-mcp.json`. Correction loop: `docs/co
 - **Transport:** Prefer **imprint MCP** when connected. CLI fallback = vault read/write only — **not** a shelves substitute. Same vault; do not use both for one operation.
 - **Users never maintain the vault.** They speak normally; you run `find` / `add` / `reinforce` / `supersede` / `forget` — never ask for imprint commands or rule ids.
 - **You maintain the vault, not the chat.** A durable preference stays unwritten until you call a write tool in the same turn.
-- **Review and prune is fine.** `show` / `viz` / `get` (or `imprint desk open`); explain in plain language; then `supersede` / `forget` / `sweep` after they agree.
-- Vault: `.imprint/memory/` (`IMPRINT_VAULT`, `--vault`, `--global`). `path` on add/get = shard file (`imprint-NNNN.md`). `.imprint/memory/notes/` is generated — do not hand-edit.
+- **Review and prune is fine.** `show` / `get` (or `imprint desk open`); explain in plain language; then `supersede` / `forget` / `sweep` after they agree.
+- Vault: `.imprint/memory/vault.db` (`IMPRINT_VAULT`, `--vault`, `--global`). `path` on add/get = `vault.db`.
 
 ## 关联方式（全部）
 
@@ -80,7 +80,6 @@ imprint --json --vault ./.imprint/memory forget ID
 imprint --json --vault ./.imprint/memory list --status active --scope go --min-confidence 0.85
 imprint --json --vault ./.imprint/memory show
 imprint --json --vault ./.imprint/memory sweep
-imprint --json --vault ./.imprint/memory viz
 ```
 
 ## Must do
@@ -91,13 +90,13 @@ imprint --json --vault ./.imprint/memory viz
 4. Analyse the requirement before modifying code.
 5. Before every write, classify again; no duplicates. Confidence: default 0.6; corrections 0.85; "always" 0.9.
 6. User negates in plain speech → `find` then `forget` or `supersede`.
-7. User asks what's recorded → `show`; many items → `viz` or **`imprint desk open`** (`/`, `/docs`, `/unified`).
+7. User asks what's recorded → `show` or **`imprint desk open`** (`/`, `/docs`, `/unified`).
 8. After imprint feature work here → update README flowchart and docs; self-test.
 
 ## Must not
 
 - Use CLI `find`/`get` expecting shelves fields — use **MCP**.
 - Assume vault updates from chat. Don't backfill from history unless asked.
-- Infer preferences. Don't store secrets. Don't hand-edit `notes/` or archive by hand (`sweep` only).
+- Infer preferences. Don't store secrets. Don't hand-edit `vault.db` (`sweep` only).
 - Call it "memory store" — it is **imprint**.
 - Ask the user to maintain imprint (commands, ids). Cite `[r-id]` only when shaping code or when they ask what's recorded.

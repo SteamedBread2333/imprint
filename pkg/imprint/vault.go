@@ -4,19 +4,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/SteamedBread2333/imprint/internal/vault/sqlite"
 )
 
-// Vault is a directory of packed imprint markdown shards.
+// Vault is a SQLite-backed imprint store at Dir/vault.db.
 type Vault struct {
-	Dir           string
-	now           func() time.Time
-	MaxShardLines int
-	MaxShardBytes int
+	Dir   string
+	store *sqlite.Store
+	now   func() time.Time
 }
 
 // Open creates (if needed) and returns a vault at dir.
@@ -33,17 +33,14 @@ func OpenWithNow(dir string, now func() time.Time) (*Vault, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(filepath.Join(abs, "archive"), 0o755); err != nil {
-		return nil, err
-	}
 	if now == nil {
 		now = time.Now
 	}
-	v := &Vault{Dir: abs, now: now}
-	if err := v.compactLegacy(); err != nil {
+	st, err := sqlite.Open(abs, now)
+	if err != nil {
 		return nil, err
 	}
-	return v, nil
+	return &Vault{Dir: abs, store: st, now: now}, nil
 }
 
 func (v *Vault) instant() time.Time {
@@ -54,51 +51,11 @@ func (v *Vault) instant() time.Time {
 }
 
 func (v *Vault) load(id string) (*Record, error) {
-	recs, err := v.loadAll()
-	if err != nil {
-		return nil, err
-	}
-	for _, r := range recs {
-		if r.ID == id {
-			return r, nil
-		}
-	}
-	return nil, fmt.Errorf("record %s not found", id)
+	return v.store.GetRecord(id)
 }
 
 func (v *Vault) loadAll() ([]*Record, error) {
-	var out []*Record
-	seen := map[string]struct{}{}
-	for _, dir := range []string{v.Dir, filepath.Join(v.Dir, "archive")} {
-		entries, err := os.ReadDir(dir)
-		if err != nil {
-			if os.IsNotExist(err) {
-				continue
-			}
-			return nil, err
-		}
-		for _, e := range entries {
-			if e.IsDir() || !isRecordFile(e.Name()) {
-				continue
-			}
-			recs, err := readRecords(filepath.Join(dir, e.Name()))
-			if err != nil {
-				return nil, err
-			}
-			for _, rec := range recs {
-				if rec.ID == "" {
-					continue
-				}
-				if _, ok := seen[rec.ID]; ok {
-					continue
-				}
-				seen[rec.ID] = struct{}{}
-				out = append(out, rec)
-			}
-		}
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
-	return out, nil
+	return v.store.AllRecords(true)
 }
 
 func clampConfidence(c float64) float64 {
@@ -136,69 +93,8 @@ func cleanScope(scope []string) []string {
 	return out
 }
 
-func (v *Vault) save(r *Record, archived bool) error {
-	destDir := v.Dir
-	if archived {
-		destDir = filepath.Join(v.Dir, "archive")
-		if err := os.MkdirAll(destDir, 0o755); err != nil {
-			return err
-		}
-	}
-	oldPath := r.Path
-	if oldPath == "" {
-		if existing, err := v.load(r.ID); err == nil {
-			oldPath = existing.Path
-		}
-	}
-	if oldPath != "" && filepath.Dir(oldPath) == destDir {
-		recs, err := readRecords(oldPath)
-		if err != nil {
-			return err
-		}
-		replaced := false
-		for i, old := range recs {
-			if old.ID == r.ID {
-				recs[i] = r
-				replaced = true
-				break
-			}
-		}
-		if !replaced {
-			recs = append(recs, r)
-		}
-		return writeRecords(oldPath, recs)
-	}
-	if oldPath != "" {
-		recs, err := readRecords(oldPath)
-		if err != nil {
-			return err
-		}
-		kept := recs[:0]
-		for _, old := range recs {
-			if old.ID != r.ID {
-				kept = append(kept, old)
-			}
-		}
-		if err := writeRecords(oldPath, kept); err != nil {
-			return err
-		}
-	}
-	path, err := v.shardForAppend(destDir, r)
-	if err != nil {
-		return err
-	}
-	recs, err := readRecords(path)
-	if err != nil {
-		return err
-	}
-	filtered := recs[:0]
-	for _, old := range recs {
-		if old.ID != r.ID {
-			filtered = append(filtered, old)
-		}
-	}
-	filtered = append(filtered, r)
-	return writeRecords(path, filtered)
+func (v *Vault) save(r *Record) error {
+	return v.store.PutRecord(r)
 }
 
 // Add writes a new active rule. confidence <= 0 means 0.6.
@@ -211,7 +107,7 @@ func (v *Vault) AddWithSources(claim string, scope []string, text string, confid
 	return v.AddRecord(claim, scope, text, confidence, nil, nil, nil, sources)
 }
 
-// AddRecord is Add plus optional relationship fields (abstraction lift).
+// AddRecord is Add plus optional relationship fields.
 func (v *Vault) AddRecord(claim string, scope []string, text string, confidence float64, supersedes, related, conflicts []string, sources []DocRef) (*AddResult, error) {
 	claim = strings.TrimSpace(claim)
 	if claim == "" {
@@ -222,7 +118,7 @@ func (v *Vault) AddRecord(claim string, scope []string, text string, confidence 
 		return nil, fmt.Errorf("scope is required")
 	}
 	now := v.instant()
-	id, err := v.nextID(now)
+	id, err := v.store.NextID(now)
 	if err != nil {
 		return nil, err
 	}
@@ -245,60 +141,30 @@ func (v *Vault) AddRecord(claim string, scope []string, text string, confidence 
 			Kind: EvidenceOriginal,
 			Text: text,
 		}},
+		Path: sqlite.DBPath(v.Dir),
 	}
-	if err := v.save(rec, false); err != nil {
+	if err := v.store.InsertRecord(rec); err != nil {
 		return nil, err
 	}
 	return &AddResult{ID: rec.ID, Confidence: rec.Confidence, Path: rec.Path}, nil
 }
 
-// Get returns the full record by id (active or archived), including reverse links.
+// Get returns the full record by id, including reverse links.
 func (v *Vault) Get(id string) (*Record, error) {
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return nil, fmt.Errorf("id is required")
 	}
-	recs, err := v.loadAll()
+	rec, err := v.store.GetRecord(id)
 	if err != nil {
 		return nil, err
 	}
-	var rec *Record
-	for _, r := range recs {
-		if r.ID == id {
-			rec = r
-			break
-		}
+	backlinks, err := v.store.Backlinks(id)
+	if err != nil {
+		return nil, err
 	}
-	if rec == nil {
-		return nil, fmt.Errorf("record %s not found", id)
-	}
-	rec.ReferencedBy = backlinksFrom(recs, rec.ID)
+	rec.ReferencedBy = backlinks
 	return rec, nil
-}
-
-func backlinksFrom(recs []*Record, id string) []Backlink {
-	var out []Backlink
-	for _, r := range recs {
-		if r.ID == id {
-			continue
-		}
-		for _, x := range r.Supersedes {
-			if x == id {
-				out = append(out, Backlink{ID: r.ID, Kind: "supersedes"})
-			}
-		}
-		for _, x := range r.Related {
-			if x == id {
-				out = append(out, Backlink{ID: r.ID, Kind: "related"})
-			}
-		}
-		for _, x := range r.ConflictsWith {
-			if x == id {
-				out = append(out, Backlink{ID: r.ID, Kind: "conflicts_with"})
-			}
-		}
-	}
-	return out
 }
 
 func dropID(ids []string, id string) ([]string, bool) {
@@ -320,7 +186,7 @@ func dropID(ids []string, id string) ([]string, bool) {
 	return kept, true
 }
 
-// SourcesForIDs returns sources for the given rule ids in one vault read.
+// SourcesForIDs returns sources for the given rule ids.
 func (v *Vault) SourcesForIDs(ids []string) (map[string][]DocRef, error) {
 	want := map[string]struct{}{}
 	for _, id := range ids {
@@ -332,20 +198,11 @@ func (v *Vault) SourcesForIDs(ids []string) (map[string][]DocRef, error) {
 	if len(want) == 0 {
 		return map[string][]DocRef{}, nil
 	}
-	recs, err := v.loadAll()
-	if err != nil {
-		return nil, err
+	filtered := make([]string, 0, len(want))
+	for id := range want {
+		filtered = append(filtered, id)
 	}
-	out := make(map[string][]DocRef, len(want))
-	for _, r := range recs {
-		if _, ok := want[r.ID]; !ok {
-			continue
-		}
-		if len(r.Sources) > 0 {
-			out[r.ID] = r.Sources
-		}
-	}
-	return out, nil
+	return v.store.SourcesForIDs(filtered)
 }
 
 // List returns summaries, optionally filtered by status.
@@ -438,57 +295,20 @@ func (v *Vault) Forget(id string) (*ForgetResult, error) {
 	if id == "" {
 		return nil, fmt.Errorf("id is required")
 	}
-	rec, err := v.load(id)
-	if err != nil {
+	if _, err := v.load(id); err != nil {
 		return nil, err
 	}
-	recs, err := readRecords(rec.Path)
-	if err != nil {
+	if err := v.store.StripInboundEdges(id); err != nil {
 		return nil, err
 	}
-	kept := recs[:0]
-	for _, old := range recs {
-		if old.ID != id {
-			kept = append(kept, old)
-		}
-	}
-	if err := writeRecords(rec.Path, kept); err != nil {
-		return nil, err
-	}
-	if err := v.stripInbound(id); err != nil {
+	if err := v.store.DeleteRecord(id); err != nil {
 		return nil, err
 	}
 	return &ForgetResult{Success: true}, nil
 }
 
 func (v *Vault) stripInbound(id string) error {
-	recs, err := v.loadAll()
-	if err != nil {
-		return err
-	}
-	byPath := map[string][]*Record{}
-	changedPaths := map[string]struct{}{}
-	for _, r := range recs {
-		var dirty bool
-		if r.Related, dirty = dropID(r.Related, id); dirty {
-			changedPaths[r.Path] = struct{}{}
-		}
-		if r.Supersedes, dirty = dropID(r.Supersedes, id); dirty {
-			changedPaths[r.Path] = struct{}{}
-		}
-		if r.ConflictsWith, dirty = dropID(r.ConflictsWith, id); dirty {
-			changedPaths[r.Path] = struct{}{}
-		}
-		if r.Path != "" {
-			byPath[r.Path] = append(byPath[r.Path], r)
-		}
-	}
-	for path := range changedPaths {
-		if err := writeRecords(path, byPath[path]); err != nil {
-			return err
-		}
-	}
-	return nil
+	return v.store.StripInboundEdges(id)
 }
 
 // ExportJSON writes every record as a JSON array.
@@ -503,22 +323,15 @@ func (v *Vault) ExportJSON(w io.Writer) error {
 	return enc.Encode(recs)
 }
 
-// Clear permanently deletes every rule in the vault. Dashboard files are left alone.
+// Clear permanently deletes every rule in the vault.
 func (v *Vault) Clear() error {
-	recs, err := v.loadAll()
-	if err != nil {
-		return err
-	}
-	paths := map[string]struct{}{}
+	return v.store.Clear()
+}
+
+// ImportRecords replaces vault contents with recs.
+func (v *Vault) ImportRecords(recs []*Record) error {
 	for _, r := range recs {
-		if r.Path != "" {
-			paths[r.Path] = struct{}{}
-		}
+		r.Path = sqlite.DBPath(v.Dir)
 	}
-	for path := range paths {
-		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-			return err
-		}
-	}
-	return nil
+	return v.store.ImportRecords(recs)
 }

@@ -60,7 +60,7 @@ flowchart TB
   end
 
   subgraph Audit["Optional · human audit"]
-    H((You)) --> Desk["desk · show · viz"]
+    H((You)) --> Desk["desk · show"]
   end
 
   UP["imprint up"] -.->|host indexes| Shelves
@@ -116,7 +116,7 @@ Direct read/write. **No host required.**
 | `imprint find [--scope a,b] [--query TEXT]` | Recall imprints (scope **AND**); with query + shelves → also `documents`, `links` |
 | `imprint add CLAIM --scope a,b --text ORIG` | Create an imprint (MCP may include `sources` linking docs) |
 | `imprint reinforce ID [--evidence TEXT]` | Strengthen a rule (+0.1 confidence) |
-| `imprint supersede OLD --claim NEW --scope a,b` | Replace a rule; old → `archive/` |
+| `imprint supersede OLD --claim NEW --scope a,b` | Replace a rule; old → `superseded` |
 | `imprint forget ID` | Delete permanently |
 | `imprint list` · `show` · `get ID` | Browse and inspect |
 | `imprint sweep` · `export` | Decay stale rules · dump JSON |
@@ -166,7 +166,6 @@ Shelves is **host config** (top-level `shelves:`), not a plugin. See [docs/shelv
 | Command | What it does |
 | --- | --- |
 | `imprint host serve [--listen ADDR]` | Foreground host (Ctrl+C) |
-| `imprint viz [--format mermaid\|notes] [--out PATH]` | Graph or regenerate read-only `notes/` |
 | `imprint clear --confirm --yes` | Delete every rule — irreversible |
 | `imprint version` | Print version |
 
@@ -181,40 +180,13 @@ Default: `./.imprint/memory/` (walk up for `.imprint/`). `--global` → `~/.impr
 ```
 .imprint/
   imprint.yaml          # host + shelves.roots + plugins
-  memory/               # imprint shards (incl. sources)
+  memory/vault.db       # SQLite vault (rules, evidence, edges, sources)
   .shelves/.cache/      # doc index under roots (SQLite, gitignored)
 docs/                   # typical root
 .cursor/rules/          # typical root
 ```
 
-Rules pack into `imprint-NNNN.md` shards (new file at 32768 lines or 1 MiB). IDs: `r-YYYY-MM-DD-NNN`. `supersede` and `sweep` archive; `forget` deletes.
-
-<details>
-<summary>Example shard (two rules in one file)</summary>
-
-```markdown
----
-id: r-2026-09-11-001
-claim: Python function names must always be snake_case
-scope: [python, naming]
-confidence: 0.6
-status: active
-sources:
-  - path: docs/correction.md
-    heading: Naming
-evidence_log:
-  - { at: 2026-09-11T12:00:00Z, kind: original, text: use snake_case }
----
----
-id: r-2026-09-11-002
-claim: Use 4-space indents
-scope: [python, style]
-confidence: 0.85
-status: active
----
-```
-
-</details>
+Rules live in `memory/vault.db`. IDs: `r-YYYY-MM-DD-NNN`. Status: `active` | `dormant` | `superseded`. `supersede` marks old rules superseded; `sweep` decays stale rules to dormant; `forget` deletes. Interactive rule graph: **`imprint desk open`** (host `GET /graph`).
 
 ---
 

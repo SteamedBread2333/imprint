@@ -13,7 +13,7 @@
 | Pre-coding recall | `find(scope, query)` → rules + **documents** + **links** | `find` → **vault rules only** |
 | Rule doc basis | `get r-…` → **resolved_sources** | `get r-…` → vault only |
 | Chunk → rules | `get <chunk-id>` → **referenced_rules** + **cited_rules** | not supported |
-| Rule graph | `viz` / desk | same |
+| Rule graph | desk `/` | host `GET /graph` |
 
 CLI `find` / `get` **intentionally skip shelves enrichment** — for scripts/automation. Agents should use MCP before coding.
 
@@ -75,7 +75,7 @@ flowchart LR
 | --- | --- |
 | **Host** | Cursor, Claude Desktop, etc. spawns `imprint-mcp` and talks over stdin/stdout. |
 | **Tools** | One MCP tool per vault command (`find`, `add`, …). **MCP** enriches `find`/`get` when shelves is on; **CLI** `find`/`get` are vault-only. |
-| **Vault** | `.imprint/memory/` shards; `find` / `get` / `add` read and write claim, evidence, **sources**. |
+| **Vault** | `.imprint/memory/vault.db` (SQLite); `find` / `get` / `add` read and write claim, evidence, **sources**. |
 | **Shelves** | Reads `roots` from `.imprint/imprint.yaml`; `find`+query adds BM25 **documents** and **links**; chunk `get` adds **referenced_rules**. |
 | **Judgment** | ADD / REINFORCE / SUPERSEDE / IGNORE and whether to set **sources** stay on the agent. |
 
@@ -118,8 +118,6 @@ Every tool returns **pretty-printed JSON** in the tool result text. On failure, 
 | `list` | `imprint list` | Optional `status`, `scope`, `query`, `min_confidence`, `since` (YYYY-MM-DD or RFC3339), `limit`. |
 | `show` | `imprint show` | Optional `limit`. |
 | `sweep` | `imprint sweep` | Optional `decay_days`, `decay_amount`, `dormant_threshold`. |
-| `viz` | `imprint viz` | Optional `out`, `format` (`mermaid` / `notes`), `include_archived`. Returns path and counts. Interactive graph: desk plugin. |
-
 **Not exposed:** `init` (one-time setup), `export`, `clear` (irreversible; use CLI with `--confirm --yes` if you really need it).
 
 ### Agent workflow
@@ -130,7 +128,7 @@ Every tool returns **pretty-printed JSON** in the tool result text. On failure, 
 4. On **ADD** when a document hit matches → same-turn **`add`** with **`sources`** (vault only — no markdown edits).
 5. Never duplicate an imprint; record only what the user **said**.
 6. User says forget / don't record → **`forget`** or skip.
-7. User asks what is stored → **`show`** / desk (`/`, `/docs`, `/unified`); many items → **`viz`**.
+7. User asks what is stored → **`show`** or desk (`/`, `/docs`, `/unified`).
 
 ## Mounting examples
 

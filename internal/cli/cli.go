@@ -202,8 +202,6 @@ func (a *App) Run(args []string) int {
 		return a.cmdSweep(g, rest)
 	case "show":
 		return a.cmdShow(g, rest)
-	case "viz":
-		return a.cmdViz(g, rest)
 	case "init":
 		return a.cmdInit(g, rest)
 	case "export":
@@ -231,7 +229,7 @@ func (a *App) Run(args []string) int {
 	}
 }
 
-const rootHelp = `imprint — portable markdown memory for agents
+const rootHelp = `imprint — agent long-term memory (SQLite vault)
 
 Usage:
   imprint [global flags] <command> [flags]
@@ -269,12 +267,12 @@ Debug & advanced:
   host start | host stop | host serve   Split host control (prefer up/down)
   plugin list | enable | disable | start | stop   Split plugin control (prefer up/down)
   host serve  Foreground vault + shelves API (Ctrl+C)
-  viz         Mermaid graph or read-only notes/
   clear       Delete every rule (requires --confirm --yes)
   version     Print version
 
-Vault files:
-  imprint-NNNN.md shards (new file at 32768 lines or 1 MiB)
+Vault:
+  .imprint/memory/vault.db   Rule store (gitignore via .imprint/)
+  imprint desk open          Interactive graph (desk plugin)
 `
 
 func commandHelp(cmd string) string {
@@ -297,8 +295,6 @@ func commandHelp(cmd string) string {
 		return "Usage: imprint sweep [--decay-days 90] [--decay-amount 0.05] [--dormant-threshold 0.3]\n"
 	case "show":
 		return "Usage: imprint show [--limit N] [--format table|json]\n"
-	case "viz":
-		return "Usage: imprint viz [--out PATH] [--format mermaid|notes] [--include-archived]\n"
 	case "init":
 		return `Usage: imprint init [--force] [--cursor] [--claude] [--codex] [--trae] [--workbuddy]
 

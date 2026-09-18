@@ -10,9 +10,9 @@
 
 **智能体**负责：`find`、分类、`add` / `reinforce` / `supersede` / `forget`；用户说「别记了」「那个不算了」「以后看 STYLE.md」时，由智能体查 vault 并执行，**不要**让用户复述命令或 id。
 
-**人（可选）**想审计时用 `imprint desk open` 或跑 `show` / `viz`——这是查阅，不是日常维护流程。
+**人（可选）**想审计时用 `imprint desk open` 或跑 `show`——这是查阅，不是日常维护流程。
 
-**Review + 剪枝（允许）**用户可以说「帮我看看命名相关的记忆，过时的砍掉」——智能体用 `show` / `viz` / `get` 展示链路与分支，用**自然语言**说明，用户确认后由智能体 `supersede` / `forget` / `sweep`。**禁止**的是让用户自己报 id 或跑命令，不是禁止整理 vault。
+**Review + 剪枝（允许）**用户可以说「帮我看看命名相关的记忆，过时的砍掉」——智能体用 `show` / `get` 展示链路与分支，用**自然语言**说明，用户确认后由智能体 `supersede` / `forget` / `sweep`。**禁止**的是让用户自己报 id 或跑命令，不是禁止整理 vault。
 
 文档里的 CLI / MCP 示例是**智能体执行面**，不是要求用户背诵的操作手册。
 
@@ -54,7 +54,7 @@ sequenceDiagram
 | **召回** | 智能体 | `find --scope tag,tag` + `--query` → rules、`documents`、`links`（shelves 开） |
 | **分类** | 智能体 | ADD / REINFORCE / SUPERSEDE / IGNORE（见下表） |
 | **写入** | imprint | `add`（可选 `sources`）/ `reinforce` / `supersede` / `forget` |
-| **审计** | 人 | `get`、`show`、`viz`、desk；旧 imprint 在 `archive/` |
+| **审计** | 人 | `get`、`show`、desk；superseded/dormant 规则在 `vault.db` |
 
 优先 **MCP 工具**；未挂载时用 **`imprint --json`**（见 [mcp.zh.md](mcp.zh.md)）。
 
@@ -64,7 +64,7 @@ sequenceDiagram
 | --- | --- | --- | --- |
 | **ADD** | `find` 无匹配；用户**新**偏好（document 命中时可带 `sources`） | `add` | 新 `active` imprint，默认 confidence **0.6** |
 | **REINFORCE** | 已有规则；用户**再次确认**同一偏好 | `reinforce` | confidence **+0.1**（上限 **0.95**），`reinforcement_count++`，可唤醒 `dormant` |
-| **SUPERSEDE** | 偏好**改了**、范围**扩大/缩小**、旧 claim **不再成立** | `supersede` | 旧规则 → `superseded` 并进 `archive/`；新规则 `active`，链上 `supersedes: [old_id]` |
+| **SUPERSEDE** | 偏好**改了**、范围**扩大/缩小**、旧 claim **不再成立** | `supersede` | 旧规则 → `superseded` 状态；新规则 `active`，链上 `supersedes: [old_id]` |
 | **IGNORE** | 一次性指令、闲聊、智能体**推断**出的偏好 | （不写） | 无 |
 
 额外：
@@ -165,7 +165,7 @@ imprint --json --vault ./.imprint/memory supersede r-2026-09-14-001 \
 
 MCP `supersede`：`old_id`, `claim`, `scope`, `reason`, `text`。
 
-**结果**：旧 id → `superseded` + `archive/`；新 id `active`，继承旧 confidence 并链到旧规则。`imprint desk open` 上可看 **supersedes** 边。
+**结果**：旧 id → `superseded` 状态；新 id `active`，继承旧 confidence 并链到旧规则。`imprint desk open` 上可看 **supersedes** 边。
 
 ---
 
@@ -264,7 +264,7 @@ imprint --json --vault ./.imprint/memory find --scope go,naming --query export
 | **reinforce** | 用户重复确认 | 规则**仍对**，加强信心 |
 | **sweep** | 运维 / 定期任务 | 长期未引用偏好**淡出**（默认 90 天未 touch −0.05；&lt; 0.3 → dormant） |
 
-`sweep` 不会删规则内容；`dormant` 仍在 `archive/`，`reinforce` 可唤醒。
+`sweep` 不会删规则内容；`dormant` 仍在 `vault.db`，`reinforce` 可唤醒。
 
 ---
 
@@ -282,7 +282,7 @@ imprint --json --vault ./.imprint/memory list --status active --scope go --min-c
 
 # 全景
 imprint --json --vault ./.imprint/memory show
-imprint --json --vault ./.imprint/memory viz
+imprint desk open
 ```
 
 ---

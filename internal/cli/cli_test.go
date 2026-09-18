@@ -38,7 +38,7 @@ func TestCLIAddFindReinforceJSON(t *testing.T) {
 	if err := json.Unmarshal(out.Bytes(), &added); err != nil {
 		t.Fatal(err)
 	}
-	if added.ID != "r-2026-09-11-001" || added.Confidence != 0.6 || filepath.Base(added.Path) != "imprint-0001.md" {
+	if added.ID != "r-2026-09-11-001" || added.Confidence != 0.6 || filepath.Base(added.Path) != "vault.db" {
 		t.Fatalf("add result %+v", added)
 	}
 
@@ -95,7 +95,7 @@ func TestCLIAddFindReinforceJSON(t *testing.T) {
 	}
 }
 
-func TestCLIForgetGetSweepShowVizClear(t *testing.T) {
+func TestCLIForgetGetSweepShowClear(t *testing.T) {
 	dir := t.TempDir()
 	app, out, errw := testApp(t, dir)
 	if code := app.Run([]string{"--json", "--vault", dir, "add", "Use gofmt", "--scope", "go", "--text", "gofmt", "--confidence", "0.6"}); code != 0 {
@@ -134,22 +134,6 @@ func TestCLIForgetGetSweepShowVizClear(t *testing.T) {
 	}
 
 	out.Reset()
-	mer := filepath.Join(dir, "graph.mmd")
-	if code := app.Run([]string{"--json", "--vault", dir, "viz", "--format", "mermaid", "--out", mer, "--include-archived"}); code != 0 {
-		t.Fatal(errw.String())
-	}
-	var vz imprint.VizResult
-	if err := json.Unmarshal(out.Bytes(), &vz); err != nil {
-		t.Fatal(err)
-	}
-	if vz.RulesCount != 1 {
-		t.Fatalf("viz %+v", vz)
-	}
-	if _, err := os.Stat(mer); err != nil {
-		t.Fatal(err)
-	}
-
-	out.Reset()
 	if code := app.Run([]string{"--json", "--vault", dir, "clear"}); code != 1 {
 		t.Fatalf("clear without confirm should fail, got %d %s", code, out)
 	}
@@ -175,14 +159,14 @@ func TestCLIUnknownCommand(t *testing.T) {
 	}
 }
 
-func TestCLIHelpMentionsShards(t *testing.T) {
+func TestCLIHelpMentionsVaultDB(t *testing.T) {
 	dir := t.TempDir()
 	app, out, _ := testApp(t, dir)
 	if code := app.Run([]string{"help"}); code != 0 {
 		t.Fatalf("exit %d", code)
 	}
-	if !strings.Contains(out.String(), "imprint-NNNN.md") || !strings.Contains(out.String(), "init") {
-		t.Fatalf("help missing shard or init note:\n%s", out)
+	if !strings.Contains(out.String(), "vault.db") || !strings.Contains(out.String(), "init") {
+		t.Fatalf("help missing vault.db or init note:\n%s", out)
 	}
 }
 

@@ -1,6 +1,6 @@
 package main
 
-// loadgen writes a synthetic packed vault (imprint-NNNN.md shards) for viz/find timing.
+// loadgen writes a synthetic SQLite vault for graph/find timing.
 
 import (
 	"flag"
@@ -105,12 +105,12 @@ func main() {
 	}
 	wrote := time.Since(start)
 
-	vizStart := time.Now()
-	res, err := v.Viz("", "mermaid", true)
+	graphStart := time.Now()
+	g, err := v.Graph(true)
 	if err != nil {
 		fatal(err)
 	}
-	vizDur := time.Since(vizStart)
+	graphDur := time.Since(graphStart)
 
 	findStart := time.Now()
 	hits, err := v.Find([]string{"go", "naming"}, "", 5)
@@ -132,7 +132,7 @@ func main() {
 	}
 
 	fmt.Printf("wrote %d rules in %s (%d active, %d dormant, %d superseded)\n", *n, wrote, active, dormant, superseded)
-	fmt.Printf("viz mermaid %s  %d bytes  %s  rules_count=%d\n", res.Path, res.SizeBytes, vizDur, res.RulesCount)
+	fmt.Printf("graph %d nodes %d edges in %s\n", len(g.Nodes), len(g.Edges), graphDur)
 	fmt.Printf("find scope=go,naming top5 in %s → %d hits\n", findDur, len(hits))
 	if len(hits) > 0 {
 		fmt.Printf("  first %s score=%.3f conf=%.2f\n", hits[0].ID, hits[0].Score, hits[0].Confidence)
