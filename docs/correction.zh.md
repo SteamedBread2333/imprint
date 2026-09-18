@@ -1,22 +1,22 @@
-# 记忆纠偏
+# 记忆写入
 
-> **上手：** [README.zh.md](../README.zh.md#快速开始)。本文是**参考**（ADD / REINFORCE / SUPERSEDE / IGNORE、编码场景）。
+> **上手：** [README.zh.md](../README.zh.md#快速开始)。**参考：**写入循环、分类表与场景示例。
 
-用户纠正后偏好写入 `.imprint/memory/`，下次任务前召回。智能体 **`find` → 分类 → 写入**；用户正常说话，不维护规则 id。
+日常对话里的长期偏好写入 `.imprint/memory/`，下次任务前召回。智能体 **`find` → 分类 → 写入**；用户正常说话，不维护规则 id。
 
-## 谁维护 vault（无额外心智负担）
+## 谁维护 vault
 
-**用户**只在正常写代码、正常说话——纠正、确认、否定偏好即可，**不需要**知道 `imprint`、`forget`、规则 id 或任何维护口令。
+**用户**正常写代码、正常说话——偏好、确认、否定均可。无需了解 `imprint` 命令或规则 id。
 
-**智能体**负责：`find`、分类、`add` / `reinforce` / `supersede` / `forget`；用户说「别记了」「那个不算了」「以后看 STYLE.md」时，由智能体查 vault 并执行，**不要**让用户复述命令或 id。
+**智能体**负责 `find`、分类、`add` / `reinforce` / `supersede` / `forget`。用户说「别记了」「那个不算了」「以后看 STYLE.md」时，查 vault 并执行，勿让用户复述命令或 id。
 
-**人（可选）**想审计时用 `imprint desk open` 或跑 `show`——这是查阅，不是日常维护流程。
+**人（可选）**用 `imprint desk open` 或 `show` 审计。查阅即可。
 
-**Review + 剪枝（允许）**用户可以说「帮我看看命名相关的记忆，过时的砍掉」——智能体用 `show` / `get` 展示链路与分支，用**自然语言**说明，用户确认后由智能体 `supersede` / `forget` / `sweep`。**禁止**的是让用户自己报 id 或跑命令，不是禁止整理 vault。
+**Review + 剪枝：** 用户可说「帮我看看命名相关的记忆，过时的砍掉」——智能体 `show` / `get`、自然语言说明，确认后 `supersede` / `forget` / `sweep`。整理 vault 可以；让用户报 id 或跑命令不行。
 
-文档里的 CLI / MCP 示例是**智能体执行面**，不是要求用户背诵的操作手册。
+文档里的 CLI / MCP 示例是**智能体执行面**，不是用户操作手册。
 
-## 纠偏循环
+## 写入循环
 
 ```mermaid
 sequenceDiagram
@@ -25,7 +25,7 @@ sequenceDiagram
   participant V as vault
   participant S as shelves
 
-  U->>A: 偏好 / 纠正 / 「不要那样做」
+  U->>A: 偏好 / 确认 / 否定
   A->>V: find（窄 scope + query）
   V->>S: BM25 文档（shelves 开）
   V-->>A: rules · documents · links
@@ -46,7 +46,7 @@ sequenceDiagram
     A->>A: IGNORE 或 forget
   end
 
-  Note over A,V: 下次写代码前 find；cite [r-id]；文档零改动
+  Note over A,V: 下次写代码前 find；cite [r-id]；sources 在 vault
 ```
 
 | 步骤 | 谁做 | 做什么 |
@@ -94,7 +94,7 @@ sequenceDiagram
 
 ---
 
-## 编码场景示例
+## 场景示例
 
 以下用 **`./.imprint/memory`** vault；MCP 与 CLI 等价，各举一种写法。
 
@@ -131,7 +131,7 @@ MCP `add`：`claim` / `scope` / `text` 同上，`confidence` 省略（0.6）。
 **智能体**
 
 1. `find --scope go,naming` → 命中 `r-2026-09-14-001`  
-2. 分类：**REINFORCE**（不是 ADD，避免重复）
+2. 分类：**REINFORCE**（policy 已存在）
 
 ```bash
 imprint --json --vault ./.imprint/memory reinforce r-2026-09-14-001 \
@@ -144,7 +144,7 @@ MCP `reinforce`：`id` + `evidence`。
 
 ---
 
-### 场景 3：纠正错误规则 — SUPERSEDE
+### 场景 3：政策变更 — SUPERSEDE
 
 **对话**
 
@@ -153,7 +153,7 @@ MCP `reinforce`：`id` + `evidence`。
 **智能体**
 
 1. `find --scope go,naming` → 旧规则过宽  
-2. 分类：**SUPERSEDE**（不是改旧文件手编辑，不是 ADD  duplicate）
+2. 分类：**SUPERSEDE**（归档旧规则，写新 active）
 
 ```bash
 imprint --json --vault ./.imprint/memory supersede r-2026-09-14-001 \
@@ -256,7 +256,7 @@ imprint --json --vault ./.imprint/memory find --scope go,naming --query export
 
 ---
 
-## 自然衰减 vs 主动纠偏
+## 自然衰减 vs 显式写入
 
 | 机制 | 触发 | 适用 |
 | --- | --- | --- |

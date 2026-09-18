@@ -15,7 +15,7 @@
 | Chunk → rules | `get <chunk-id>` → **referenced_rules** + **cited_rules** | not supported |
 | Rule graph | desk `/` | host `GET /graph` |
 
-CLI `find` / `get` **intentionally skip shelves enrichment** — for scripts/automation. Agents should use MCP before coding.
+**CLI** `find` / `get`: vault fields (table above). **Agents** pre-coding recall: MCP.
 
 ## Link kinds
 
@@ -208,7 +208,7 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) o
 }
 ```
 
-Restart the host after changing MCP config. **`imprint init` does not write `mcp.json`** — add the snippet yourself so you control which vault is mounted.
+Restart the host after changing MCP config. Merge [docs/examples/cursor-mcp.json](examples/cursor-mcp.json) into `.cursor/mcp.json` manually — `imprint init` writes editor rules only.
 
 ## Verify
 
@@ -228,6 +228,6 @@ In Cursor: Settings → MCP → confirm **imprint** is connected; ask the agent 
 ## See also
 
 - [README.md](../README.md) — vault layout, CLI reference, Cursor rule via `imprint init`
-- [correction.md](correction.md) — memory correction loop and coding scenarios
+- [correction.md](correction.md) — write loop and worked examples
 - [README.zh.md](../README.zh.md) — 中文主文档
 - [docs/mcp.zh.md](mcp.zh.md) — 本文中文版

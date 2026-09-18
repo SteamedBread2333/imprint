@@ -1,22 +1,22 @@
-# Memory correction
+# Memory writes
 
-> **Setup:** [README.md](../README.md#quick-start). This page is **reference** (ADD / REINFORCE / SUPERSEDE / IGNORE, coding scenarios).
+> **Setup:** [README.md](../README.md#quick-start). **Reference:** write loop, classification table, and worked examples.
 
-When the user fixes the agent, preferences land in `.imprint/memory/` and **recall on the next task** steers behaviour. The agent **`find`s → classifies → writes**; users speak normally and never maintain rule ids.
+Durable preferences from conversation land in `.imprint/memory/` and **recall on the next task** steers behaviour. The agent **`find`s → classifies → writes**; users speak normally and never maintain rule ids.
 
-## Who maintains the vault (no extra burden)
+## Who maintains the vault
 
-**Users** keep working and talking normally — corrections and confirmations in plain language. They do **not** need to know `imprint`, `forget`, rule ids, or maintenance phrases.
+**Users** keep working and talking normally — preferences, confirmations, and rejections in plain language. No `imprint` commands or rule ids required.
 
-**Agents** run `find`, classify, and call `add` / `reinforce` / `supersede` / `forget`. When the user says “don’t record that” or “we follow STYLE.md now”, the agent queries the vault and acts — never ask the user to repeat a command or id.
+**Agents** run `find`, classify, and call `add` / `reinforce` / `supersede` / `forget`. When the user says “don’t record that” or “we follow STYLE.md now”, query the vault and act — never ask for a command or id.
 
-**Humans (optional)** audit via `imprint desk open` or `show` when curious — that is read-only review, not a daily chore.
+**Humans (optional)** audit via `imprint desk open` or `show` when curious. Read-only review.
 
-**Review + prune (allowed):** the user may say “review naming memories and cut obsolete branches”. The agent uses `show` / `get`, explains in plain language, then `supersede` / `forget` / `sweep` after they agree. Forbidden is making them supply ids or run CLI — not tidying the vault.
+**Review + prune:** the user may ask to review naming memories and cut obsolete branches. The agent uses `show` / `get`, explains in plain language, then `supersede` / `forget` / `sweep` after they agree. Tidying the vault is fine; supplying ids or CLI is not.
 
-CLI / MCP snippets in this doc are the **agent execution surface**, not a user manual to memorise.
+CLI / MCP snippets in this doc are the **agent execution surface**.
 
-## Correction loop
+## Write loop
 
 ```mermaid
 sequenceDiagram
@@ -25,7 +25,7 @@ sequenceDiagram
   participant V as vault
   participant S as shelves
 
-  U->>A: preference / correction / "don't do that"
+  U->>A: preference / confirmation / reject
   A->>V: find (narrow scope + query)
   V->>S: BM25 docs (when shelves on)
   V-->>A: rules · documents · links
@@ -84,7 +84,7 @@ On `add`, set `--confidence` / MCP `confidence`:
 | Explicit correction ("no, use …") | **0.85** |
 | "From now on always …" | **0.9** |
 
-`reinforce` stacks on the current value; a changed policy should be **supersede** with a high-confidence new claim, not a duplicate `add`.
+`reinforce` stacks on the current value. Policy changed → **supersede** with a high-confidence new claim.
 
 ### Record only what the user said
 
@@ -94,7 +94,7 @@ On `add`, set `--confidence` / MCP `confidence`:
 
 ---
 
-## Coding scenarios
+## Worked examples
 
 Vault **`./.imprint/memory`**. MCP and CLI are equivalent; one of each shown.
 
@@ -217,7 +217,7 @@ Hit `[r-2026-09-14-002]` → name the method `GetProfile`, not `get_profile`; ci
 
 ---
 
-## Passive fade vs active correction
+## Passive fade vs explicit writes
 
 | Mechanism | Trigger | Use when |
 | --- | --- | --- |

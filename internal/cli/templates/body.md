@@ -4,8 +4,7 @@ This project's long-term memory is **imprint**, not chat history. **Nothing sync
 
 ## MCP + shelves（必读）
 
-**要完整使用 shelves（文档 BM25 召回 + 规则↔文档关联），必须挂载并调用 imprint MCP。**  
-CLI `imprint --json` 仍可读写 vault，但 **`find` / `get` 刻意不走路 shelves 增强** — 无 `documents`、`links`、`resolved_sources`、`referenced_rules`、chunk `get`。
+**完整 shelves（文档 BM25 + 规则↔文档关联）请挂载 imprint MCP。** CLI `imprint --json` 可读写 vault；召回能力见下表。
 
 | 能力 | MCP（shelves 开） | CLI |
 | --- | --- | --- |
@@ -16,9 +15,9 @@ CLI `imprint --json` 仍可读写 vault，但 **`find` / `get` 刻意不走路 s
 | 规则关系图 | desk `/` | host `GET /graph` |
 | 人审 rule↔doc | 建议 `imprint desk open` → `/unified` | — |
 
-Mount: `docs/mcp.md`, `docs/examples/cursor-mcp.json`. Correction loop: `docs/correction.md` / `docs/correction.zh.md`.
+Mount: `docs/mcp.md`, `docs/examples/cursor-mcp.json`. Write loop: `docs/correction.md` / `docs/correction.zh.md`.
 
-- **Transport:** Prefer **imprint MCP** when connected. CLI fallback = vault read/write only — **not** a shelves substitute. Same vault; do not use both for one operation.
+- **Transport:** Prefer **imprint MCP** when connected. CLI fallback = vault read/write (see table). Same vault; pick one transport per operation.
 - **Users never maintain the vault.** They speak normally; you run `find` / `add` / `reinforce` / `supersede` / `forget` — never ask for imprint commands or rule ids.
 - **You maintain the vault, not the chat.** A durable preference stays unwritten until you call a write tool in the same turn.
 - **Review and prune is fine.** `show` / `get` (or `imprint desk open`); explain in plain language; then `supersede` / `forget` / `sweep` after they agree.
@@ -43,7 +42,7 @@ Mount: `docs/mcp.md`, `docs/examples/cursor-mcp.json`. Correction loop: `docs/co
 | **`referenced_rules`** | doc → rule | **自动** — vault `sources` 反查 | **`get <chunk-id>`**（MCP） |
 | **`cited_rules`** | doc → rule | 维护者在正文写 `[[r-…]]` / `[imprint:r-…]`；shelves rebuild | **`get <chunk-id>`**（MCP）；desk unified **`cited_by`** 边 |
 
-默认路径：用户纠正 → MCP **`find(scope, query)`** → 判断 document 命中 → 同轮 **`add`/`supersede` + `sources`**。不需要用户在 markdown 里 @ 规则。
+默认路径：用户说话 → MCP **`find(scope, query)`** → document 命中 → 同轮 **`add`/`supersede` + `sources`**。`sources` 写在 vault；markdown 正文可选 `[[r-…]]`。
 
 ### `find` 的 `links`（当次召回，不持久）
 
@@ -65,7 +64,7 @@ Mount: `docs/mcp.md`, `docs/examples/cursor-mcp.json`. Correction loop: `docs/co
 - `list`: `--scope`, `--query`, `--min-confidence`, `--since`.
 
 ```bash
-# CLI fallback — vault only; no shelves enrichment on find/get
+# CLI — vault read/write; find/get 见上表 CLI 列
 imprint --json --vault ./.imprint/memory find --scope go,naming --query PascalCase
 imprint --json --vault ./.imprint/memory add "CLAIM" --scope tag,tag --text "user's original words"
 imprint --json --vault ./.imprint/memory reinforce ID --evidence "..."
@@ -80,7 +79,7 @@ imprint --json --vault ./.imprint/memory sweep
 ## Must do
 
 1. Before coding or style answers → **MCP `find`** with **narrow scope** + **query** (shelves on). Use **`resolved_sources`**, **`documents`**, **`links`**. Cite `[r-id]` when a rule shapes behavior; cite doc paths when excerpts apply. CLI fallback = vault rules only.
-2. **Same-turn write:** durable preference / correction → MCP `find` → classify ADD / REINFORCE / SUPERSEDE / IGNORE → **write in this turn**. Document hit or user points at docs → pass **`sources`** on `add` / `supersede`.
+2. **Same-turn write:** durable preference → MCP `find` → classify ADD / REINFORCE / SUPERSEDE / IGNORE → **write in this turn**. Document hit → pass **`sources`** on `add` / `supersede`.
 3. **IGNORE** one-off tasks and session-only steps. **ADD / REINFORCE / SUPERSEDE** only for cross-session policy in the user's words.
 4. Analyse the requirement before modifying code.
 5. Before every write, classify again; no duplicates. Confidence: default 0.6; corrections 0.85; "always" 0.9.
@@ -90,7 +89,7 @@ imprint --json --vault ./.imprint/memory sweep
 
 ## Must not
 
-- Use CLI `find`/`get` expecting shelves fields — use **MCP**.
+- Pre-coding recall with documents/links — use **MCP** `find`/`get` (see table).
 - Assume vault updates from chat. Don't backfill from history unless asked.
 - Infer preferences. Don't store secrets. Don't hand-edit `vault.db` (`sweep` only).
 - Call it "memory store" — it is **imprint**.

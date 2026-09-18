@@ -1,8 +1,8 @@
 # Shelves
 
-Workspace documentation indexing runs **inside the host** (`imprint up`, or `imprint host serve` for debug) and in **imprint-mcp** — not as an external plugin.
+Workspace documentation indexing runs **inside the host** (`imprint up`, or `imprint host serve` for debug) and in **imprint-mcp**.
 
-Shelves does **not** mean “the LLM reads every file in the repo.” It builds a **local index over configured directories** so agents can **`find` vault imprints and document excerpts in one call**, with optional `sources` links. See [imprint ↔ shelves linking](imprint-shelves-linking.md).
+Shelves builds a **local index over configured directories** so agents **`find` vault imprints and document excerpts in one call**, with optional `sources` links. See [imprint ↔ shelves linking](imprint-shelves-linking.md).
 
 [中文](shelves-builtin.zh.md)
 
@@ -10,7 +10,7 @@ Shelves does **not** mean “the LLM reads every file in the repo.” It builds 
 
 ## Why shelves (agent perspective)
 
-An LLM does **not** load all project markdown each turn. Ad-hoc grep/read lacks unified ranking, paragraph excerpts, one-shot recall with the vault, and durable links.
+Each turn, project markdown is available on demand — grep and file reads lack unified ranking, paragraph excerpts, one-shot recall with the vault, and durable links.
 
 | | LLM greps / reads files | shelves |
 | --- | --- | --- |
@@ -20,7 +20,7 @@ An LLM does **not** load all project markdown each turn. Ad-hoc grep/read lacks 
 | **Durable links** | None | vault `sources` (rule→doc); optional `[[r-…]]` in docs |
 | **Cost** | More tokens | Local SQLite index, no embedding API |
 
-Shelves uses **BM25**, not vectors. The win is **integration, structure, locality, and workflow** — not “always more accurate than a human search.”
+Shelves uses **local BM25** over chunked markdown. The win is **integration, structure, locality, and workflow**.
 
 ```mermaid
 flowchart LR
@@ -31,7 +31,7 @@ flowchart LR
     F --> L[links runtime]
   end
 
-  subgraph persist [On correction · vault only]
+  subgraph persist [On write · vault only]
     A[add / supersede] --> S[sources path/heading]
     S --> V[(.imprint/memory/)]
   end
@@ -66,20 +66,20 @@ shelves:
 | Field | Meaning |
 | --- | --- |
 | `enabled` | When `true`, scan `roots` and serve search. When `false`, stop indexing; cache stays readable. |
-| `config.roots` | **Directories to index** (`.md`, `.mdc`, `.txt`), relative to repo root. Defines what shelves **searches**, not “everything the LLM can open.” |
+| `config.roots` | **Directories to index** (`.md`, `.mdc`, `.txt`), relative to repo root — what shelves **searches** |
 | `config.stateDir` | SQLite cache. Default: `.imprint/.shelves/.cache`. |
 
-### `roots` is not optional noise
+### Configuring `roots`
 
-- Files **outside** `roots`: not indexed; **`find` / `/docs/search` never return them** (agents can still read files directly, but not via shelves recall).
-- Files **inside** `roots`: indexed; **`find` with query** can return them alongside vault hits.
-- **Why configure**: scope the corpus (less noise, faster rebuild), declare which docs agents should recall before coding.
+- Listed directories: indexed; **`find` with query** returns chunks alongside vault hits.
+- Unlisted paths: outside shelves recall (agents can still open files directly).
+- **Purpose**: scope the corpus, faster rebuilds, declare which docs to recall before coding.
 
 After changing `roots` or `enabled`, run `imprint up` (or restart `host serve`).
 
 ---
 
-## Linking vault imprints without polluting docs
+## Linking vault imprints via sources
 
 | Direction | Persisted? | Stored in | Edit project markdown? |
 | --- | --- | --- | --- |
@@ -143,7 +143,7 @@ Without query, or shelves off: **rules array** only (enriched with `resolved_sou
 
 ## Desk UI
 
-Desk proxies `/api/docs/*` and `/api/graph/unified` to the host. Three routes — **`/`** (rules graph), **`/docs`** (shelves search), **`/unified`** (rules + files/chunks + `sources` / `cited_by` edges) — each with **its own URL query state** (switching tabs does not carry filters across). Rule detail shows `resolved_sources`; doc chunks show `referenced_rules` / `cited_rules`. **Agents use MCP `find` / `get`**, not desk, for recall.
+Desk proxies `/api/docs/*` and `/api/graph/unified` to the host. Three routes — **`/`** (rules graph), **`/docs`** (shelves search), **`/unified`** (rules + files/chunks + `sources` / `cited_by` edges) — each with **its own URL query state** (switching tabs does not carry filters across). Rule detail shows `resolved_sources`; doc chunks show `referenced_rules` / `cited_rules`. **Agents** recall via MCP `find` / `get`; **desk** is for human audit.
 
 ---
 

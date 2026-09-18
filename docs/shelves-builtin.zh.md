@@ -1,14 +1,14 @@
 # Shelves
 
-工作区文档索引跑在 **host 进程**（`imprint up` 或调试时 `imprint host serve`）和 **imprint-mcp** 里 — 不是外部插件。
+工作区文档索引跑在 **host 进程**（`imprint up` 或调试时 `imprint host serve`）和 **imprint-mcp** 里。
 
-Shelves 不是「替 LLM 读遍整个仓库」，而是：**在配置的目录里建本地索引，让 Agent 写代码前一次 `find` 同时召回 vault 里的 imprint 和项目文档段落**，并可与 vault 的 `sources` 关联。详见 [imprint ↔ shelves 关联](imprint-shelves-linking.zh.md)。
+Shelves **在配置的目录里建本地索引**，写代码前一次 `find` 同时召回 vault 里的 imprint 和项目文档段落，并可与 vault 的 `sources` 关联。详见 [imprint ↔ shelves 关联](imprint-shelves-linking.zh.md)。
 
 ---
 
 ## 为什么需要 shelves（Agent 视角）
 
-LLM 每次对话**不会**自动加载仓库里所有 markdown。即使用 grep/读文件，也缺少：统一排序、段落级 excerpt、与 vault 同一次召回、可持久关联。
+项目 markdown 按需读取；grep/读文件缺少统一排序、段落级 excerpt、与 vault 同一次召回、可持久关联。
 
 | | 让 LLM 自己翻文件 | shelves |
 | --- | --- | --- |
@@ -18,7 +18,7 @@ LLM 每次对话**不会**自动加载仓库里所有 markdown。即使用 grep/
 | **持久关联** | 无 | vault `sources`（规则→文档）；可选文档内 `[[r-…]]` |
 | **成本** | 多读文件、耗 token | 本地 SQLite 索引，无 embedding API |
 
-Shelves 用的是 **BM25**，不是向量语义搜索。优势在于 **集成、结构化、本地、与 imprint 同流程**，而非泛泛的「比人搜更准」。
+Shelves 用 **本地 BM25** 索引分块 markdown。优势在于 **集成、结构化、本地、与 imprint 同流程**。
 
 ```mermaid
 flowchart LR
@@ -29,7 +29,7 @@ flowchart LR
     F --> L[links 当次]
   end
 
-  subgraph persist [纠正时 · 只写 vault]
+  subgraph persist [写入时 · 只写 vault]
     A[add / supersede] --> S[sources path/heading]
     S --> V[(.imprint/memory/)]
   end
@@ -65,20 +65,20 @@ shelves:
 | 字段 | 含义 |
 | --- | --- |
 | `enabled` | `true` 时扫描 `roots` 并提供搜索；`false` 时停止索引与搜索，缓存只读保留 |
-| `config.roots` | **要纳入索引的目录**（`.md`、`.mdc`、`.txt`），路径相对仓库根。不是「LLM 能读什么」——而是 **shelves 搜什么** |
+| `config.roots` | **要纳入索引的目录**（`.md`、`.mdc`、`.txt`），路径相对仓库根 — **shelves 搜什么** |
 | `config.stateDir` | SQLite 缓存目录。默认 `.imprint/.shelves/.cache` |
 
-### `roots` 不是可有可无
+### 配置 `roots`
 
-- **未列入 `roots` 的文件**：shelves **不会**索引；`find` / `/docs/search` **搜不到**（Agent 仍可用读文件工具单独打开，但不进 shelves 召回）。
-- **列入 `roots` 的文件**：rebuild 后进入 BM25；`find` 带 query 时可与 vault imprint **同屏返回**。
-- **为何要配**：控制索引范围（少噪音、少 rebuild 成本）、明确 Agent「写代码前对照哪些文档」——例如 `docs/`、`.cursor/rules/`、技能目录等。
+- **列入 `roots` 的目录**：rebuild 后进入 BM25；`find` 带 query 时可与 vault imprint 同屏返回。
+- **未列入的路径**：不进 shelves 召回（Agent 仍可用读文件工具单独打开）。
+- **用途**：控制索引范围、加快 rebuild、明确写代码前对照哪些文档（如 `docs/`、`.cursor/rules/`）。
 
 改 `roots` 或 `enabled` 后执行 `imprint up`（或重启 `host serve`）。
 
 ---
 
-## 与 vault 关联（不污染文档的推荐做法）
+## 与 vault 关联（sources 默认）
 
 关联分 **持久** 与 **临时** 两层：
 
@@ -95,7 +95,7 @@ shelves:
 - `get r-…` → `resolved_sources`（imprint → 文档）
 - `get <chunk>` → `referenced_rules`（文档 → imprint，**从 vault 反查，不改文档**）
 
-`[[r-…]]` 仅当维护者想在 markdown 里显式 @ 某条 imprint 时使用；与 `referenced_rules` 可并存，不是必需。
+`[[r-…]]` 供维护者在 markdown 里显式 @ imprint 时使用；与 `referenced_rules` 可并存，可选。
 
 ---
 

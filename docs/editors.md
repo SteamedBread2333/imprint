@@ -54,5 +54,5 @@ See [mcp.md](mcp.md). `init` never writes MCP JSON.
 
 ## See also
 
-- [correction.md](correction.md)  
+- [correction.md](correction.md) — write loop and scenarios  
 - [editors.zh.md](editors.zh.md)

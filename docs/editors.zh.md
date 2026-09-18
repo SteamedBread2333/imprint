@@ -71,6 +71,6 @@ imprint init
 
 ## 参见
 
-- [correction.zh.md](correction.zh.md) — 纠偏与编码场景  
+- [correction.zh.md](correction.zh.md) — 写入循环与场景示例  
 - [mcp.zh.md](mcp.zh.md) — MCP 工具与挂载  
 - [editors.md](editors.md) — English

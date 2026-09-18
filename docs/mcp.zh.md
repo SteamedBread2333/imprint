@@ -15,7 +15,7 @@
 | 查 chunk 被哪些规则引用 | `get <chunk-id>` → **referenced_rules** + **cited_rules** | 不支持 |
 | 规则关系图 | desk `/` | host `GET /graph` |
 
-CLI `find` / `get` **刻意不增强 shelves** — 给脚本/automation 用；智能体写代码前召回请走 MCP。
+**CLI** `find` / `get`：vault 字段（见上表）。**智能体**写代码前召回：MCP。
 
 ## 关联方式
 
@@ -225,7 +225,7 @@ go install github.com/SteamedBread2333/imprint/cmd/imprint-mcp@latest
 }
 ```
 
-修改 MCP 配置后重启宿主。`imprint init` **不会写入** `mcp.json` — 请自行添加片段以控制挂载哪个 vault。
+修改 MCP 配置后重启宿主。手动合并 [docs/examples/cursor-mcp.json](examples/cursor-mcp.json) 到 `.cursor/mcp.json` — `imprint init` 只写编辑器规则。
 
 ## 验证
 
@@ -240,7 +240,7 @@ go test ./internal/mcp/...
 ## 参见
 
 - [README.zh.md](../README.zh.md) — vault 布局、CLI、Cursor 规则
-- [correction.zh.md](correction.zh.md) — 记忆纠偏与编码场景示例
+- [correction.zh.md](correction.zh.md) — 写入循环与场景示例
 - [README.md](../README.md) — English main doc
 - [docs/mcp.md](mcp.md) — English version of this page
 

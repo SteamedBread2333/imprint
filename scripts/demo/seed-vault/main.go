@@ -87,12 +87,11 @@ var demoRules = []demoRule{
 	{
 		claim:  "Agent recall before coding uses MCP find with scope and query; CLI find/get stays vault-only",
 		scope:  "imprint,mcp,agent",
-		text:   "写代码前 Agent 用 MCP find(scope, query)；CLI 的 find/get 不走路 shelves 增强，那是刻意的边界。",
+		text:   "写代码前 Agent 用 MCP find(scope, query)；CLI find/get 见 mcp 文档对比表。",
 		confidence: 0.85,
 		sources: []imprint.DocRef{
-			{Path: "docs/mcp.zh.md", Heading: "智能体流程"},
-			{Path: "docs/mcp.zh.md", Heading: "工具"},
-			{Path: "docs/correction.zh.md", Heading: "纠偏循环"},
+			{Path: "docs/mcp.zh.md", Heading: "MCP vs CLI"},
+			{Path: "docs/correction.zh.md", Heading: "写入循环"},
 		},
 	},
 	{
@@ -107,13 +106,13 @@ var demoRules = []demoRule{
 	},
 	{
 		claim:  "On ADD when find returns a matching document, attach sources in the same turn",
-		scope:  "imprint,correction,agent",
+		scope:  "imprint,agent,writes",
 		text:   "ADD 时如果 find 命中了 document，同轮 add 就要带上 sources，只写 vault。",
 		confidence: 0.9,
 		sources: []imprint.DocRef{
-			{Path: "docs/correction.zh.md", Heading: "纠偏循环"},
-			{Path: "docs/mcp.zh.md", Heading: "智能体流程"},
-			{Path: "docs/imprint-shelves-linking.zh.md", Heading: "智能体工作流（纠偏 + 文档）"},
+			{Path: "docs/correction.zh.md", Heading: "写入循环"},
+			{Path: "docs/mcp.zh.md", Heading: "MCP vs CLI"},
+			{Path: "docs/imprint-shelves-linking.zh.md", Heading: "8. 智能体工作流（写入 + 文档）"},
 		},
 	},
 	{

@@ -54,9 +54,9 @@ imprint（vault 规则）和 shelves（工作区文档索引）目前是**两套
 
 ---
 
-## 3.1 推荐：不污染项目 markdown
+## 3.1 推荐：默认用 vault sources
 
-多数项目**不需要**在文档正文写 `[[r-…]]`。
+多数项目在 vault 写 `sources` 即可；正文 `[[r-…]]` 为可选项。
 
 | 需求 | 做法 | 改文档？ |
 | --- | --- | --- |
@@ -65,7 +65,7 @@ imprint（vault 规则）和 shelves（工作区文档索引）目前是**两套
 | 「写这个任务时 imprint 和文档怎么对上？」 | `find` 的 `links`（当次有效） | **否** |
 | 维护者在正文里显式 @ imprint | 可选 `[[r-…]]` → `cited_rules` | 是（**可选**） |
 
-**Agent 默认路径：** 用户纠正 → `find` → 判断 document 命中 → ADD 带 `sources`。一次写入，双向可读；**项目 markdown 零改动**。
+**Agent 默认路径：** 用户说话 → `find` → document 命中 → ADD 带 `sources`。一次写入，双向可读；`sources` 写在 vault。
 
 ---
 
@@ -354,7 +354,7 @@ MCP 同名工具。Phase 1 可仅用 `add`/`supersede` 的 `sources` 参数，Ph
 
 ---
 
-## 8. 智能体工作流（纠偏 + 文档）
+## 8. 智能体工作流（写入 + 文档）
 
 ### 8.1 用户指向项目文档
 

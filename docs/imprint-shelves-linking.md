@@ -56,9 +56,9 @@ Typical gaps:
 
 ---
 
-## 3.1 Recommended: keep project markdown clean
+## 3.1 Recommended: vault sources by default
 
-Most projects **do not** need `[[r-…]]` in doc bodies.
+Most projects link via vault `sources`; `[[r-…]]` in doc bodies is optional.
 
 | Need | Approach | Edit docs? |
 | --- | --- | --- |
@@ -67,7 +67,7 @@ Most projects **do not** need `[[r-…]]` in doc bodies.
 | “What matches this task right now?” | `find` `links` (session-only) | **No** |
 | Maintainer @ in doc body | Optional `[[r-…]]` → `cited_rules` | Yes (**optional**) |
 
-**Default agent path:** one ADD with `sources` → bidirectional read; **zero markdown edits**.
+**Default agent path:** user speaks → `find` → document hit → ADD with `sources`. Bidirectional read; links live in vault.
 
 ---
 
