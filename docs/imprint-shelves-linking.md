@@ -40,7 +40,7 @@ Typical gaps:
 ### Non-goals (this phase)
 
 - Embedding / vector semantic auto-linking (BM25 co-occurrence is **runtime boost only**, not persisted).
-- Copying shelves documents **into** vault shards (docs stay indexed only).
+- Copying shelves documents **into** vault.db (docs stay indexed only).
 - Users maintaining link tables or running link commands by hand.
 - Cross-workspace / cross-vault global knowledge graphs.
 
@@ -179,7 +179,7 @@ Vault `sources` are **not** written back into markdown (avoid mass doc edits).
 ```mermaid
 flowchart TB
   subgraph vault_write [Vault write]
-    A[add / supersede] --> B[Record.sources in shard]
+    A[add / supersede] --> B[Record.sources in vault.db]
   end
 
   subgraph shelves_rebuild [Shelves rebuild]

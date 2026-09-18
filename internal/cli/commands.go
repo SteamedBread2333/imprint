@@ -431,7 +431,7 @@ func (a *App) cmdSweep(g globals, args []string) int {
 	}
 	c := a.console()
 	c.Heading("sweep")
-	c.Done("decayed %d  ·  archived %d", res.Decayed, res.Archived)
+	c.Done("decayed %d  ·  dormant %d", res.Decayed, res.Archived)
 	c.blank()
 	return 0
 }

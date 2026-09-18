@@ -27,7 +27,7 @@ var Home = os.UserHomeDir
 // Now returns the current time for vault operations.
 var Now = time.Now
 
-const serverInstructions = `imprint long-term memory (vault + shelves). MCP is REQUIRED for full shelves: CLI find/get are vault-only and omit documents, links, resolved_sources, referenced_rules, and chunk get.
+const serverInstructions = `imprint long-term memory (SQLite vault.db + shelves). MCP is REQUIRED for full shelves: CLI find/get are vault-only and omit documents, links, resolved_sources, referenced_rules, and chunk get.
 
 Users never maintain the vault — speak normally; you run find/add/reinforce/supersede/forget. Never ask for imprint commands or rule ids. Review-and-prune: show/get or desk, explain, then supersede/forget/sweep after they agree. Before every write classify ADD / REINFORCE / SUPERSEDE / IGNORE; never duplicate; record only what the user said. User negates in plain speech → find then forget or supersede.
 

@@ -38,7 +38,7 @@ imprint（vault 规则）和 shelves（工作区文档索引）目前是**两套
 ### 非目标（本阶段不做）
 
 - 用 embedding / 向量做语义自动关联（BM25 共现仅作**运行时 boost**，不持久化）。
-- 把 shelves 文档**复制进** vault 分片（文档仍只索引，不双写）。
+- 把 shelves 文档**复制进** vault.db（文档仍只索引，不双写）。
 - 用户手动维护链接表或跑链接命令。
 - 跨 workspace / 跨 vault 的全局知识图谱。
 
@@ -179,7 +179,7 @@ vault 的 `sources` **不**反向写入 markdown 文件（避免惊群编辑 doc
 ```mermaid
 flowchart TB
   subgraph vault_write [Vault 写入]
-    A[add / supersede] --> B[Record.sources 写入 shard]
+    A[add / supersede] --> B[Record.sources 写入 vault.db]
   end
 
   subgraph shelves_rebuild [Shelves Rebuild]
@@ -466,7 +466,7 @@ rebuild 后 `get <chunk>` 的 `cited_rules` 包含该规则；desk 统一图显�
 | Host unified graph | `internal/host/server.go` | `GET /graph/unified` |
 | Unified graph builder | `internal/linking/unified.go` | vault + shelves + cross edges |
 | Doc graph | `internal/shelves/graph.go` | 不变；统一图新模块 |
-| Vault graph | `pkg/imprint/viz.go` | 不变；统一图新模块 |
+| Vault graph | `pkg/imprint/viz.go`（`Graph()`） | 不变；统一图新模块 |
 
 ---
 

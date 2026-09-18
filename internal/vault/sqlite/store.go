@@ -274,19 +274,33 @@ func replaceChildren(tx *sql.Tx, r *model.Record) error {
 	return insertSources(tx, r.ID, r.Sources)
 }
 
+func putRecordTx(tx *sql.Tx, r *model.Record) error {
+	if err := upsertRuleRow(tx, r); err != nil {
+		return err
+	}
+	if err := replaceChildren(tx, r); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM evidence_events WHERE rule_id = ?`, r.ID); err != nil {
+		return err
+	}
+	return insertEvidence(tx, r.ID, r.EvidenceLog)
+}
+
 // PutRecord writes a full rule (metadata + children). Evidence is replaced entirely.
 func (s *Store) PutRecord(r *model.Record) error {
 	return s.withTx(func(tx *sql.Tx) error {
-		if err := upsertRuleRow(tx, r); err != nil {
+		return putRecordTx(tx, r)
+	})
+}
+
+// SupersedePair inserts newRec and updates oldRec in one transaction.
+func (s *Store) SupersedePair(oldRec, newRec *model.Record) error {
+	return s.withTx(func(tx *sql.Tx) error {
+		if err := putRecordTx(tx, newRec); err != nil {
 			return err
 		}
-		if err := replaceChildren(tx, r); err != nil {
-			return err
-		}
-		if _, err := tx.Exec(`DELETE FROM evidence_events WHERE rule_id = ?`, r.ID); err != nil {
-			return err
-		}
-		return insertEvidence(tx, r.ID, r.EvidenceLog)
+		return putRecordTx(tx, oldRec)
 	})
 }
 

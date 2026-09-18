@@ -26,7 +26,7 @@ func registerTools(server *sdkmcp.Server, v *imprint.Vault, shelvesSvc *shelves.
 	}, s.reinforce)
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
 		Name:        "supersede",
-		Description: "Archive old_id; write new rule (claim, scope). Inherits old sources unless sources is set. Optional sources [{path, heading?, chunk?}] replace inherited rule→doc links in vault.",
+		Description: "Mark old_id superseded; write new active rule (claim, scope). Inherits old sources unless sources is set. Optional sources [{path, heading?, chunk?}] replace inherited rule→doc links in vault.",
 	}, s.supersede)
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
 		Name:        "forget",
@@ -46,7 +46,7 @@ func registerTools(server *sdkmcp.Server, v *imprint.Vault, shelvesSvc *shelves.
 	}, s.show)
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
 		Name:        "sweep",
-		Description: "Decay confidence and archive dormant rules.",
+		Description: "Decay confidence and mark low-confidence rules dormant.",
 	}, s.sweep)
 }
 

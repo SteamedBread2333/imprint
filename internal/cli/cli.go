@@ -255,12 +255,12 @@ Everyday — vault (no local stack required):
   find        Recall by scope and optional query
   add         Create a new rule
   reinforce   Strengthen an existing rule
-  supersede   Replace a rule (archives the old one)
+  supersede   Replace a rule (marks the old one superseded)
   forget      Delete a rule permanently
   list        Short listing
   get         Full record by id
   show        User-facing listing
-  sweep       Decay stale rules and archive low-confidence ones
+  sweep       Decay stale rules and mark low-confidence ones dormant
   export      Dump every record as JSON
 
 Debug & advanced:

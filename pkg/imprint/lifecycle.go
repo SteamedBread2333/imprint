@@ -103,9 +103,6 @@ func (v *Vault) SupersedeWithSources(oldID, newClaim string, newScope []string, 
 			At: now, Kind: EvidenceSupersede, Text: reason,
 		})
 	}
-	if err := v.store.InsertRecord(newRec); err != nil {
-		return nil, err
-	}
 	old.Status = StatusSuperseded
 	old.UpdatedAt = now
 	note := "superseded by " + newID
@@ -115,7 +112,7 @@ func (v *Vault) SupersedeWithSources(oldID, newClaim string, newScope []string, 
 	old.EvidenceLog = append(old.EvidenceLog, Evidence{
 		At: now, Kind: EvidenceSupersede, Text: note,
 	})
-	if err := v.save(old); err != nil {
+	if err := v.store.SupersedePair(old, newRec); err != nil {
 		return nil, err
 	}
 	return &SupersedeResult{ID: newID, SupersededOldID: old.ID}, nil
