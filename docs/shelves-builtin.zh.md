@@ -91,7 +91,7 @@ shelves:
 
 **持久双向关联的默认做法：只写 vault `sources` 一次。**
 
-- Agent ADD 时：`sources: [{ path: "docs/foo.md", heading: "..." }]`
+- 智能体 **新增** 时：`sources: [{ path: "docs/foo.md", heading: "..." }]`
 - `get r-…` → `resolved_sources`（imprint → 文档）
 - `get <chunk>` → `referenced_rules`（文档 → imprint，**从 vault 反查，不改文档**）
 
@@ -178,4 +178,4 @@ desk 将 `/api/docs/*`、`/api/graph/unified` 代理到 host。三个独立路�
 | --- | --- |
 | [imprint-shelves-linking.zh.md](imprint-shelves-linking.zh.md) | 关联模型、存储位置、Agent 工作流 |
 | [mcp.zh.md](mcp.zh.md) | MCP 工具与挂载 |
-| [correction.zh.md](correction.zh.md) | ADD / REINFORCE / SUPERSEDE 与 `sources` 时机 |
+| [correction.zh.md](correction.zh.md) | 新增 / 强化 / 替换 与 `sources` 时机 |

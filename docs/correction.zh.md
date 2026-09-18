@@ -31,19 +31,19 @@ sequenceDiagram
   V-->>A: rules · documents · links
 
   alt 无相关 imprint · document 未命中
-    A->>A: ADD
+    A->>A: 新增
     A->>V: add
-  else ADD 且 find 命中 document
-    A->>A: ADD
+  else 新增且 find 命中 document
+    A->>A: 新增
     A->>V: add + sources[{path}]
   else 同一句话再说一遍
-    A->>A: REINFORCE
+    A->>A: 强化
     A->>V: reinforce
   else 说法变了 / 范围变了 / 旧 imprint 错了
-    A->>A: SUPERSEDE
+    A->>A: 替换
     A->>V: supersede（继承 sources）
   else 用户说别记 / 一次性的
-    A->>A: IGNORE 或 forget
+    A->>A: 忽略 或 删除
   end
 
   Note over A,V: 下次写代码前 find；cite [r-id]；sources 在 vault
@@ -52,7 +52,7 @@ sequenceDiagram
 | 步骤 | 谁做 | 做什么 |
 | --- | --- | --- |
 | **召回** | 智能体 | `find --scope tag,tag` + `--query` → rules、`documents`、`links`（shelves 开） |
-| **分类** | 智能体 | ADD / REINFORCE / SUPERSEDE / IGNORE（见下表） |
+| **分类** | 智能体 | 新增 / 强化 / 替换 / 忽略（见下表） |
 | **写入** | imprint | `add`（可选 `sources`）/ `reinforce` / `supersede` / `forget` |
 | **审计** | 人 | `get`、`show`、desk；superseded/dormant 规则在 `vault.db` |
 
@@ -62,16 +62,16 @@ sequenceDiagram
 
 | 分类 | 何时用 | 命令 | 对 vault 的影响 |
 | --- | --- | --- | --- |
-| **ADD** | `find` 无匹配；用户**新**偏好（document 命中时可带 `sources`） | `add` | 新 `active` imprint，默认 confidence **0.6** |
-| **REINFORCE** | 已有规则；用户**再次确认**同一偏好 | `reinforce` | confidence **+0.1**（上限 **0.95**），`reinforcement_count++`，可唤醒 `dormant` |
-| **SUPERSEDE** | 偏好**改了**、范围**扩大/缩小**、旧 claim **不再成立** | `supersede` | 旧规则 → `superseded` 状态；新规则 `active`，链上 `supersedes: [old_id]` |
-| **IGNORE** | 一次性指令、闲聊、智能体**推断**出的偏好 | （不写） | 无 |
+| **新增** | `find` 无匹配；用户**新**偏好（document 命中时可带 `sources`） | `add` | 新 `active` imprint，默认 confidence **0.6** |
+| **强化** | 已有规则；用户**再次确认**同一偏好 | `reinforce` | confidence **+0.1**（上限 **0.95**），`reinforcement_count++`，可唤醒 `dormant` |
+| **替换** | 偏好**改了**、范围**扩大/缩小**、旧 claim **不再成立** | `supersede` | 旧规则 → `superseded` 状态；新规则 `active`，链上 `supersedes: [old_id]` |
+| **忽略** | 一次性指令、闲聊、智能体**推断**出的偏好 | （不写） | 无 |
 
 额外：
 
 | 操作 | 何时用 |
 | --- | --- |
-| **forget** | 用户用**日常口语**否定某条（「别记了」「那个不算」）；由智能体 `find` 后 `forget`，用户不提 imprint |
+| **删除** | 用户用**日常口语**否定某条（「别记了」「那个不算」）；由智能体 `find` 后 `forget`，用户不提 imprint |
 | **sweep** | 定期衰减长期未触达规则（默认 90 天 −0.05；低于 0.3 → `dormant` 归档） |
 
 ### 置信度约定（智能体侧）
@@ -98,7 +98,7 @@ sequenceDiagram
 
 以下用 **`./.imprint/memory`** vault；MCP 与 CLI 等价，各举一种写法。
 
-### 场景 1：新偏好 — ADD
+### 场景 1：新偏好 — 新增
 
 **对话**
 
@@ -107,7 +107,7 @@ sequenceDiagram
 **智能体**
 
 1. `find --scope go,naming --query PascalCase` → 无命中  
-2. 分类：**ADD**
+2. 分类：**新增**
 
 ```bash
 imprint --json --vault ./.imprint/memory add \
@@ -122,7 +122,7 @@ MCP `add`：`claim` / `scope` / `text` 同上，`confidence` 省略（0.6）。
 
 ---
 
-### 场景 2：再次确认 — REINFORCE
+### 场景 2：再次确认 — 强化
 
 **对话**
 
@@ -131,7 +131,7 @@ MCP `add`：`claim` / `scope` / `text` 同上，`confidence` 省略（0.6）。
 **智能体**
 
 1. `find --scope go,naming` → 命中 `r-2026-09-14-001`  
-2. 分类：**REINFORCE**（policy 已存在）
+2. 分类：**强化**（policy 已存在）
 
 ```bash
 imprint --json --vault ./.imprint/memory reinforce r-2026-09-14-001 \
@@ -144,7 +144,7 @@ MCP `reinforce`：`id` + `evidence`。
 
 ---
 
-### 场景 3：政策变更 — SUPERSEDE
+### 场景 3：政策变更 — 替换
 
 **对话**
 
@@ -153,7 +153,7 @@ MCP `reinforce`：`id` + `evidence`。
 **智能体**
 
 1. `find --scope go,naming` → 旧规则过宽  
-2. 分类：**SUPERSEDE**（归档旧规则，写新 active）
+2. 分类：**替换**（归档旧规则，写新 active）
 
 ```bash
 imprint --json --vault ./.imprint/memory supersede r-2026-09-14-001 \
@@ -169,7 +169,7 @@ MCP `supersede`：`old_id`, `claim`, `scope`, `reason`, `text`。
 
 ---
 
-### 场景 4：范围扩大 — SUPERSEDE
+### 场景 4：范围扩大 — 替换
 
 **对话**
 
@@ -178,7 +178,7 @@ MCP `supersede`：`old_id`, `claim`, `scope`, `reason`, `text`。
 **智能体**
 
 1. `find --scope go,naming` 或 `typescript,naming`  
-2. 分类：**SUPERSEDE**（scope 从 go → go + typescript）
+2. 分类：**替换**（scope 从 go → go + typescript）
 
 ```bash
 imprint --json --vault ./.imprint/memory supersede r-2026-09-14-002 \
@@ -190,7 +190,7 @@ imprint --json --vault ./.imprint/memory supersede r-2026-09-14-002 \
 
 ---
 
-### 场景 5：智能体差点推断 — IGNORE
+### 场景 5：智能体差点推断 — 忽略
 
 **对话**
 
@@ -200,7 +200,7 @@ imprint --json --vault ./.imprint/memory supersede r-2026-09-14-002 \
 
 - 这是**任务指令**，不是长期偏好  
 - `find` 可不写 vault  
-- 分类：**IGNORE**
+- 分类：**忽略**
 
 不写 `add`。若误存，用户随口「这个别记」→ 智能体 **`find` + `forget`**，用户无需知道 id。
 
@@ -215,7 +215,7 @@ imprint --json --vault ./.imprint/memory supersede r-2026-09-14-002 \
 **智能体**
 
 1. `find --scope go,naming` → 命中旧规则 `r-2026-09-14-003`  
-2. 分类：**SUPERSEDE**（政策迁到 `STYLE.md`，保留审计链）或 **forget**（用户否定「别记这类命名偏好」时）  
+2. 分类：**替换**（政策迁到 `STYLE.md`，保留审计链）或 **删除**（用户否定「别记这类命名偏好」时）  
 3. **用户全程不说 imprint**；下面命令由智能体执行
 
 **首选 supersede**（可追溯）：

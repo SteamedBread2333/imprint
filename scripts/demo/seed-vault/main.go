@@ -131,8 +131,8 @@ var demoRules = []demoRule{
 		scope: "python,naming",
 		text:  "use snake_case",
 		sources: []imprint.DocRef{
-			{Path: "docs/correction.zh.md", Heading: "编码场景示例"},
-			{Path: "docs/correction.md", Heading: "Coding scenarios"},
+			{Path: "docs/correction.zh.md", Heading: "场景示例"},
+			{Path: "docs/correction.md", Heading: "Worked examples"},
 		},
 	},
 }

@@ -80,7 +80,7 @@ flowchart LR
 | **工具**    | vault 命令对应 MCP 工具（`find`、`add` …）。**MCP** 在 shelves 开时 enrich `find`/`get`；**CLI** `find`/`get` 仅 vault。 |
 | **Vault** | `.imprint/memory/vault.db`（SQLite）；`find`/`get`/`add` 读写 claim、evidence、**sources**。 |
 | **Shelves** | 读 `.imprint/imprint.yaml` 的 `roots`；`find`+query 时 BM25 文档并返回 `documents`、`links`；`get chunk` 返回 `referenced_rules`。 |
-| **判断**    | ADD / REINFORCE / SUPERSEDE / IGNORE 与是否写 **sources** 均由智能体负责。 |
+| **判断**    | 新增 / 强化 / 替换 / 忽略 与是否写 **sources** 均由智能体负责。 |
 
 
 日志只写 **stderr**，stdout 留给 MCP 帧。
@@ -133,8 +133,8 @@ go install github.com/SteamedBread2333/imprint/cmd/imprint-mcp@latest
 
 1. **确认 MCP 已挂载**（shelves 开）— 否则只有 vault，无 documents / links / resolved_sources。
 2. 写代码或答风格问题前 → **窄** `scope` + **query** 调 **`find`** → rules、`documents`、`links`。
-3. 分析需求；分类 **ADD / REINFORCE / SUPERSEDE / IGNORE**。
-4. **ADD** 且 document 命中 → 同轮 `add` 带 **`sources`**（只写 vault，不改项目 markdown）。
+3. 分析需求；分类 **新增 / 强化 / 替换 / 忽略**。
+4. **新增** 且 document 命中 → 同轮 `add` 带 **`sources`**（只写 vault，不改项目 markdown）。
 5. 不重复已有 imprint；只记录用户**原话**。
 6. 用户说忘记 / 不要记 → `forget` 或跳过。
 7. 用户要看存了什么 → `show` 或 desk（`/`、`/docs`、`/unified`）。

@@ -21,8 +21,9 @@ Durable preferences from normal conversation land in `.imprint/memory/`. **You t
 | **ADD** | New long-term preference | Naming rule, workflow, architecture boundary |
 | **REINFORCE** | Same policy again | “Yes, still PascalCase for exports” |
 | **SUPERSEDE** | Policy changed | Narrow scope, widen scope, replace claim |
-| **forget** | User rejects a stored rule | “Stop recording that naming rule” |
 | **IGNORE** | Task-only turn | One-off refactor, chit-chat, secrets |
+
+When the user rejects a stored rule (“don’t record that”), the agent `find`s and calls `forget` — not one of the four classifications above. See [Memory writes](docs/correction.md).
 
 Vault stores claim, evidence, and optional doc pointers (`sources`). Shelves indexes markdown under `roots` for BM25 recall alongside rules.
 

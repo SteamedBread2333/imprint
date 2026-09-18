@@ -65,7 +65,7 @@ imprint（vault 规则）和 shelves（工作区文档索引）目前是**两套
 | 「写这个任务时 imprint 和文档怎么对上？」 | `find` 的 `links`（当次有效） | **否** |
 | 维护者在正文里显式 @ imprint | 可选 `[[r-…]]` → `cited_rules` | 是（**可选**） |
 
-**Agent 默认路径：** 用户说话 → `find` → document 命中 → ADD 带 `sources`。一次写入，双向可读；`sources` 写在 vault。
+**Agent 默认路径：** 用户说话 → `find` → document 命中 → 新增 带 `sources`。一次写入，双向可读；`sources` 写在 vault。
 
 ---
 
@@ -361,7 +361,7 @@ MCP 同名工具。Phase 1 可仅用 `add`/`supersede` 的 `sources` 参数，Ph
 > 「命名规范看 `docs/style.md`，从现在起都按那个来。」
 
 1. `find --scope naming --query style` → 规则 + 文档并行命中  
-2. 分类 **ADD**  
+2. 分类 **新增**  
 3. `add` 带 `sources: [{ path: "docs/style.md" }]`  
 4. 下次 `find` / `get` 可看到规则与文档段落
 
@@ -370,7 +370,7 @@ MCP 同名工具。Phase 1 可仅用 `add`/`supersede` 的 `sources` 参数，Ph
 > 「用 4 空格缩进，见 CONTRIBUTING 里 Python 那段。」
 
 1. `find --query "4 space python"` → documents 命中 `docs/CONTRIBUTING.md` chunk  
-2. **ADD** + `sources: [{ path: "docs/CONTRIBUTING.md", heading: "Python", chunk: "<id>" }]`
+2. **新增** + `sources: [{ path: "docs/CONTRIBUTING.md", heading: "Python", chunk: "<id>" }]`
 
 ### 8.3 文档内显式引用规则
 
@@ -382,11 +382,11 @@ Project-specific overrides: [[r-2026-09-16-001]]
 
 rebuild 后 `get <chunk>` 的 `cited_rules` 包含该规则；desk 统一图显示 `cited_by` 边。
 
-### 8.4 SUPERSEDE 时继承来源
+### 8.4 替换 时继承来源
 
 旧规则 `r-OLD` 有 `sources: [docs/style.md]`，用户改口：
 
-- **SUPERSEDE** → 新规则默认复制 `sources`（除非智能体显式清空或改指向）
+- **替换** → 新规则默认复制 `sources`（除非智能体显式清空或改指向）
 
 ---
 

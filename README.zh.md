@@ -18,11 +18,12 @@
 
 | | 何时 | 例子 |
 | --- | --- | --- |
-| **ADD** | 新的长期偏好 | 命名规则、工作流、架构边界 |
-| **REINFORCE** | 同一政策再次确认 | 「对，export 还是 PascalCase」 |
-| **SUPERSEDE** | 政策变更 | 收窄 scope、扩大 scope、替换 claim |
-| **forget** | 用户否定已存规则 | 「别记那条命名规则了」 |
-| **IGNORE** | 仅当次任务 | 一次性重构、闲聊、密钥 |
+| **新增** | 新的长期偏好 | 命名规则、工作流、架构边界 |
+| **强化** | 同一政策再次确认 | 「对，export 还是 PascalCase」 |
+| **替换** | 政策变更 | 收窄 scope、扩大 scope、替换 claim |
+| **忽略** | 仅当次任务 | 一次性重构、闲聊、密钥 |
+
+用户否定已存规则（「别记了」）→ 智能体 `find` 后 `forget`，不走上表分类。详见 [记忆写入](docs/correction.zh.md)。
 
 Vault 存 claim、evidence 和可选文档指针（`sources`）。Shelves 在 `roots` 下索引 markdown，与规则一起做 BM25 召回。
 
@@ -51,7 +52,7 @@ flowchart TB
   subgraph Agent["智能体 · imprint-mcp"]
     direction TB
     F["find(scope, query)"]
-    C{"分类<br/>ADD · REINFORCE · SUPERSEDE · IGNORE"}
+    C{"分类<br/>新增 · 强化 · 替换 · 忽略"}
     W["add / supersede<br/>可选 sources"]
     R["写代码前再 find · cite [r-id]"]
   end
