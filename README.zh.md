@@ -166,6 +166,7 @@ shelves 是 **host 配置**（顶层 `shelves:`），不是插件。见 [docs/sh
 | 命令 | 作用 |
 | --- | --- |
 | `imprint host serve [--listen ADDR]` | 前台 host（Ctrl+C）— 调试 API |
+| `imprint migrate-shards [--dry-run]` | 将旧 `imprint-*.md` 导入 `vault.db`（一次性） |
 | `imprint clear --confirm --yes` | 删除全部规则 — 不可逆 |
 | `imprint version` | 打印版本 |
 

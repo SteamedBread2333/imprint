@@ -1,17 +1,33 @@
-package main
+// Package legacy parses pre-SQLite imprint-NNNN.md markdown shards.
+package legacy
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/SteamedBread2333/imprint/pkg/imprint"
+	"github.com/SteamedBread2333/imprint/internal/vault/model"
 )
 
 const seeAlsoMark = "<!-- imprint:see-also -->"
 
-func unmarshalShard(data []byte) ([]*imprint.Record, error) {
+// ParseShardFile reads one imprint-NNNN.md shard.
+func ParseShardFile(path string) ([]*model.Record, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	recs, err := ParseShard(data)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	return recs, nil
+}
+
+// ParseShard parses one or more YAML-frontmatter rules from shard bytes.
+func ParseShard(data []byte) ([]*model.Record, error) {
 	s := strings.TrimPrefix(string(data), "\ufeff")
 	s = strings.ReplaceAll(s, "\r\n", "\n")
 	s = stripLeadingComments(s)
@@ -19,7 +35,7 @@ func unmarshalShard(data []byte) ([]*imprint.Record, error) {
 	if s == "" {
 		return nil, nil
 	}
-	var recs []*imprint.Record
+	var recs []*model.Record
 	rest := s
 	for rest != "" {
 		rec, leftover, err := consumeRecord(rest)
@@ -44,7 +60,7 @@ func stripLeadingComments(s string) string {
 	return s
 }
 
-func consumeRecord(s string) (*imprint.Record, string, error) {
+func consumeRecord(s string) (*model.Record, string, error) {
 	if !strings.HasPrefix(s, "---") {
 		return nil, "", fmt.Errorf("missing YAML frontmatter")
 	}
@@ -64,7 +80,7 @@ func consumeRecord(s string) (*imprint.Record, string, error) {
 		}
 	}
 	body, leftover := splitBody(after)
-	var r imprint.Record
+	var r model.Record
 	if err := yaml.Unmarshal([]byte(yamlPart), &r); err != nil {
 		return nil, "", fmt.Errorf("parse frontmatter: %w", err)
 	}
@@ -120,7 +136,7 @@ func stripSeeAlso(body string) string {
 	return strings.TrimSpace(body)
 }
 
-func normalizeRecord(r *imprint.Record) {
+func normalizeRecord(r *model.Record) {
 	if r.Scope == nil {
 		r.Scope = []string{}
 	}
@@ -134,12 +150,12 @@ func normalizeRecord(r *imprint.Record) {
 		r.ConflictsWith = []string{}
 	}
 	if r.Sources == nil {
-		r.Sources = []imprint.DocRef{}
+		r.Sources = []model.DocRef{}
 	}
 	if r.EvidenceLog == nil {
-		r.EvidenceLog = []imprint.Evidence{}
+		r.EvidenceLog = []model.Evidence{}
 	}
 	if r.Status == "" {
-		r.Status = imprint.StatusActive
+		r.Status = model.StatusActive
 	}
 }
