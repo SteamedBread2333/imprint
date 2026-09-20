@@ -237,6 +237,10 @@ go test ./internal/mcp/...
 
 在 Cursor：设置 → MCP → 确认 **imprint** 已连接；让智能体对你 vault 里某个 scope 执行 `find`。
 
+## Cursor 工具目录
+
+Cursor 会把 `tools/list` 快照写到项目 MCP 缓存（例如 `~/.cursor/projects/<id>/mcps/<server>/tools/*.json`）。重载服务后快照可能仍是旧的，智能体看到的 schema 会缺少 `query_local` / `sources`，即使正在运行的 `imprint-mcp` 已经接受这些字段（`go test ./internal/mcp -run Schema`）。重载后开**新的 agent 对话**，或删掉该缓存目录，让目录与 `ListTools` 一致。宿主若不剥离多余参数，调用仍可能打到服务端。
+
 ## 参见
 
 - [README.zh.md](../README.zh.md) — vault 布局、CLI、Cursor 规则

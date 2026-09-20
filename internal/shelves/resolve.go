@@ -3,6 +3,7 @@ package shelves
 import (
 	"strings"
 
+	"github.com/SteamedBread2333/imprint/internal/heading"
 	"github.com/SteamedBread2333/imprint/internal/shelves/index"
 	"github.com/SteamedBread2333/imprint/pkg/imprint"
 )
@@ -76,9 +77,9 @@ func chunkResolved(c index.Chunk, stale bool) imprint.ResolvedSource {
 	}
 }
 
-func resolveByPathHeading(st *index.Store, path, heading string) imprint.ResolvedSource {
+func resolveByPathHeading(st *index.Store, path, want string) imprint.ResolvedSource {
 	path = strings.TrimSpace(path)
-	heading = strings.TrimSpace(heading)
+	want = strings.TrimSpace(want)
 	var matches []index.Chunk
 	for _, c := range st.Chunks {
 		if c.Path != path {
@@ -87,23 +88,17 @@ func resolveByPathHeading(st *index.Store, path, heading string) imprint.Resolve
 		matches = append(matches, c)
 	}
 	if len(matches) == 0 {
-		return imprint.ResolvedSource{Path: path, Heading: heading, OutOfIndex: true}
+		return imprint.ResolvedSource{Path: path, Heading: want, OutOfIndex: true}
 	}
-	if heading == "" {
+	if want == "" {
 		return chunkResolved(matches[0], false)
 	}
-	headLower := strings.ToLower(heading)
 	for _, c := range matches {
-		if strings.EqualFold(strings.TrimSpace(c.Heading), headLower) || strings.EqualFold(c.Heading, heading) {
+		if heading.Match(c.Heading, want) {
 			return chunkResolved(c, false)
 		}
 	}
-	for _, c := range matches {
-		if strings.Contains(strings.ToLower(c.Heading), headLower) {
-			return chunkResolved(c, false)
-		}
-	}
-	return chunkResolved(matches[0], false)
+	return imprint.ResolvedSource{Path: path, Heading: want, HeadingUnresolved: true}
 }
 
 // CitedRules returns rules referenced from a chunk via [[r-…]] or [imprint:r-…].

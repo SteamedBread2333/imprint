@@ -108,7 +108,7 @@ JSON (API / MCP):
 Resolution:
 
 - `chunk` present and in index → return full chunk + snippet.
-- `path` / `heading` only → match chunk after rebuild (exact heading or nearest BM25).
+- `path` / `heading` only → match chunk after rebuild: markdown inline to plain text (link label, not target), then drop `5.2`-style numbers; exact then bidirectional substring. No match → `heading_unresolved: true` (keep the declared heading; **do not** fall back to the file’s first chunk). Path with no heading → first chunk.
 - Paths are workspace-relative, consistent with shelves `roots`.
 
 ### 4.3 Document-side rule reference syntax
@@ -308,6 +308,8 @@ See the Chinese doc §8 for full scenarios (user points at `STYLE.md`, CONTRIBUT
 | add with sources | get rule returns resolved_sources |
 | markdown with `[[r-…]]` | rebuild → get chunk.cited_rules |
 | stale chunk id | stale_chunk=true, path fallback |
+| heading `协议层…query_local` vs indexed `5.2 … \`query_local\`` | resolved chunk is that section, not H1 |
+| heading miss on an indexed file | `heading_unresolved: true`, no snippet |
 | forget rule | cited_rules gone after rebuild |
 | shelves disabled | no resolved_sources/links from index; vault sources still readable |
 

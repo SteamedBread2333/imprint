@@ -69,9 +69,9 @@ Default path: user speaks → MCP **`find(scope, query[, query_local])`** → do
 
 ## Retrieval (maintainers)
 
-- **Tokenization:** vault and shelves share `internal/textseg` ([go-ego/gse](https://github.com/go-ego/gse) `CutSearch`, zh+en); do not reintroduce CJK bigram or duplicate tokenizers. Optional `imprint.yaml` → `glossary.path` for domain terms.
+- **Tokenization:** vault and shelves share `internal/textseg` (go-ego/gse `CutSearch`, zh+en); do not reintroduce CJK bigram or duplicate tokenizers. Optional `imprint.yaml` → `glossary.path` for domain terms.
 - **Storage:** SQLite `vault.db` only; no `migrate-shards` / `imprint-*.md` shard import.
-- Design detail: `docs/storage-retrieval.md` §5.2 (`query_local` dual find).
+- `resolved_sources` headings: markdown inline to plain text; a miss is `heading_unresolved` (never another section’s excerpt).
 
 ```bash
 # CLI — vault read/write; find/get see CLI column above
@@ -114,3 +114,4 @@ imprint --json --vault ./.imprint/memory sweep
 - Infer preferences. Don't store secrets. Don't hand-edit `vault.db` (`sweep` only).
 - Call it "memory store" — it is **imprint**.
 - Ask the user to maintain imprint (commands, ids). Cite `[r-id]` only when shaping code or when they ask what's recorded.
+- Prompt templates `internal/cli/templates/body.md` and `internal/cli/templates/imprint-memory.mdc` must not point at other documents (no markdown hyperlinks and no see-this-file design pointers).

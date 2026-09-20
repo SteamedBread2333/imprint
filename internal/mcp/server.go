@@ -31,11 +31,11 @@ const serverInstructions = `imprint long-term memory (SQLite vault.db + shelves)
 
 Users never maintain the vault — speak normally; you run find/add/reinforce/supersede/forget. Never ask for imprint commands or rule ids. Review-and-prune: show/get or desk, explain, then supersede/forget/sweep after they agree. Before every write classify ADD / REINFORCE / SUPERSEDE / IGNORE; never duplicate; record only what the user said. User negates in plain speech → find then forget or supersede.
 
-Recall is async reference-only: do not block coding or file reads on find. At most ONE find per user message — prepare scope + query + query_local together (dual BM25 when local terms differ), then reuse that result for write classification; never chain multiple finds. Implementation work: read code on the critical path; find only核对 stored policy. Answer from rule claims first; documents are supplemental. add: English claim; text = user verbatim; query_local optional (vault merges CJK evidence tokens). Omit confidence on add (0.6); never 0.9 on add. sources only when doc excerpt substantively supports the rule—not topical overlap. Weak docs/co_search links are filtered from find results.
+Recall is async reference-only: do not block coding or file reads on find. At most ONE find per user message — prepare scope + query + query_local together (dual BM25 when local terms differ), then reuse that result for write classification; never chain multiple finds. Implementation work: read code on the critical path; find only核对 stored policy. Answer from rule claims first; documents are supplemental. add: English claim; text = user verbatim; query_local optional LLM local terms not verbatim (vault merges CJK evidence tokens). Omit confidence on add (0.6); 0.85 on correction; never 0.9 on add. sources only when doc excerpt substantively supports the rule—not topical overlap. Weak docs/co_search links are filtered from find results. heading_unresolved on resolved_sources means do not use another section's excerpt.
 
 Persistent links: Rule↔rule in vault — supersedes, related, conflicts_with; referenced_by on get. Rule→doc — sources on add/supersede [{path, heading?, chunk?}] in vault → resolved_sources on get/find. Doc→rule — referenced_rules (vault reverse scan) and optional cited_rules from markdown on get chunk id.
 
-When find hits a matching document, same-turn add/supersede with sources. Results are JSON.`
+When find hits a matching document, same-turn add/supersede with sources. IGNORE one-off tasks. Results are JSON.`
 
 // Run starts the MCP server on stdio using cfg for vault resolution.
 func Run(ctx context.Context, cfg Config) error {

@@ -10,14 +10,15 @@ type DocRef = model.DocRef
 
 // ResolvedSource is a DocRef resolved against the shelves index for agent recall.
 type ResolvedSource struct {
-	Path       string `json:"path"`
-	Heading    string `json:"heading,omitempty"`
-	ChunkID    string `json:"chunk_id,omitempty"`
-	Snippet    string `json:"snippet,omitempty"`
-	LineStart  int    `json:"line_start,omitempty"`
-	LineEnd    int    `json:"line_end,omitempty"`
-	StaleChunk bool   `json:"stale_chunk,omitempty"`
-	OutOfIndex bool   `json:"out_of_index,omitempty"`
+	Path              string `json:"path"`
+	Heading           string `json:"heading,omitempty"`
+	ChunkID           string `json:"chunk_id,omitempty"`
+	Snippet           string `json:"snippet,omitempty"`
+	LineStart         int    `json:"line_start,omitempty"`
+	LineEnd           int    `json:"line_end,omitempty"`
+	StaleChunk        bool   `json:"stale_chunk,omitempty"`
+	OutOfIndex        bool   `json:"out_of_index,omitempty"`
+	HeadingUnresolved bool   `json:"heading_unresolved,omitempty"`
 }
 
 // FindLink connects a rule and a document chunk in find results.

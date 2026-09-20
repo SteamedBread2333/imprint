@@ -96,6 +96,10 @@ func TestRulesReferencingDoc(t *testing.T) {
 	if err != nil || len(byChunk) != 1 {
 		t.Fatalf("byChunk = %+v err=%v", byChunk, err)
 	}
+	numbered, err := st.RulesReferencingDoc("docs/style.md", "1. Naming", "")
+	if err != nil || len(numbered) != 1 {
+		t.Fatalf("numbered heading = %+v err=%v", numbered, err)
+	}
 }
 
 func TestQueryLocalRoundTrip(t *testing.T) {

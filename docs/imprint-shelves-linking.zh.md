@@ -106,7 +106,7 @@ JSON 形态（API / MCP）：
 解析规则：
 
 - 有 `chunk` 且在 index 中存在 → 返回该 chunk 全文 + snippet。
-- 仅有 `path` / `heading` → rebuild 后按 path 匹配 chunk（heading 精确或 BM25 最近）。
+- 仅有 `path` / `heading` → rebuild 后按 path 匹配 chunk：markdown inline 转纯文本（只保留链接可见文字，不跟随目标），再去掉 `5.2` 编号，精确 / 双向子串。仍无匹配 → `heading_unresolved: true`（保留声明 heading，**不**回退文首）。仅有 path、无 heading → 该文件第一个 chunk。
 - 路径必须相对于 workspace root，与 shelves `roots` 下路径一致。
 
 ### 4.3 文档侧 rule 引用语法
@@ -428,6 +428,8 @@ rebuild 后 `get <chunk>` 的 `cited_rules` 包含该规则；desk 统一图显�
 | add 带 sources | get rule 返回 resolved_sources snippet |
 | markdown 含 `[[r-…]]` | rebuild 后 get chunk.cited_rules 含该 id |
 | chunk id stale | resolved_sources.stale_chunk=true，path 降级 |
+| heading `协议层…query_local` vs 索引 `5.2 … \`query_local\`` | 解析到该节，不是文首 |
+| 文件在索引中但标题对不上 | `heading_unresolved: true`，无 snippet |
 | forget 规则 | cited_rules 下次 rebuild 消失；sources 边消失 |
 | shelves disabled | get/find 无 resolved_sources / links；vault sources 仍可读 |
 | 无 query find | 仅 rules；可选带 resolved_sources |

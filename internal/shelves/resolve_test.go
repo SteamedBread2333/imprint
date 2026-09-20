@@ -28,6 +28,56 @@ func TestResolveSources(t *testing.T) {
 	}
 }
 
+func TestResolveSourcesNormalizesNumberedHeading(t *testing.T) {
+	st := &index.Store{
+		Chunks: []index.Chunk{
+			{ID: "h1", Path: "docs/storage-retrieval.zh.md", Heading: "智能体记忆系统：数据存储与检索技术说明", Text: "intro", LineStart: 1, LineEnd: 4},
+			{ID: "s52", Path: "docs/storage-retrieval.zh.md", Heading: "5.2 协议层合并检索与 `query_local`", Text: "dual-path BM25", LineStart: 257, LineEnd: 301},
+		},
+	}
+	res := ResolveSources(st, []imprint.DocRef{
+		{Path: "docs/storage-retrieval.zh.md", Heading: "协议层合并检索与 query_local"},
+	})
+	if len(res) != 1 || res[0].ChunkID != "s52" || res[0].HeadingUnresolved {
+		t.Fatalf("want §5.2 chunk, got %+v", res)
+	}
+}
+
+func TestResolveSourcesHeadingMissDoesNotFallBackToFirstChunk(t *testing.T) {
+	st := &index.Store{
+		Chunks: []index.Chunk{
+			{ID: "h1", Path: "docs/correction.zh.md", Heading: "记忆写入", Text: "intro", LineStart: 1, LineEnd: 6},
+			{ID: "h2", Path: "docs/correction.zh.md", Heading: "四种写入分类", Text: "add reinforce", LineStart: 61, LineEnd: 68},
+		},
+	}
+	res := ResolveSources(st, []imprint.DocRef{
+		{Path: "docs/correction.zh.md", Heading: "Correction loop"},
+	})
+	if len(res) != 1 {
+		t.Fatalf("resolved = %+v", res)
+	}
+	got := res[0]
+	if !got.HeadingUnresolved || got.ChunkID != "" || got.Snippet != "" {
+		t.Fatalf("want unresolved without snippet, got %+v", got)
+	}
+	if got.Heading != "Correction loop" || got.OutOfIndex {
+		t.Fatalf("preserve requested heading, not out_of_index: %+v", got)
+	}
+}
+
+func TestResolveSourcesPathOnlyUsesFirstChunk(t *testing.T) {
+	st := &index.Store{
+		Chunks: []index.Chunk{
+			{ID: "h1", Path: "docs/mcp.zh.md", Heading: "imprint MCP 服务", Text: "intro", LineStart: 1, LineEnd: 7},
+			{ID: "h2", Path: "docs/mcp.zh.md", Heading: "MCP vs CLI", Text: "table", LineStart: 8, LineEnd: 16},
+		},
+	}
+	res := ResolveSources(st, []imprint.DocRef{{Path: "docs/mcp.zh.md"}})
+	if len(res) != 1 || res[0].ChunkID != "h1" {
+		t.Fatalf("path-only should use first chunk, got %+v", res)
+	}
+}
+
 func TestBuildFindLinksVaultReverse(t *testing.T) {
 	dir := t.TempDir()
 	v, err := imprint.Open(dir)

@@ -225,6 +225,10 @@ go test ./internal/mcp/...
 
 In Cursor: Settings → MCP → confirm **imprint** is connected; ask the agent to `find` with a scope tag you use in the vault.
 
+## Cursor tool catalog
+
+Cursor snapshots `tools/list` under the project MCP cache (e.g. `~/.cursor/projects/<id>/mcps/<server>/tools/*.json`). Reloading the server can keep an old snapshot, so the agent-facing catalog may omit `query_local` / `sources` even when the running `imprint-mcp` accepts them (`go test ./internal/mcp -run Schema`). Start a **new agent chat** after reload, or delete that cache folder, so `ListTools` is what the agent sees. Extra arguments still reach the server if the host does not strip them.
+
 ## See also
 
 - [README.md](../README.md) — vault layout, CLI reference, Cursor rule via `imprint init`

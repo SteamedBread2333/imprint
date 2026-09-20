@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/SteamedBread2333/imprint/internal/heading"
 	"github.com/SteamedBread2333/imprint/internal/vault/model"
 
 	_ "modernc.org/sqlite"
@@ -732,8 +733,7 @@ func sourceHeadingMatch(srcHeading, queryHeading string) bool {
 	if queryHeading == "" {
 		return false
 	}
-	return strings.EqualFold(srcHeading, queryHeading) ||
-		strings.Contains(strings.ToLower(queryHeading), strings.ToLower(srcHeading))
+	return heading.Match(srcHeading, queryHeading)
 }
 
 func filepathSlash(p string) string {
