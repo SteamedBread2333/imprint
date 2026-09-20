@@ -24,6 +24,7 @@ type UnifiedNode struct {
 	Related            []string           `json:"related,omitempty"`
 	ConflictsWith      []string           `json:"conflicts_with,omitempty"`
 	EvidenceLog        []imprint.Evidence `json:"evidence_log,omitempty"`
+	QueryLocal         string             `json:"query_local,omitempty"`
 	LastTouchedAt      time.Time          `json:"last_touched_at,omitempty"`
 	ReferencedBy       []imprint.Backlink `json:"referenced_by,omitempty"`
 }
@@ -104,6 +105,7 @@ func BuildUnifiedGraph(v *imprint.Vault, st *index.Store, includeArchived bool) 
 			Related:            n.Related,
 			ConflictsWith:      n.ConflictsWith,
 			EvidenceLog:        n.EvidenceLog,
+			QueryLocal:         n.QueryLocal,
 			LastTouchedAt:      n.LastTouchedAt,
 			ReferencedBy:       n.ReferencedBy,
 		})

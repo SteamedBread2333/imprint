@@ -302,6 +302,21 @@ func TestResolveDir(t *testing.T) {
 	}
 }
 
+func TestGraphQueryLocal(t *testing.T) {
+	dir := t.TempDir()
+	v := frozen(t, dir, day(0))
+	if _, err := v.AddRecord("Documentation framing", []string{"docs"}, "text", 0.85, nil, nil, nil, nil, "否定式堆砌"); err != nil {
+		t.Fatal(err)
+	}
+	g, err := v.Graph(false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(g.Nodes) != 1 || g.Nodes[0].QueryLocal != "否定式堆砌" {
+		t.Fatalf("graph node = %+v", g.Nodes)
+	}
+}
+
 func TestGraph(t *testing.T) {
 	dir := t.TempDir()
 	v := frozen(t, dir, day(0))
