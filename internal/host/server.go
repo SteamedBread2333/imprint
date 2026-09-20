@@ -17,6 +17,12 @@ import (
 	"github.com/SteamedBread2333/imprint/pkg/imprint"
 )
 
+// DefaultHandlerTimeout is the default time a host HTTP handler may run
+// before the request is aborted. Unbounded hangs are not allowed.
+const DefaultHandlerTimeout = 30 * time.Second
+
+const readHeaderTimeout = 5 * time.Second
+
 // Config holds vault read-only HTTP server settings.
 type Config struct {
 	Listen  string
@@ -206,11 +212,7 @@ func Serve(ctx context.Context, cfg Config) error {
 	})
 	registerDocsRoutes(mux, cfg.Vault, cfg.Shelves)
 
-	srv := &http.Server{
-		Addr:              listen,
-		Handler:           mux,
-		ReadHeaderTimeout: 5 * time.Second,
-	}
+	srv := newHTTPServer(listen, mux, 0)
 	ln, err := net.Listen("tcp", listen)
 	if err != nil {
 		return err
@@ -222,6 +224,27 @@ func Serve(ctx context.Context, cfg Config) error {
 		_ = srv.Shutdown(shCtx)
 	}()
 	return srv.Serve(ln)
+}
+
+func wrapHandler(h http.Handler, timeout time.Duration) http.Handler {
+	if timeout <= 0 {
+		timeout = DefaultHandlerTimeout
+	}
+	return http.TimeoutHandler(h, timeout, `{"error":"timeout"}`)
+}
+
+func newHTTPServer(addr string, h http.Handler, handlerTimeout time.Duration) *http.Server {
+	d := handlerTimeout
+	if d <= 0 {
+		d = DefaultHandlerTimeout
+	}
+	return &http.Server{
+		Addr:              addr,
+		Handler:           wrapHandler(h, d),
+		ReadHeaderTimeout: readHeaderTimeout,
+		// Slightly longer than the handler timeout so TimeoutHandler can write 503.
+		WriteTimeout: d + time.Second,
+	}
 }
 
 func registerDocsRoutes(mux *http.ServeMux, vault *imprint.Vault, svc *shelves.Service) {

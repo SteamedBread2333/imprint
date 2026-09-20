@@ -60,8 +60,10 @@ Default path: user speaks → MCP **`find(scope, query[, query_local])`** → do
 
 - `find` scope tags = **AND**; optional BM25 **`query`** and **`query_local`** (dual pass, merge by rule id max score; not embeddings).
 - **`claim`**: English imperative (for agents to read and follow); user verbatim → **`text`**; local-language search terms → **`query_local`**.
-- **`query_local`**: LLM-distilled local-language search terms (**not** user verbatim; verbatim goes in `evidence`); optional on `add` / `supersede` / `reinforce` for future find hits.
-- `add` after ADD only: `claim`, `scope`, `text` required; optional **`sources`** when user points at docs or MCP find hits a matching document; optional **`query_local`**.
+- **`query_local`**: LLM local-language search terms (**not** verbatim); on write, vault **merges gse tokens from CJK evidence** so terms like `30秒` are not dropped.
+- **`confidence` on add**: omit → **0.6**; **0.85** when user corrects; **never 0.9 on add** (tier 0.9 via `reinforce` over time).
+- **`sources`**: only when a document **excerpt substantively supports** the rule—not topical overlap (same section title without matching content).
+- `add` after ADD only: `claim`, `scope`, `text` required; optional **`sources`** / **`query_local`** as above.
 - `reinforce` +0.1 (cap 0.95); optional **`query_local`** update; `supersede` inherits **`sources`** and **`query_local`** unless overridden; `forget` strips inbound links.
 - `list`: `--scope`, `--query`, `--min-confidence`, `--since`.
 
@@ -86,7 +88,7 @@ imprint --json --vault ./.imprint/memory sweep
 
 ## Must do
 
-1. Before coding or style answers → **MCP `find`** with **narrow scope** + **`query`** (shelves on); when local-language terms differ from `query`, also pass **`query_local`**. Use **`resolved_sources`**, **`documents`**, **`links`**. Cite `[r-id]` when a rule shapes behavior; cite doc paths when excerpts apply. CLI fallback = vault rules only.
+1. Before coding or style answers → **MCP `find`** with **narrow scope** + **`query`** (shelves on); when local-language terms differ from `query`, also pass **`query_local`**. **Answer from rule claims first**; documents are supplemental (weak hits filtered). Use **`resolved_sources`**, **`documents`**, **`links`**. Cite `[r-id]` when a rule shapes behavior. CLI fallback = vault rules only.
 2. **Same-turn write:** durable preference → MCP `find` → classify ADD / REINFORCE / SUPERSEDE / IGNORE → **write in this turn**. Document hit → pass **`sources`** on `add` / `supersede`; distilled local search terms → **`query_local`** on `add` / `supersede` / `reinforce`.
 3. **IGNORE** one-off tasks and session-only steps. **ADD / REINFORCE / SUPERSEDE** only for cross-session policy in the user's words.
 4. Analyse the requirement before modifying code.

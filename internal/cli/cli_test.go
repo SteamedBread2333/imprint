@@ -232,7 +232,7 @@ func TestCLIInitWritesCursorRule(t *testing.T) {
 func TestCLIListFiltersJSON(t *testing.T) {
 	dir := t.TempDir()
 	app, out, errw := testApp(t, dir)
-	if code := app.Run([]string{"--json", "--vault", dir, "add", "Use gofmt", "--scope", "go,style", "--text", "gofmt", "--confidence", "0.9"}); code != 0 {
+	if code := app.Run([]string{"--json", "--vault", dir, "add", "Use gofmt", "--scope", "go,style", "--text", "gofmt", "--confidence", "0.85"}); code != 0 {
 		t.Fatalf("add %d %s", code, errw)
 	}
 	out.Reset()

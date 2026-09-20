@@ -36,7 +36,7 @@ func (v *Vault) ReinforceQueryLocal(id, evidence, queryLocal string) (*Reinforce
 	if rec.Status == StatusDormant {
 		rec.Status = StatusActive
 	}
-	if ql := strings.TrimSpace(queryLocal); ql != "" {
+	if ql := MergeQueryLocalForStore(queryLocal, evidence); ql != "" {
 		rec.QueryLocal = ql
 	}
 	rec.EvidenceLog = append(rec.EvidenceLog, Evidence{
@@ -107,7 +107,7 @@ func (v *Vault) SupersedeWithSources(oldID, newClaim string, newScope []string, 
 		Supersedes:         []string{old.ID},
 		Related:            []string{old.ID},
 		Sources:            useSources,
-		QueryLocal:         useQueryLocal,
+		QueryLocal:         MergeQueryLocalForStore(useQueryLocal, text),
 		EvidenceLog:        []Evidence{{At: now, Kind: EvidenceOriginal, Text: text}},
 		Path:               old.Path,
 	}

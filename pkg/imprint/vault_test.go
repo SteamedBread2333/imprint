@@ -162,7 +162,7 @@ func TestFindSkipsLowConfidenceAndSuperseded(t *testing.T) {
 func TestReinforceCapsAndCount(t *testing.T) {
 	dir := t.TempDir()
 	v := frozen(t, dir, day(0))
-	added, err := v.Add("Always write tests", []string{"go", "testing"}, "always tests", 0.9)
+	added, err := v.Add("Always write tests", []string{"go", "testing"}, "always tests", 0.85)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -390,7 +390,7 @@ func TestFindCJKAndIDF(t *testing.T) {
 func TestListFilter(t *testing.T) {
 	dir := t.TempDir()
 	v := frozen(t, dir, day(0))
-	if _, err := v.Add("Use gofmt", []string{"go", "style"}, "gofmt", 0.9); err != nil {
+	if _, err := v.Add("Use gofmt", []string{"go", "style"}, "gofmt", 0.85); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := v.Add("Python function names must always be snake_case", []string{"python", "naming"}, "snake", 0.6); err != nil {

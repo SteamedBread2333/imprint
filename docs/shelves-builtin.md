@@ -111,6 +111,8 @@ After changing `roots` or `enabled`, run `imprint up` (or restart `host serve`).
 
 Default: `http://127.0.0.1:9470`
 
+Handlers time out after **30 seconds** (`503` + `{"error":"timeout"}`) so requests cannot hang indefinitely.
+
 | Method | Path | Notes |
 | --- | --- | --- |
 | GET | `/health` | Includes `shelves: { enabled, indexed, chunk_count, … }` |

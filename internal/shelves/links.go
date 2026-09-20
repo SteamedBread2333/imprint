@@ -58,6 +58,14 @@ func BuildFindLinks(v *imprint.Vault, st *index.Store, rules []imprint.EnrichedF
 		}
 	}
 
+	topDoc := 0.0
+	for _, s := range docScore {
+		if s > topDoc {
+			topDoc = s
+		}
+	}
+	coMin := topDoc * FindDocMinRelativeScore
+
 	ruleIDs := map[string]float64{}
 	for _, r := range rules {
 		ruleIDs[r.ID] = r.Score
@@ -68,6 +76,9 @@ func BuildFindLinks(v *imprint.Vault, st *index.Store, rules []imprint.EnrichedF
 				continue
 			}
 			if _, ok := seen[ruleID+"\x00"+chunkID+"\x00cited_by"]; ok {
+				continue
+			}
+			if topDoc > 0 && dScore < coMin {
 				continue
 			}
 			co := (rScore + dScore) / 2

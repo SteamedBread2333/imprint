@@ -3,6 +3,8 @@ package imprint
 import (
 	"strings"
 	"unicode"
+
+	"github.com/SteamedBread2333/imprint/internal/textseg"
 )
 
 // HasCJK reports whether s contains Han or kana runes.
@@ -25,4 +27,38 @@ func EffectiveQueryLocal(query, queryLocal string) string {
 		return q
 	}
 	return ""
+}
+
+// MergeQueryLocalForStore combines agent-provided query_local with gse tokens from CJK evidence
+// so numeric and domain terms from user speech are not dropped on write.
+func MergeQueryLocalForStore(agentQL, evidence string) string {
+	agentQL = strings.TrimSpace(agentQL)
+	evidence = strings.TrimSpace(evidence)
+	if evidence == "" || !HasCJK(evidence) {
+		return agentQL
+	}
+	evidenceToks := textseg.Tokenize(evidence)
+	if len(evidenceToks) == 0 {
+		return agentQL
+	}
+	if agentQL == "" {
+		return strings.Join(evidenceToks, " ")
+	}
+	seen := map[string]struct{}{}
+	var parts []string
+	for _, t := range textseg.Tokenize(agentQL) {
+		if _, ok := seen[t]; ok {
+			continue
+		}
+		seen[t] = struct{}{}
+		parts = append(parts, t)
+	}
+	for _, t := range evidenceToks {
+		if _, ok := seen[t]; ok {
+			continue
+		}
+		seen[t] = struct{}{}
+		parts = append(parts, t)
+	}
+	return strings.Join(parts, " ")
 }

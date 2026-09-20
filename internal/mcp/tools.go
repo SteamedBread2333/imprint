@@ -14,11 +14,11 @@ func registerTools(server *sdkmcp.Server, v *imprint.Vault, shelvesSvc *shelves.
 	s := &vaultTools{v: v, shelves: shelvesSvc}
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
 		Name: "find",
-		Description: "Search active rules (scope tags AND-filtered; optional BM25 query + optional query_local). query and query_local each run vault+shelves BM25 when shelves on; hits merge by id (max score). query_local = LLM local-language search terms (persisted on rules via add/supersede/reinforce). Shelves+MCP: { rules (resolved_sources), documents, links }. links kinds: sources, cited_by, co_search. CLI find omits documents/links/resolution.",
+		Description: "Search active rules (scope AND-filtered; optional query + query_local dual BM25, merge by id max score). Shelves+MCP returns { rules, documents, links }. Weak document hits and co_search links below 75% of top doc score are dropped. Prefer rule claim over documents when answering. links: sources (persistent), cited_by, co_search (assist only).",
 	}, s.find)
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
 		Name:        "add",
-		Description: "Add after ADD classification. Required: English claim (imperative policy), scope, text (user verbatim). Optional query_local (LLM local-language search terms, not verbatim), sources [{path, heading?, chunk?}] for rule→doc links in vault (default: no project markdown edits).",
+		Description: "Add after ADD classification. Required: English claim (imperative policy), scope, text (user verbatim). Optional query_local (local-language search terms; vault merges gse tokens from CJK text). Optional sources only when a document excerpt substantively states the policy—not topical overlap alone. Omit confidence (0.6 default); do not use 0.9 on add—tier 0.9 requires reinforce.",
 	}, s.add)
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
 		Name:        "reinforce",
@@ -118,9 +118,9 @@ type addArgs struct {
 	Claim      string      `json:"claim" jsonschema:"English imperative claim for agents; user wording in text, local search terms in query_local"`
 	Scope      string      `json:"scope" jsonschema:"comma-separated scope tags"`
 	Text       string      `json:"text" jsonschema:"user's original words"`
-	Confidence float64     `json:"confidence,omitempty" jsonschema:"starting confidence; 0 uses default 0.6"`
-	QueryLocal string      `json:"query_local,omitempty" jsonschema:"optional LLM local-language search terms for future find"`
-	Sources    []docRefArg `json:"sources,omitempty" jsonschema:"optional workspace document sources"`
+	Confidence float64     `json:"confidence,omitempty" jsonschema:"omit for 0.6; 0.85 only when user corrects; never 0.9 on add"`
+	QueryLocal string      `json:"query_local,omitempty" jsonschema:"optional local-language search terms; merged with tokens from CJK text on write"`
+	Sources    []docRefArg `json:"sources,omitempty" jsonschema:"only when doc excerpt supports the rule—not same-topic sections without matching content"`
 }
 
 func (s *vaultTools) add(_ context.Context, _ *sdkmcp.CallToolRequest, args addArgs) (*sdkmcp.CallToolResult, any, error) {

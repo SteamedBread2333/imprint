@@ -67,6 +67,7 @@ func EnrichFind(v *imprint.Vault, st *index.Store, scope []string, query, queryL
 	enriched := shelves.EnrichFindHits(st, hits, sourcesByID)
 	localQ := imprint.EffectiveQueryLocal(query, queryLocal)
 	docs := index.SearchStoreMerged(st, query, localQ, topK)
+	docs = shelves.FilterFindDocuments(docs, shelves.FindDocMinRelativeScore)
 	links := shelves.BuildFindLinks(v, st, enriched, docs)
 	return &FindResult{
 		Rules:     enriched,

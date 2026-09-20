@@ -10,13 +10,15 @@ Shelves **在配置的目录里建本地索引**，写代码前一次 `find` 同
 
 项目 markdown 按需读取；grep/读文件缺少统一排序、段落级 excerpt、与 vault 同一次召回、可持久关联。
 
-| | 让 LLM 自己翻文件 | shelves |
-| --- | --- | --- |
-| **与 imprint 协同** | 需多次工具调用 | `find` 一次返回 rules + documents + links |
-| **结果形态** | 整文件或零散行 | 按标题切 **chunk**，带 path、heading、行号、snippet |
-| **排序** | 无统一 BM25 | 与 vault 规则同一 query 下可对照 |
-| **持久关联** | 无 | vault `sources`（规则→文档）；可选文档内 `[[r-…]]` |
-| **成本** | 多读文件、耗 token | 本地 SQLite 索引，无 embedding API |
+
+|                  | 让 LLM 自己翻文件  | shelves                                  |
+| ---------------- | ------------ | ---------------------------------------- |
+| **与 imprint 协同** | 需多次工具调用      | `find` 一次返回 rules + documents + links    |
+| **结果形态**         | 整文件或零散行      | 按标题切 **chunk**，带 path、heading、行号、snippet |
+| **排序**           | 无统一 BM25     | 与 vault 规则同一 query 下可对照                  |
+| **持久关联**         | 无            | vault `sources`（规则→文档）；可选文档内 `[[r-…]]`   |
+| **成本**           | 多读文件、耗 token | 本地 SQLite 索引，无 embedding API             |
+
 
 Shelves 用 **本地 BM25** 索引分块 markdown。优势在于 **集成、结构化、本地、与 imprint 同流程**。
 
@@ -42,7 +44,11 @@ flowchart LR
   V --> RR
 ```
 
+
+
 ---
+
+
 
 ## 配置
 
@@ -62,15 +68,19 @@ shelves:
     # stateDir: .imprint/.shelves/.cache   # 可选
 ```
 
-| 字段 | 含义 |
-| --- | --- |
-| `enabled` | `true` 时扫描 `roots` 并提供搜索；`false` 时停止索引与搜索，缓存只读保留 |
-| `config.roots` | **要纳入索引的目录**（`.md`、`.mdc`、`.txt`），路径相对仓库根 — **shelves 搜什么** |
-| `config.stateDir` | SQLite 缓存目录。默认 `.imprint/.shelves/.cache` |
+
+| 字段                | 含义                                                          |
+| ----------------- | ----------------------------------------------------------- |
+| `enabled`         | `true` 时扫描 `roots` 并提供搜索；`false` 时停止索引与搜索，缓存只读保留            |
+| `config.roots`    | **要纳入索引的目录**（`.md`、`.mdc`、`.txt`），路径相对仓库根 — **shelves 搜什么** |
+| `config.stateDir` | SQLite 缓存目录。默认 `.imprint/.shelves/.cache`                   |
+
+
+
 
 ### 配置 `roots`
 
-- **列入 `roots` 的目录**：rebuild 后进入 BM25；`find` 带 query 时可与 vault imprint 同屏返回。
+- **列入** `roots` **的目录**：rebuild 后进入 BM25；`find` 带 query 时可与 vault imprint 同屏返回。
 - **未列入的路径**：不进 shelves 召回（Agent 仍可用读文件工具单独打开）。
 - **用途**：控制索引范围、加快 rebuild、明确写代码前对照哪些文档（如 `docs/`、`.cursor/rules/`）。
 
@@ -78,18 +88,22 @@ shelves:
 
 ---
 
+
+
 ## 与 vault 关联（sources 默认）
 
 关联分 **持久** 与 **临时** 两层：
 
-| 方向 | 持久？ | 写在哪 | 要不要改项目 markdown |
-| --- | --- | --- | --- |
-| imprint → 文档 | **是** | vault `sources` | **否** |
-| 文档 → imprint（反查） | **是** | **同上** — 读 chunk 时扫 vault `sources` 得 `referenced_rules` | **否** |
-| 文档正文 @ imprint | 可选 | `[[r-…]]` → shelves `rule_refs` → `cited_rules` | 是（**可选**，非默认） |
-| 一次 find 内的关系 | **否** | 响应 `links` | **否** |
 
-**持久双向关联的默认做法：只写 vault `sources` 一次。**
+| 方向               | 持久？   | 写在哪                                                      | 要不要改项目 markdown |
+| ---------------- | ----- | -------------------------------------------------------- | --------------- |
+| imprint → 文档     | **是** | vault `sources`                                          | **否**           |
+| 文档 → imprint（反查） | **是** | **同上** — 读 chunk 时扫 vault `sources` 得 `referenced_rules` | **否**           |
+| 文档正文 @ imprint   | 可选    | `[[r-…]]` → shelves `rule_refs` → `cited_rules`          | 是（**可选**，非默认）   |
+| 一次 find 内的关系     | **否** | 响应 `links`                                               | **否**           |
+
+
+**持久双向关联的默认做法：只写 vault** `sources` **一次。**
 
 - 智能体 **新增** 时：`sources: [{ path: "docs/foo.md", heading: "..." }]`
 - `get r-…` → `resolved_sources`（imprint → 文档）
@@ -98,6 +112,8 @@ shelves:
 `[[r-…]]` 供维护者在 markdown 里显式 @ imprint 时使用；与 `referenced_rules` 可并存，可选。
 
 ---
+
+
 
 ## 禁用时
 
@@ -110,21 +126,29 @@ shelves:
 
 ---
 
+
+
 ## Host API
 
 默认：`http://127.0.0.1:9470`
 
-| 方法 | 路径 | 说明 |
-| --- | --- | --- |
-| GET | `/health` | 含 `shelves: { enabled, indexed, chunk_count, … }` |
-| GET | `/find` | 与 MCP 类似；带 query 且 shelves 开时返回 rules + documents + links |
-| POST | `/docs/search` | `{ query, top_k? }` → `{ hits: [...] }` |
-| GET | `/docs/chunks/{id}` | chunk 全文 + `referenced_rules` + 可选 `cited_rules` |
-| GET | `/docs/graph` | 文档结构图 |
-| GET | `/docs/stats` | 索引元数据 |
-| POST | `/docs/rebuild` | enabled 时强制 rebuild |
+Handler 默认 **30 秒**超时（`503` + `{"error":"timeout"}`），请求不会无限 hang。
+
+
+| 方法   | 路径                  | 说明                                                        |
+| ---- | ------------------- | --------------------------------------------------------- |
+| GET  | `/health`           | 含 `shelves: { enabled, indexed, chunk_count, … }`         |
+| GET  | `/find`             | 与 MCP 类似；带 query 且 shelves 开时返回 rules + documents + links |
+| POST | `/docs/search`      | `{ query, top_k? }` → `{ hits: [...] }`                   |
+| GET  | `/docs/chunks/{id}` | chunk 全文 + `referenced_rules` + 可选 `cited_rules`          |
+| GET  | `/docs/graph`       | 文档结构图                                                     |
+| GET  | `/docs/stats`       | 索引元数据                                                     |
+| POST | `/docs/rebuild`     | enabled 时强制 rebuild                                       |
+
 
 ---
+
+
 
 ## MCP
 
@@ -160,22 +184,29 @@ shelves:
 ```
 
 - **无 query** 或 shelves 禁用：响应为 **规则数组**（或带 `resolved_sources` 的 enriched hits，若规则已有 `sources`）。
-- **`get`**：`r-…` → vault 条目 + `resolved_sources`；16 位 hex chunk id → 文档 chunk + **`referenced_rules`**（+ `cited_rules` 若正文含 `[[r-…]]`）。
+- `get`：`r-…` → vault 条目 + `resolved_sources`；16 位 hex chunk id → 文档 chunk + `referenced_rules`（+ `cited_rules` 若正文含 `[[r-…]]`）。
 
 Agent 约定见 `imprint init` 写入的编辑器规则与 [correction.zh.md](correction.zh.md)。
 
 ---
 
+
+
 ## Desk UI
 
-desk 将 `/api/docs/*`、`/api/graph/unified` 代理到 host。三个独立路由 — **`/`**（规则图）、 **`/docs`**（shelves 搜索）、 **`/unified`**（规则 + 文件/chunk + `sources` / `cited_by` 边）— **各自维护 URL 查询参数**，切换标签不会把筛选条件带过去。规则详情展示 `resolved_sources`；文档 chunk 展示 `referenced_rules` / `cited_rules`。**Agent 主路径仍是 MCP `find` / `get`**。
+desk 将 `/api/docs/*`、`/api/graph/unified` 代理到 host。三个独立路由 — `/`（规则图）、 `/docs`（shelves 搜索）、 `/unified`（规则 + 文件/chunk + `sources` / `cited_by` 边）— **各自维护 URL 查询参数**，切换标签不会把筛选条件带过去。规则详情展示 `resolved_sources`；文档 chunk 展示 `referenced_rules` / `cited_rules`。**Agent 主路径仍是 MCP** `find` **/** `get`。
 
 ---
 
+
+
 ## 相关文档
 
-| 文档 | 内容 |
-| --- | --- |
-| [imprint-shelves-linking.zh.md](imprint-shelves-linking.zh.md) | 关联模型、存储位置、Agent 工作流 |
-| [mcp.zh.md](mcp.zh.md) | MCP 工具与挂载 |
-| [correction.zh.md](correction.zh.md) | 新增 / 强化 / 替换 与 `sources` 时机 |
+
+| 文档                                                             | 内容                          |
+| -------------------------------------------------------------- | --------------------------- |
+| [imprint-shelves-linking.zh.md](imprint-shelves-linking.zh.md) | 关联模型、存储位置、Agent 工作流         |
+| [mcp.zh.md](mcp.zh.md)                                         | MCP 工具与挂载                   |
+| [correction.zh.md](correction.zh.md)                           | 新增 / 强化 / 替换 与 `sources` 时机 |
+
+

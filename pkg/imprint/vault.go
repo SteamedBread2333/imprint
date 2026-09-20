@@ -75,6 +75,15 @@ func defaultConfidence(c float64) float64 {
 	return clampConfidence(c)
 }
 
+// initialAddConfidence caps first-write confidence: tier 0.9 ("always") is reached via reinforce, not add.
+func initialAddConfidence(c float64) float64 {
+	c = defaultConfidence(c)
+	if c >= 0.9 {
+		return DefaultConfidence
+	}
+	return c
+}
+
 func cleanScope(scope []string) []string {
 	seen := map[string]struct{}{}
 	var out []string
@@ -126,7 +135,7 @@ func (v *Vault) AddRecord(claim string, scope []string, text string, confidence 
 		ID:                 id,
 		Claim:              claim,
 		Scope:              scope,
-		Confidence:         defaultConfidence(confidence),
+		Confidence:         initialAddConfidence(confidence),
 		Status:             StatusActive,
 		ReinforcementCount: 0,
 		CreatedAt:          now,
@@ -136,7 +145,7 @@ func (v *Vault) AddRecord(claim string, scope []string, text string, confidence 
 		Related:            cleanScope(related),
 		ConflictsWith:      cleanScope(conflicts),
 		Sources:            cleanDocRefs(sources),
-		QueryLocal:         strings.TrimSpace(queryLocal),
+		QueryLocal:         MergeQueryLocalForStore(queryLocal, text),
 		EvidenceLog: []Evidence{{
 			At:   now,
 			Kind: EvidenceOriginal,
