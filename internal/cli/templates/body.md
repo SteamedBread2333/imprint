@@ -9,7 +9,7 @@ This project's long-term memory is **imprint**, not chat history. **Nothing sync
 | 能力 | MCP（shelves 开） | CLI |
 | --- | --- | --- |
 | 写规则 + 挂文档 | `add` / `supersede` + `sources` | 同左（写 vault） |
-| 写代码前召回 | `find(scope, query)` → rules + **documents** + **links** | `find` → vault rules only |
+| 写代码前召回 | `find(scope, query[, query_local])` → rules + **documents** + **links** | `find` → vault rules only（`--query-local` 双路 merge） |
 | 查规则依据 | `get r-…` → **resolved_sources** | `get r-…` → vault only |
 | 查文档被谁引用 | `get <chunk-id>` → **referenced_rules** + **cited_rules** | 不支持 chunk `get` |
 | 规则关系图 | desk `/` | host `GET /graph` |
@@ -42,7 +42,7 @@ Mount: `docs/mcp.md`, `docs/examples/cursor-mcp.json`. Write loop: `docs/correct
 | **`referenced_rules`** | doc → rule | **自动** — vault `sources` 反查 | **`get <chunk-id>`**（MCP） |
 | **`cited_rules`** | doc → rule | 维护者在正文写 `[[r-…]]` / `[imprint:r-…]`；shelves rebuild | **`get <chunk-id>`**（MCP）；desk unified **`cited_by`** 边 |
 
-默认路径：用户说话 → MCP **`find(scope, query)`** → document 命中 → 同轮 **`add`/`supersede` + `sources`**。`sources` 写在 vault；markdown 正文可选 `[[r-…]]`。
+默认路径：用户说话 → MCP **`find(scope, query[, query_local])`** → document 命中 → 同轮 **`add`/`supersede` + `sources`**（已提炼本地检索词则同轮 **`query_local`** 落库）。`sources` / `query_local` 写在 vault；markdown 正文可选 `[[r-…]]`。
 
 ### `find` 的 `links`（当次召回，不持久）
 
@@ -58,17 +58,24 @@ Mount: `docs/mcp.md`, `docs/examples/cursor-mcp.json`. Write loop: `docs/correct
 
 ## Writes & filters
 
-- `find` scope tags = **AND**; optional BM25 `query` (not embeddings).
-- `add` after ADD only: `claim`, `scope`, `text` required; optional **`sources`** when user points at docs or MCP find hits a matching document.
-- `reinforce` +0.1 (cap 0.95); `supersede` inherits `sources` unless overridden; `forget` strips inbound links.
+- `find` scope tags = **AND**; optional BM25 **`query`** and **`query_local`** (dual pass, merge by rule id max score; not embeddings).
+- **`query_local`**: LLM 提炼的本地语言检索词（**不是**用户原话 verbatim；原话进 `evidence`）；`add` / `supersede` / `reinforce` 可选落库，供后续 find 命中。
+- `add` after ADD only: `claim`, `scope`, `text` required; optional **`sources`** when user points at docs or MCP find hits a matching document; optional **`query_local`**.
+- `reinforce` +0.1 (cap 0.95); optional **`query_local`** update; `supersede` inherits **`sources`** and **`query_local`** unless overridden; `forget` strips inbound links.
 - `list`: `--scope`, `--query`, `--min-confidence`, `--since`.
+
+## Retrieval（维护者）
+
+- **分词**：vault 与 shelves 共用 `internal/textseg`（[go-ego/gse](https://github.com/go-ego/gse) `CutSearch`，zh+en）；勿恢复 CJK bigram 或重复 tokenizer。可选 `imprint.yaml` → `glossary.path` 领域词。
+- **存储**：仅 SQLite `vault.db`；无 `migrate-shards` / `imprint-*.md` shard 导入。
+- 设计细节：`docs/storage-retrieval.zh.md` §5.2（`query_local` 双路 find）。
 
 ```bash
 # CLI — vault read/write; find/get 见上表 CLI 列
-imprint --json --vault ./.imprint/memory find --scope go,naming --query PascalCase
-imprint --json --vault ./.imprint/memory add "CLAIM" --scope tag,tag --text "user's original words"
-imprint --json --vault ./.imprint/memory reinforce ID --evidence "..."
-imprint --json --vault ./.imprint/memory supersede ID --claim "NEW" --scope tag,tag --reason "..."
+imprint --json --vault ./.imprint/memory find --scope go,naming --query PascalCase [--query-local 本地检索词]
+imprint --json --vault ./.imprint/memory add "CLAIM" --scope tag,tag --text "user's original words" [--query-local TERMS]
+imprint --json --vault ./.imprint/memory reinforce ID --evidence "..." [--query-local TERMS]
+imprint --json --vault ./.imprint/memory supersede ID --claim "NEW" --scope tag,tag --reason "..." [--query-local TERMS]
 imprint --json --vault ./.imprint/memory get ID
 imprint --json --vault ./.imprint/memory forget ID
 imprint --json --vault ./.imprint/memory list --status active --scope go --min-confidence 0.85
@@ -78,14 +85,14 @@ imprint --json --vault ./.imprint/memory sweep
 
 ## Must do
 
-1. Before coding or style answers → **MCP `find`** with **narrow scope** + **query** (shelves on). Use **`resolved_sources`**, **`documents`**, **`links`**. Cite `[r-id]` when a rule shapes behavior; cite doc paths when excerpts apply. CLI fallback = vault rules only.
-2. **Same-turn write:** durable preference → MCP `find` → classify ADD / REINFORCE / SUPERSEDE / IGNORE → **write in this turn**. Document hit → pass **`sources`** on `add` / `supersede`.
+1. Before coding or style answers → **MCP `find`** with **narrow scope** + **`query`** (shelves on); when local-language terms differ from `query`, also pass **`query_local`**. Use **`resolved_sources`**, **`documents`**, **`links`**. Cite `[r-id]` when a rule shapes behavior; cite doc paths when excerpts apply. CLI fallback = vault rules only.
+2. **Same-turn write:** durable preference → MCP `find` → classify ADD / REINFORCE / SUPERSEDE / IGNORE → **write in this turn**. Document hit → pass **`sources`** on `add` / `supersede`; distilled local search terms → **`query_local`** on `add` / `supersede` / `reinforce`.
 3. **IGNORE** one-off tasks and session-only steps. **ADD / REINFORCE / SUPERSEDE** only for cross-session policy in the user's words.
 4. Analyse the requirement before modifying code.
 5. Before every write, classify again; no duplicates. Confidence: default 0.6; corrections 0.85; "always" 0.9.
 6. User negates in plain speech → `find` then `forget` or `supersede`.
 7. User asks what's recorded → `show` or **`imprint desk open`** (`/`, `/docs`, `/unified`).
-8. After imprint feature work here → update README flowchart and docs; self-test.
+8. After imprint feature work here → update README, docs, **vault rules** (same turn), **`internal/cli/templates/body.md`**（`imprint init` 嵌入源）与 **`.cursor/rules/imprint-memory.mdc`**，并 self-test。
 
 ## Must not
 
