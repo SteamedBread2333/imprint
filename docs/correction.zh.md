@@ -26,7 +26,7 @@ sequenceDiagram
   participant S as shelves
 
   U->>A: 偏好 / 确认 / 否定
-  A->>V: find（窄 scope + query）
+  A->>V: find（窄 scope + query [+ query_local]）
   V->>S: BM25 文档（shelves 开）
   V-->>A: rules · documents · links
 
@@ -51,7 +51,7 @@ sequenceDiagram
 
 | 步骤 | 谁做 | 做什么 |
 | --- | --- | --- |
-| **召回** | 智能体 | `find --scope tag,tag` + `--query` → rules、`documents`、`links`（shelves 开） |
+| **召回** | 智能体 | `find(scope, query[, query_local])` → rules、`documents`、`links`（shelves 开）；本地检索词与 `query` 不同时双传 |
 | **分类** | 智能体 | 新增 / 强化 / 替换 / 忽略（见下表） |
 | **写入** | imprint | `add`（可选 `sources`）/ `reinforce` / `supersede` / `forget` |
 | **审计** | 人 | `get`、`show`、desk；superseded/dormant 规则在 `vault.db` |
@@ -62,7 +62,7 @@ sequenceDiagram
 
 | 分类 | 何时用 | 命令 | 对 vault 的影响 |
 | --- | --- | --- | --- |
-| **新增** | `find` 无匹配；用户**新**偏好（document 命中时可带 `sources`） | `add` | 新 `active` imprint，默认 confidence **0.6** |
+| **新增** | `find` 无匹配；用户**新**偏好（document 命中时可带 `sources`；已提炼本地检索词时同轮 `query_local` 落库） | `add` | 新 `active` imprint，默认 confidence **0.6** |
 | **强化** | 已有规则；用户**再次确认**同一偏好 | `reinforce` | confidence **+0.1**（上限 **0.95**），`reinforcement_count++`，可唤醒 `dormant` |
 | **替换** | 偏好**改了**、范围**扩大/缩小**、旧 claim **不再成立** | `supersede` | 旧规则 → `superseded` 状态；新规则 `active`，链上 `supersedes: [old_id]` |
 | **忽略** | 一次性指令、闲聊、智能体**推断**出的偏好 | （不写） | 无 |
@@ -90,6 +90,7 @@ sequenceDiagram
 
 - **`--text` / `text`**：用户原话（evidence）
 - **`claim`**：可执行的陈述句（给智能体读）
+- **`query_local`（可选）**：LLM 从用户输入提炼的**本地语言检索词**，与 `claim`/`query` 分离；同轮 `add`/`supersede`/`reinforce` 落库，供后续 `find` 双路 BM25；**不是**把 evidence 复制一遍
 - 不要存密钥；不要推断用户没说的偏好
 
 ---

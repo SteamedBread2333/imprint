@@ -74,6 +74,7 @@ type Record struct {
 	ConflictsWith      []string   `json:"conflicts_with"`
 	Sources            []DocRef   `json:"sources,omitempty"`
 	EvidenceLog        []Evidence `json:"evidence_log"`
+	QueryLocal         string     `json:"query_local,omitempty"`
 	Body               string     `json:"body,omitempty"`
 	Path               string     `json:"path,omitempty"`
 	ReferencedBy       []Backlink `json:"referenced_by,omitempty"`

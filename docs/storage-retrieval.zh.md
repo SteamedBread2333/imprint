@@ -217,14 +217,16 @@ flowchart TB
 | 策略陈述 | 高 |
 | 分类标签 | 中高 |
 | 依据原文 | 中 |
+| 本地检索词（`query_local`） | 中（与依据同级） |
 | 扩展正文 | 基准 |
 
-**分词（需支持中英混合）**
+**分词（中英混合）**
 
-- 拉丁文：词元化、大小写归一；
-- 中文：字 / 二元组等无空格语言策略。
+- 实现：[`internal/textseg`](../internal/textseg/seg.go)，[go-ego/gse](https://github.com/go-ego/gse) `CutSearch`，embed 词典 `zh` + `en`；
+- vault 与 shelves 共用同一切词，保证 query 与文档 term 对齐；
+- 可选：`imprint.yaml` 的 `glossary.path`（如 `.imprint/glossary.tsv`，`word` 或 `word<TAB>freq` 每行）→ 启动时 `LoadDictMap`，避免领域词被切碎。
 
-**兜底**：query 子串命中时可给予部分匹配分，避免分词失败导致零召回。
+**兜底**：query 子串命中时可给予部分匹配分，避免分词失败导致零召回；仅传中文 `query` 且未传 `query_local` 时，Host 用同一字符串作 local 路（`EffectiveQueryLocal`，非翻译）。
 
 **归一化**：将原始分映射到可比区间，便于与置信度、标签匹配度混合。
 
@@ -252,7 +254,18 @@ flowchart TB
 
 **文档不受条目标签约束**——标签仅过滤结构化记忆库。
 
-### 5.2 协议层合并检索
+### 5.2 协议层合并检索与 `query_local`
+
+用户纠正、任务说明与项目文档常使用**本地语言**（如中文）；条目侧 `claim` 则倾向规范语言（如英文）。若 `find` 只传一条由智能体构造的 `query`，vault 与 shelves 共用同一串词，中文文档容易系统性漏召回。
+
+**双路 query**：智能体分析用户输入后，若本地语言检索词与 `query` 语系/用词不同，应同时传 `query` 与 **`query_local`**（追加，非替换）。`query_local` 是 LLM 提炼的检索词，**不是**用户原话 verbatim（原话进 `evidence`）；写入时可选落库 `rules.query_local`，供后续 vault BM25 命中。
+
+| 参数 | find 行为 | 写入落库 |
+| --- | --- | --- |
+| `query` | vault + shelves 各跑一路 BM25 | 否 |
+| `query_local` | vault + shelves **追加**一路 BM25 | 是（`add` / `supersede` / `reinforce`） |
+
+两者皆传 → 双跑后按 id 去重、**score 取 max**，再 Top-N。协议见 [imprint MCP](mcp.zh.md)；写入见 [记忆写入循环](correction.zh.md)。
 
 ```mermaid
 sequenceDiagram
@@ -261,12 +274,12 @@ sequenceDiagram
   participant M as 结构化记忆库
   participant D as 文档索引层
 
-  A->>S: 联合查询(标签, query)
+  A->>S: find(标签, query, query_local?)
   par 条目
-    S->>M: 预筛 + 打分
+    S->>M: FindMerged 预筛 + BM25
     M-->>S: Top-N 条目
   and 文档
-    S->>D: 段落打分
+    S->>D: SearchStoreMerged
     D-->>S: Top-N 文档片段
   end
   S->>M: 加载命中条目的出处指针
@@ -275,9 +288,17 @@ sequenceDiagram
   S-->>A: 条目 + 文档片段 + 关联
 ```
 
+**示例**（用户：写 architecture doc 时切忌否定式堆砌）
+
+| 字段 | 示例 |
+| --- | --- |
+| `scope` | `docs,writing` |
+| `query` | `documentation positive framing no disclaimer` |
+| `query_local` | `否定式堆砌 文档写作 disclaimer` |
+
 **无 query 时**：可仅返回条目；若条目带出处指针，仍可尝试附加**解析后的出处摘录**（需文档索引已加载）。
 
-**轻量本地查询**：可仅访问结构化记忆库，不返回文档片段与当次关联。
+**轻量本地查询**：CLI `find` 仅访问结构化记忆库，不返回文档片段与当次关联。
 
 ### 5.3 出处解析
 

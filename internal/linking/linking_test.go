@@ -29,3 +29,38 @@ func TestEnrichChunkGetReferencedRules(t *testing.T) {
 		t.Fatalf("referenced = %+v", out.ReferencedRules)
 	}
 }
+
+func TestEnrichFindDualQuery(t *testing.T) {
+	dir := t.TempDir()
+	v, err := imprint.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = v.AddRecord("Documentation framing", []string{"docs"}, "text", 0.85, nil, nil, nil, nil, "否定式堆砌")
+	if err != nil {
+		t.Fatal(err)
+	}
+	st := &index.Store{
+		Chunks: []index.Chunk{
+			{ID: "c1", Path: "docs/writing.zh.md", Heading: "写作", Text: "切忌否定式堆砌的 disclaimer 段落", LineStart: 1, LineEnd: 3},
+			{ID: "c2", Path: "docs/architecture.md", Heading: "Storage", Text: "documentation framing for retrieval", LineStart: 1, LineEnd: 3},
+		},
+	}
+	out, hits, err := linking.EnrichFind(v, st, []string{"docs"}, "documentation framing", "否定式堆砌", 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) == 0 {
+		t.Fatal("expected rule hits")
+	}
+	if len(out.Documents) == 0 {
+		t.Fatal("expected document hits from dual query")
+	}
+	seen := map[string]bool{}
+	for _, d := range out.Documents {
+		seen[d.ID] = true
+	}
+	if !seen["c1"] || !seen["c2"] {
+		t.Fatalf("documents = %+v", out.Documents)
+	}
+}

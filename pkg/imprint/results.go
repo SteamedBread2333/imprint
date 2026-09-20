@@ -20,6 +20,7 @@ type FindHit struct {
 	Scope      []string `json:"scope"`
 	Confidence float64  `json:"confidence"`
 	Score      float64  `json:"score"`
+	QueryLocal string   `json:"query_local,omitempty"`
 }
 
 // ReinforceResult is the --json shape for reinforce.

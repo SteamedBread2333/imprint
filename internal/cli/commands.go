@@ -123,6 +123,7 @@ func (a *App) cmdAdd(g globals, args []string) int {
 	scope := fs.String("scope", "")
 	text := fs.String("text", "")
 	conf := fs.Float("confidence", 0)
+	queryLocal := fs.String("query-local", "")
 	pos, err := fs.parse(args)
 	if err != nil {
 		if err == errHelp {
@@ -136,7 +137,7 @@ func (a *App) cmdAdd(g globals, args []string) int {
 	if err != nil {
 		return a.fail(g.json, err)
 	}
-	res, err := v.Add(claim, splitCSV(*scope), *text, *conf)
+	res, err := v.AddRecord(claim, splitCSV(*scope), *text, *conf, nil, nil, nil, nil, *queryLocal)
 	if err != nil {
 		return a.fail(g.json, err)
 	}
@@ -195,6 +196,7 @@ func (a *App) cmdFind(g globals, args []string) int {
 func (a *App) cmdReinforce(g globals, args []string) int {
 	fs := newFlags()
 	evidence := fs.String("evidence", "")
+	queryLocal := fs.String("query-local", "")
 	pos, err := fs.parse(args)
 	if err != nil {
 		if err == errHelp {
@@ -210,7 +212,7 @@ func (a *App) cmdReinforce(g globals, args []string) int {
 	if err != nil {
 		return a.fail(g.json, err)
 	}
-	res, err := v.Reinforce(pos[0], *evidence)
+	res, err := v.ReinforceQueryLocal(pos[0], *evidence, *queryLocal)
 	if err != nil {
 		return a.fail(g.json, err)
 	}
@@ -230,6 +232,7 @@ func (a *App) cmdSupersede(g globals, args []string) int {
 	scope := fs.String("scope", "")
 	reason := fs.String("reason", "")
 	text := fs.String("text", "")
+	queryLocal := fs.String("query-local", "")
 	pos, err := fs.parse(args)
 	if err != nil {
 		if err == errHelp {
@@ -245,7 +248,7 @@ func (a *App) cmdSupersede(g globals, args []string) int {
 	if err != nil {
 		return a.fail(g.json, err)
 	}
-	res, err := v.Supersede(pos[0], *claim, splitCSV(*scope), *reason, *text)
+	res, err := v.SupersedeWithSources(pos[0], *claim, splitCSV(*scope), *reason, *text, nil, *queryLocal)
 	if err != nil {
 		return a.fail(g.json, err)
 	}
@@ -315,12 +318,12 @@ func (a *App) cmdList(g globals, args []string) int {
 		return a.fail(g.json, err)
 	}
 	items, err := v.ListFilter(imprint.ListFilter{
-		Status:        *status,
-		Scope:         splitCSV(*scope),
-		MinConfidence: *minConf,
-		Query:         *query,
-		Since:         when,
-		Limit:         *limit,
+		Status:            *status,
+		Scope:             splitCSV(*scope),
+		MinConfidence:     *minConf,
+		Query:             *query,
+		Since:             when,
+		Limit:             *limit,
 	})
 	if err != nil {
 		return a.fail(g.json, err)

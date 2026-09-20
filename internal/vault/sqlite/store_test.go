@@ -98,6 +98,27 @@ func TestRulesReferencingDoc(t *testing.T) {
 	}
 }
 
+func TestQueryLocalRoundTrip(t *testing.T) {
+	st, cleanup := testStore(t)
+	defer cleanup()
+	now := time.Date(2026, 9, 18, 12, 0, 0, 0, time.UTC)
+	rec := &imprint.Record{
+		ID: "r-2026-09-18-001", Claim: "Avoid disclaimer stacking", Scope: []string{"docs"},
+		QueryLocal: "否定式堆砌 文档写作", Status: imprint.StatusActive, Confidence: 0.85,
+		CreatedAt: now, UpdatedAt: now, LastTouchedAt: now,
+	}
+	if err := st.PutRecord(rec); err != nil {
+		t.Fatal(err)
+	}
+	got, err := st.GetRecord(rec.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.QueryLocal != rec.QueryLocal {
+		t.Fatalf("query_local = %q want %q", got.QueryLocal, rec.QueryLocal)
+	}
+}
+
 func TestImportAndDBPath(t *testing.T) {
 	st, cleanup := testStore(t)
 	defer cleanup()

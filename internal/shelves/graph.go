@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/SteamedBread2333/imprint/internal/shelves/index"
+	"github.com/SteamedBread2333/imprint/pkg/imprint"
 )
 
 // DocGraphNode is one node in the document relationship graph.
@@ -185,5 +186,13 @@ func HasChunk(st *index.Store, id string) bool {
 
 // MatchQuery is true when shelves should enrich find results with documents.
 func MatchQuery(cfg Config, query string) bool {
-	return cfg.Enabled && strings.TrimSpace(query) != ""
+	return MatchFindQuery(cfg, query, "")
+}
+
+// MatchFindQuery is true when shelves should run document BM25 for find.
+func MatchFindQuery(cfg Config, query, queryLocal string) bool {
+	if !cfg.Enabled {
+		return false
+	}
+	return strings.TrimSpace(query) != "" || strings.TrimSpace(imprint.EffectiveQueryLocal(query, queryLocal)) != ""
 }

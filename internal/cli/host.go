@@ -55,6 +55,9 @@ func (a *App) cmdHostServe(g globals, rest []string) int {
 	if err != nil {
 		return a.fail(g.json, err)
 	}
+	if err := pcfg.ApplyGlossary(); err != nil {
+		return a.fail(g.json, err)
+	}
 	vaultDir, err := a.resolveHostVault(g, pcfg)
 	if err != nil {
 		return a.fail(g.json, err)

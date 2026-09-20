@@ -10,7 +10,7 @@
 | Capability | MCP (shelves on) | CLI `imprint --json` |
 | --- | --- | --- |
 | Write rules + `sources` | `add` / `supersede` | same |
-| Pre-coding recall | `find(scope, query)` → rules + **documents** + **links** | `find` → **vault rules only** |
+| Pre-coding recall | `find(scope, query[, query_local])` → rules + **documents** + **links** | `find` → **vault rules only** |
 | Rule doc basis | `get r-…` → **resolved_sources** | `get r-…` → vault only |
 | Chunk → rules | `get <chunk-id>` → **referenced_rules** + **cited_rules** | not supported |
 | Rule graph | desk `/` | host `GET /graph` |
@@ -109,13 +109,13 @@ Every tool returns **pretty-printed JSON** in the tool result text. On failure, 
 
 | Tool | CLI equivalent | Notes |
 | --- | --- | --- |
-| `find` | `imprint find` | `scope` (comma-separated, AND filter), optional `query`, optional `top_k` (default 5). With shelves + query → `{ rules, documents, links }`; rules include `resolved_sources`. |
-| `add` | `imprint add` | `claim`, `scope`, `text` required; optional `confidence`, `sources` (`[{path, heading?, chunk?}]`). |
-| `reinforce` | `imprint reinforce` | `id`, optional `evidence`. |
-| `supersede` | `imprint supersede` | `old_id`, `claim`, `scope`; optional `reason`, `text`, `sources` (omit to inherit). |
+| `find` | `imprint find` | `scope`, optional `query`, optional `query_local` (local-language BM25 pass; merged with `query` on vault + shelves), optional `top_k`. With shelves + query or effective local → `{ rules, documents, links }`. |
+| `add` | `imprint add` | `claim`, `scope`, `text` required; optional `confidence`, `query_local`, `sources`. |
+| `reinforce` | `imprint reinforce` | `id`, optional `evidence`, optional `query_local` (updates stored field). |
+| `supersede` | `imprint supersede` | `old_id`, `claim`, `scope`; optional `reason`, `text`, `query_local` (omit to inherit), `sources` (omit to inherit). |
 | `forget` | `imprint forget` | `id`. |
 | `get` | `imprint get` | `r-…` → vault + `resolved_sources`; chunk id → chunk + `referenced_rules` (vault reverse) + optional `cited_rules`. |
-| `list` | `imprint list` | Optional `status`, `scope`, `query`, `min_confidence`, `since` (YYYY-MM-DD or RFC3339), `limit`. |
+| `list` | `imprint list` | Optional `status`, `scope`, `query`, `min_confidence`, `since`, `limit`. |
 | `show` | `imprint show` | Optional `limit`. |
 | `sweep` | `imprint sweep` | Optional `decay_days`, `decay_amount`, `dormant_threshold`. |
 **Not exposed:** `init` (one-time setup), `export`, `clear` (irreversible; use CLI with `--confirm --yes` if you really need it).
@@ -123,7 +123,7 @@ Every tool returns **pretty-printed JSON** in the tool result text. On failure, 
 ### Agent workflow
 
 1. **Confirm MCP is mounted** (shelves on) — otherwise only vault, no documents / links / resolved_sources.
-2. Before coding or style answers → **`find`** with narrow `scope` + **`query`** → rules, documents, links.
+2. Before coding or style answers → **`find`** with narrow `scope` + **`query`**; when local-language terms differ from `query`, also pass **`query_local`** (both run BM25; same-turn **`add`/`supersede`/`reinforce`** may persist `query_local`).
 3. Analyse; classify **ADD / REINFORCE / SUPERSEDE / IGNORE**.
 4. On **ADD** when a document hit matches → same-turn **`add`** with **`sources`** (vault only — no markdown edits).
 5. Never duplicate an imprint; record only what the user **said**.

@@ -281,13 +281,13 @@ Vault:
 func commandHelp(cmd string) string {
 	switch cmd {
 	case "add":
-		return "Usage: imprint add CLAIM --scope tag,tag --text ORIG [--confidence 0.6]\n"
+		return "Usage: imprint add CLAIM --scope tag,tag --text ORIG [--confidence 0.6] [--query-local TERMS]\n"
 	case "find":
 		return "Usage: imprint find [--scope tag,tag] [--query TEXT] [--top-k 5]\n"
 	case "reinforce":
-		return "Usage: imprint reinforce ID [--evidence TEXT]\n"
+		return "Usage: imprint reinforce ID [--evidence TEXT] [--query-local TERMS]\n"
 	case "supersede":
-		return "Usage: imprint supersede OLD_ID --claim NEW --scope tag,tag [--reason TEXT] [--text ORIG]\n"
+		return "Usage: imprint supersede OLD_ID --claim NEW --scope tag,tag [--reason TEXT] [--text ORIG] [--query-local TERMS]\n"
 	case "forget":
 		return "Usage: imprint forget ID\n"
 	case "list":

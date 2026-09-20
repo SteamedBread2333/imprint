@@ -10,7 +10,7 @@
 | 能力 | MCP（shelves 开） | CLI `imprint --json` |
 | --- | --- | --- |
 | 写规则 + `sources` | `add` / `supersede` | 同左 |
-| 写代码前召回 | `find(scope, query)` → rules + **documents** + **links** | `find` → **vault rules only** |
+| 写代码前召回 | `find(scope, query[, query_local])` → rules + **documents** + **links** | `find` → **vault rules only** |
 | 查规则文档依据 | `get r-…` → **resolved_sources** | `get r-…` → vault only |
 | 查 chunk 被哪些规则引用 | `get <chunk-id>` → **referenced_rules** + **cited_rules** | 不支持 |
 | 规则关系图 | desk `/` | host `GET /graph` |
@@ -116,13 +116,13 @@ go install github.com/SteamedBread2333/imprint/cmd/imprint-mcp@latest
 
 | 工具          | 对应 CLI              | 说明                                                                                    |
 | ----------- | ------------------- | ------------------------------------------------------------------------------------- |
-| `find`      | `imprint find`      | `scope`（AND），可选 `query`、`top_k`。shelves 开且带 `query` 时返回 `{ rules, documents, links }`；rules 含 `resolved_sources`。 |
-| `add`       | `imprint add`       | 必填 `claim`、`scope`、`text`；可选 `confidence`、`sources`（`[{path, heading?, chunk?}]`）。 |
-| `reinforce` | `imprint reinforce` | `id`，可选 `evidence`。 |
-| `supersede` | `imprint supersede` | `old_id`、`claim`、`scope`；可选 `reason`、`text`、`sources`（省略则继承旧条目的 sources）。 |
+| `find`      | `imprint find`      | `scope`，可选 `query`、`query_local`（本地语言 BM25 追加一路，与 query 双跑 merge）、`top_k`。shelves 开且 query 或 effective local 非空 → `{ rules, documents, links }`。 |
+| `add`       | `imprint add`       | 必填 `claim`、`scope`、`text`；可选 `confidence`、`query_local`（落库）、`sources`。 |
+| `reinforce` | `imprint reinforce` | `id`，可选 `evidence`、`query_local`（更新落库字段）。 |
+| `supersede` | `imprint supersede` | `old_id`、`claim`、`scope`；可选 `reason`、`text`、`query_local`（省略则继承）、`sources`（省略则继承）。 |
 | `forget`    | `imprint forget`    | `id`。 |
 | `get`       | `imprint get`       | `r-…` → vault 条目 + `resolved_sources`；chunk id → 文档 chunk + `referenced_rules`（vault 反查）+ 可选 `cited_rules`。 |
-| `list`      | `imprint list`      | 可选 `status`、`scope`、`query`、`min_confidence`、`since`（YYYY-MM-DD 或 RFC3339）、`limit`。   |
+| `list`      | `imprint list`      | 可选 `status`、`scope`、`query`、`min_confidence`、`since`、`limit`。   |
 | `show`      | `imprint show`      | 可选 `limit`。                                                                           |
 | `sweep`     | `imprint sweep`     | 可选 `decay_days`、`decay_amount`、`dormant_threshold`。                                   |
 
@@ -132,9 +132,9 @@ go install github.com/SteamedBread2333/imprint/cmd/imprint-mcp@latest
 ### 智能体流程
 
 1. **确认 MCP 已挂载**（shelves 开）— 否则只有 vault，无 documents / links / resolved_sources。
-2. 写代码或答风格问题前 → **窄** `scope` + **query** 调 **`find`** → rules、`documents`、`links`。
+2. 写代码或答风格问题前 → **窄** `scope` + **`query`** 调 **`find`**；本地语言检索词与 `query` 不同时追加 **`query_local`** → rules、`documents`、`links`。
 3. 分析需求；分类 **新增 / 强化 / 替换 / 忽略**。
-4. **新增** 且 document 命中 → 同轮 `add` 带 **`sources`**（只写 vault，不改项目 markdown）。
+4. **新增** 且 document 命中 → 同轮 `add` 带 **`sources`**；若已提炼本地检索词，同轮写入 **`query_local`**（落库）。
 5. 不重复已有 imprint；只记录用户**原话**。
 6. 用户说忘记 / 不要记 → `forget` 或跳过。
 7. 用户要看存了什么 → `show` 或 desk（`/`、`/docs`、`/unified`）。

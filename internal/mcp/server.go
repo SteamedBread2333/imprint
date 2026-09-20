@@ -31,7 +31,7 @@ const serverInstructions = `imprint long-term memory (SQLite vault.db + shelves)
 
 Users never maintain the vault — speak normally; you run find/add/reinforce/supersede/forget. Never ask for imprint commands or rule ids. Review-and-prune: show/get or desk, explain, then supersede/forget/sweep after they agree. Before every write classify ADD / REINFORCE / SUPERSEDE / IGNORE; never duplicate; record only what the user said. User negates in plain speech → find then forget or supersede.
 
-Before coding or style answers: find with narrow scope (tags AND) + query when shelves is on → { rules with resolved_sources, documents, links }. Link kinds in find.links (session-only except sources field): sources (vault rule→doc), cited_by ([[r-…]] in doc), co_search (same-query BM25; session-only).
+Before coding or style answers: find with narrow scope (tags AND) + query when shelves is on → { rules with resolved_sources, documents, links }. When local-language search terms differ from query, pass query_local alongside query (both run BM25 on vault and shelves; merged by max score). Same-turn add/supersede/reinforce may persist query_local on the rule. Link kinds in find.links (session-only except sources field): sources (vault rule→doc), cited_by ([[r-…]] in doc), co_search (same-query BM25; session-only).
 
 Persistent links: Rule↔rule in vault — supersedes, related, conflicts_with; referenced_by on get. Rule→doc — sources on add/supersede [{path, heading?, chunk?}] in vault → resolved_sources on get/find. Doc→rule — referenced_rules (vault reverse scan) and optional cited_rules from markdown on get chunk id.
 
@@ -122,6 +122,9 @@ func loadShelvesForMCP(cfg Config, vaultDir string) *shelves.Service {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "imprint-mcp: shelves config: %v\n", err)
 		return nil
+	}
+	if err := pcfg.ApplyGlossary(); err != nil {
+		fmt.Fprintf(os.Stderr, "imprint-mcp: glossary: %v\n", err)
 	}
 	svc, err := shelves.New(shelves.ConfigFrom(pcfg))
 	if err != nil {

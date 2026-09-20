@@ -13,6 +13,11 @@ func (v *Vault) touch(r *Record, now time.Time) {
 
 // Reinforce raises confidence by 0.1 (capped at 0.95) and increments reinforcement_count.
 func (v *Vault) Reinforce(id, evidence string) (*ReinforceResult, error) {
+	return v.ReinforceQueryLocal(id, evidence, "")
+}
+
+// ReinforceQueryLocal is Reinforce; when queryLocal is non-empty it updates stored query_local.
+func (v *Vault) ReinforceQueryLocal(id, evidence, queryLocal string) (*ReinforceResult, error) {
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return nil, fmt.Errorf("id is required")
@@ -31,6 +36,9 @@ func (v *Vault) Reinforce(id, evidence string) (*ReinforceResult, error) {
 	if rec.Status == StatusDormant {
 		rec.Status = StatusActive
 	}
+	if ql := strings.TrimSpace(queryLocal); ql != "" {
+		rec.QueryLocal = ql
+	}
 	rec.EvidenceLog = append(rec.EvidenceLog, Evidence{
 		At:   now,
 		Kind: EvidenceReinforce,
@@ -48,11 +56,11 @@ func (v *Vault) Reinforce(id, evidence string) (*ReinforceResult, error) {
 
 // Supersede archives oldID as superseded and writes a new active rule that points at it.
 func (v *Vault) Supersede(oldID, newClaim string, newScope []string, reason, originalText string) (*SupersedeResult, error) {
-	return v.SupersedeWithSources(oldID, newClaim, newScope, reason, originalText, nil)
+	return v.SupersedeWithSources(oldID, newClaim, newScope, reason, originalText, nil, "")
 }
 
 // SupersedeWithSources archives oldID and writes a new rule, optionally replacing inherited sources.
-func (v *Vault) SupersedeWithSources(oldID, newClaim string, newScope []string, reason, originalText string, sources []DocRef) (*SupersedeResult, error) {
+func (v *Vault) SupersedeWithSources(oldID, newClaim string, newScope []string, reason, originalText string, sources []DocRef, queryLocal string) (*SupersedeResult, error) {
 	oldID = strings.TrimSpace(oldID)
 	newClaim = strings.TrimSpace(newClaim)
 	if oldID == "" {
@@ -78,6 +86,10 @@ func (v *Vault) SupersedeWithSources(oldID, newClaim string, newScope []string, 
 	if len(sources) > 0 {
 		useSources = cleanDocRefs(sources)
 	}
+	useQueryLocal := old.QueryLocal
+	if ql := strings.TrimSpace(queryLocal); ql != "" {
+		useQueryLocal = ql
+	}
 	newID, err := v.store.NextID(now)
 	if err != nil {
 		return nil, err
@@ -95,6 +107,7 @@ func (v *Vault) SupersedeWithSources(oldID, newClaim string, newScope []string, 
 		Supersedes:         []string{old.ID},
 		Related:            []string{old.ID},
 		Sources:            useSources,
+		QueryLocal:         useQueryLocal,
 		EvidenceLog:        []Evidence{{At: now, Kind: EvidenceOriginal, Text: text}},
 		Path:               old.Path,
 	}

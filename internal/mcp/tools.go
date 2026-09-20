@@ -14,7 +14,7 @@ func registerTools(server *sdkmcp.Server, v *imprint.Vault, shelvesSvc *shelves.
 	s := &vaultTools{v: v, shelves: shelvesSvc}
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
 		Name: "find",
-		Description: "Search active rules (scope tags AND-filtered; optional BM25 query). Shelves+MCP only: with query → { rules (resolved_sources), documents, links }. links kinds: sources (vault rule→doc), cited_by ([[r-…]] in doc), co_search (same-query boost; not persisted). Without query or shelves off → rules only. CLI find omits documents/links/resolution.",
+		Description: "Search active rules (scope tags AND-filtered; optional BM25 query + optional query_local). query and query_local each run vault+shelves BM25 when shelves on; hits merge by id (max score). query_local = LLM local-language search terms (persisted on rules via add/supersede/reinforce). Shelves+MCP: { rules (resolved_sources), documents, links }. links kinds: sources, cited_by, co_search. CLI find omits documents/links/resolution.",
 	}, s.find)
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
 		Name:        "add",
@@ -56,9 +56,10 @@ type vaultTools struct {
 }
 
 type findArgs struct {
-	Scope string `json:"scope" jsonschema:"comma-separated scope tags (AND filter)"`
-	Query string `json:"query,omitempty" jsonschema:"optional BM25 query"`
-	TopK  int    `json:"top_k,omitempty" jsonschema:"max hits (default 5)"`
+	Scope       string `json:"scope" jsonschema:"comma-separated scope tags (AND filter)"`
+	Query       string `json:"query,omitempty" jsonschema:"optional BM25 query (vault + shelves)"`
+	QueryLocal  string `json:"query_local,omitempty" jsonschema:"optional local-language BM25 pass (vault + shelves); use when LLM terms differ from query"`
+	TopK        int    `json:"top_k,omitempty" jsonschema:"max hits (default 5)"`
 }
 
 func (s *vaultTools) find(_ context.Context, _ *sdkmcp.CallToolRequest, args findArgs) (*sdkmcp.CallToolResult, any, error) {
@@ -68,16 +69,17 @@ func (s *vaultTools) find(_ context.Context, _ *sdkmcp.CallToolRequest, args fin
 	}
 	scope := splitCSV(args.Scope)
 	query := args.Query
+	queryLocal := args.QueryLocal
 
-	if s.shelves != nil && shelves.MatchQuery(s.shelves.Config(), query) {
-		enriched, _, err := linking.EnrichFind(s.v, s.shelves.IndexStore(), scope, query, topK)
+	if s.shelves != nil && shelves.MatchFindQuery(s.shelves.Config(), query, queryLocal) {
+		enriched, _, err := linking.EnrichFind(s.v, s.shelves.IndexStore(), scope, query, queryLocal, topK)
 		if err != nil {
 			return toolErr(err), nil, nil
 		}
 		return jsonOK(enriched)
 	}
 
-	hits, err := s.v.Find(scope, query, topK)
+	hits, err := s.v.FindMerged(scope, query, queryLocal, topK)
 	if err != nil {
 		return toolErr(err), nil, nil
 	}
@@ -117,11 +119,12 @@ type addArgs struct {
 	Scope      string      `json:"scope" jsonschema:"comma-separated scope tags"`
 	Text       string      `json:"text" jsonschema:"user's original words"`
 	Confidence float64     `json:"confidence,omitempty" jsonschema:"starting confidence; 0 uses default 0.6"`
+	QueryLocal string      `json:"query_local,omitempty" jsonschema:"optional LLM local-language search terms for future find"`
 	Sources    []docRefArg `json:"sources,omitempty" jsonschema:"optional workspace document sources"`
 }
 
 func (s *vaultTools) add(_ context.Context, _ *sdkmcp.CallToolRequest, args addArgs) (*sdkmcp.CallToolResult, any, error) {
-	res, err := s.v.AddWithSources(args.Claim, splitCSV(args.Scope), args.Text, args.Confidence, parseDocRefs(args.Sources))
+	res, err := s.v.AddRecord(args.Claim, splitCSV(args.Scope), args.Text, args.Confidence, nil, nil, nil, parseDocRefs(args.Sources), args.QueryLocal)
 	if err != nil {
 		return toolErr(err), nil, nil
 	}
@@ -129,12 +132,13 @@ func (s *vaultTools) add(_ context.Context, _ *sdkmcp.CallToolRequest, args addA
 }
 
 type reinforceArgs struct {
-	ID       string `json:"id" jsonschema:"rule id"`
-	Evidence string `json:"evidence,omitempty" jsonschema:"optional evidence note"`
+	ID         string `json:"id" jsonschema:"rule id"`
+	Evidence   string `json:"evidence,omitempty" jsonschema:"optional evidence note"`
+	QueryLocal string `json:"query_local,omitempty" jsonschema:"optional update stored query_local"`
 }
 
 func (s *vaultTools) reinforce(_ context.Context, _ *sdkmcp.CallToolRequest, args reinforceArgs) (*sdkmcp.CallToolResult, any, error) {
-	res, err := s.v.Reinforce(args.ID, args.Evidence)
+	res, err := s.v.ReinforceQueryLocal(args.ID, args.Evidence, args.QueryLocal)
 	if err != nil {
 		return toolErr(err), nil, nil
 	}
@@ -142,16 +146,17 @@ func (s *vaultTools) reinforce(_ context.Context, _ *sdkmcp.CallToolRequest, arg
 }
 
 type supersedeArgs struct {
-	OldID   string      `json:"old_id" jsonschema:"rule id to archive"`
-	Claim   string      `json:"claim" jsonschema:"new claim"`
-	Scope   string      `json:"scope" jsonschema:"comma-separated scope tags"`
-	Reason  string      `json:"reason,omitempty"`
-	Text    string      `json:"text,omitempty" jsonschema:"user's original words for the new rule"`
-	Sources []docRefArg `json:"sources,omitempty" jsonschema:"optional sources; omit to inherit from old rule"`
+	OldID      string      `json:"old_id" jsonschema:"rule id to archive"`
+	Claim      string      `json:"claim" jsonschema:"new claim"`
+	Scope      string      `json:"scope" jsonschema:"comma-separated scope tags"`
+	Reason     string      `json:"reason,omitempty"`
+	Text       string      `json:"text,omitempty" jsonschema:"user's original words for the new rule"`
+	QueryLocal string      `json:"query_local,omitempty" jsonschema:"optional query_local; omit to inherit from old rule"`
+	Sources    []docRefArg `json:"sources,omitempty" jsonschema:"optional sources; omit to inherit from old rule"`
 }
 
 func (s *vaultTools) supersede(_ context.Context, _ *sdkmcp.CallToolRequest, args supersedeArgs) (*sdkmcp.CallToolResult, any, error) {
-	res, err := s.v.SupersedeWithSources(args.OldID, args.Claim, splitCSV(args.Scope), args.Reason, args.Text, parseDocRefs(args.Sources))
+	res, err := s.v.SupersedeWithSources(args.OldID, args.Claim, splitCSV(args.Scope), args.Reason, args.Text, parseDocRefs(args.Sources), args.QueryLocal)
 	if err != nil {
 		return toolErr(err), nil, nil
 	}
@@ -195,12 +200,12 @@ func (s *vaultTools) get(_ context.Context, _ *sdkmcp.CallToolRequest, args getA
 }
 
 type listArgs struct {
-	Status        string  `json:"status,omitempty"`
-	Scope         string  `json:"scope,omitempty" jsonschema:"comma-separated scope tags (AND)"`
-	Query         string  `json:"query,omitempty"`
-	MinConfidence float64 `json:"min_confidence,omitempty"`
-	Since         string  `json:"since,omitempty" jsonschema:"YYYY-MM-DD or RFC3339"`
-	Limit         int     `json:"limit,omitempty"`
+	Status            string  `json:"status,omitempty"`
+	Scope             string  `json:"scope,omitempty" jsonschema:"comma-separated scope tags (AND)"`
+	Query             string  `json:"query,omitempty"`
+	MinConfidence     float64 `json:"min_confidence,omitempty"`
+	Since             string  `json:"since,omitempty" jsonschema:"YYYY-MM-DD or RFC3339"`
+	Limit             int     `json:"limit,omitempty"`
 }
 
 func (s *vaultTools) list(_ context.Context, _ *sdkmcp.CallToolRequest, args listArgs) (*sdkmcp.CallToolResult, any, error) {
@@ -209,12 +214,12 @@ func (s *vaultTools) list(_ context.Context, _ *sdkmcp.CallToolRequest, args lis
 		return toolErr(err), nil, nil
 	}
 	items, err := s.v.ListFilter(imprint.ListFilter{
-		Status:        args.Status,
-		Scope:         splitCSV(args.Scope),
-		MinConfidence: args.MinConfidence,
-		Query:         args.Query,
-		Since:         when,
-		Limit:         args.Limit,
+		Status:            args.Status,
+		Scope:             splitCSV(args.Scope),
+		MinConfidence:     args.MinConfidence,
+		Query:             args.Query,
+		Since:             when,
+		Limit:             args.Limit,
 	})
 	if err != nil {
 		return toolErr(err), nil, nil

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/SteamedBread2333/imprint/internal/textseg"
 	"github.com/SteamedBread2333/imprint/pkg/imprint"
 	"gopkg.in/yaml.v3"
 )
@@ -13,6 +14,11 @@ import (
 // HostConfig is the vault HTTP server section in imprint.yaml.
 type HostConfig struct {
 	Listen string `yaml:"listen"`
+}
+
+// GlossaryConfig points at an optional domain word list for gse tokenization.
+type GlossaryConfig struct {
+	Path string `yaml:"path"`
 }
 
 // ShelvesConfig is workspace doc indexing (host + MCP).
@@ -47,10 +53,11 @@ type PluginEntry struct {
 
 // Config is imprint.yaml under .imprint/ in the project.
 type Config struct {
-	Vault   string                 `yaml:"vault"`
-	Host    HostConfig             `yaml:"host"`
-	Shelves ShelvesConfig          `yaml:"shelves"`
-	Plugins map[string]PluginEntry `yaml:"plugins"`
+	Vault    string                 `yaml:"vault"`
+	Host     HostConfig             `yaml:"host"`
+	Shelves  ShelvesConfig          `yaml:"shelves"`
+	Glossary GlossaryConfig         `yaml:"glossary"`
+	Plugins  map[string]PluginEntry `yaml:"plugins"`
 	filePath  string
 	workspace string
 }
@@ -203,6 +210,18 @@ func (c *Config) ResolveVaultAbs() string {
 // DefaultShelvesStateDir is .imprint/.shelves/.cache under the project root.
 func DefaultShelvesStateDir(projectRoot string) string {
 	return imprint.DefaultShelvesCacheDir(projectRoot)
+}
+
+// ApplyGlossary loads glossary.path when configured (relative to workspace).
+func (c *Config) ApplyGlossary() error {
+	path := strings.TrimSpace(c.Glossary.Path)
+	if path == "" {
+		return nil
+	}
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(c.Workspace(), filepath.FromSlash(path))
+	}
+	return textseg.LoadGlossary(path)
 }
 
 // HostURL returns http:// listen address for the vault API.

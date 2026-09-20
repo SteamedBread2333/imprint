@@ -45,5 +45,5 @@ flowchart TB
 | --- | --- |
 | [Token 节约技术架构](agent-memory-token.zh.md) | 双库分离、窄标签预筛、摘要截断、合并检索、写代码前召回 |
 | [防幻觉技术架构](agent-memory-hallucination.zh.md) | 陈述/依据分离、写入四分法、替换链、出处指针、审计 |
-| [数据存储与检索技术说明](storage-retrieval.zh.md) | 存储模型、索引流水线、关联机制 |
-| [记忆写入循环](correction.zh.md) | 写入场景示例 |
+| [数据存储与检索技术说明](storage-retrieval.zh.md) | 存储模型、索引流水线、`query_local` 双路 find、关联机制 |
+| [记忆写入循环](correction.zh.md) | 写入场景示例、`query_local` 落库 |

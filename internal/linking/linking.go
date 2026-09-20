@@ -48,8 +48,8 @@ func EnrichChunkGet(v *imprint.Vault, st *index.Store, c index.Chunk) (ChunkGet,
 }
 
 // EnrichFind builds agent-oriented find results with sources, excerpts, and links.
-func EnrichFind(v *imprint.Vault, st *index.Store, scope []string, query string, topK int) (*FindResult, []imprint.FindHit, error) {
-	hits, err := v.Find(scope, query, topK)
+func EnrichFind(v *imprint.Vault, st *index.Store, scope []string, query, queryLocal string, topK int) (*FindResult, []imprint.FindHit, error) {
+	hits, err := v.FindMerged(scope, query, queryLocal, topK)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -65,10 +65,8 @@ func EnrichFind(v *imprint.Vault, st *index.Store, scope []string, query string,
 		return nil, nil, err
 	}
 	enriched := shelves.EnrichFindHits(st, hits, sourcesByID)
-	var docs []index.SearchHit
-	if query != "" {
-		docs = st.SearchStore(query, topK)
-	}
+	localQ := imprint.EffectiveQueryLocal(query, queryLocal)
+	docs := index.SearchStoreMerged(st, query, localQ, topK)
 	links := shelves.BuildFindLinks(v, st, enriched, docs)
 	return &FindResult{
 		Rules:     enriched,

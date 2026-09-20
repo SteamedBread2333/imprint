@@ -116,6 +116,25 @@ func TestToolFindAddGet(t *testing.T) {
 	}
 }
 
+func TestToolAddQueryLocal(t *testing.T) {
+	dir := t.TempDir()
+	cs := startTestServer(t, dir)
+	added := callTool(t, cs, "add", map[string]any{
+		"claim":       "Documentation framing",
+		"scope":       "docs",
+		"text":        "user said",
+		"query_local": "否定式堆砌 文档写作",
+	})
+	var addRes imprint.AddResult
+	if err := json.Unmarshal([]byte(added), &addRes); err != nil {
+		t.Fatal(err)
+	}
+	got := callTool(t, cs, "get", map[string]any{"id": addRes.ID})
+	if !strings.Contains(got, "否定式堆砌 文档写作") {
+		t.Fatalf("get missing query_local: %s", got)
+	}
+}
+
 func TestToolsListed(t *testing.T) {
 	dir := t.TempDir()
 	cs := startTestServer(t, dir)

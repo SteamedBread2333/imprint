@@ -99,16 +99,16 @@ func (v *Vault) save(r *Record) error {
 
 // Add writes a new active rule. confidence <= 0 means 0.6.
 func (v *Vault) Add(claim string, scope []string, text string, confidence float64) (*AddResult, error) {
-	return v.AddRecord(claim, scope, text, confidence, nil, nil, nil, nil)
+	return v.AddRecord(claim, scope, text, confidence, nil, nil, nil, nil, "")
 }
 
 // AddWithSources is Add plus document sources for agent traceability.
 func (v *Vault) AddWithSources(claim string, scope []string, text string, confidence float64, sources []DocRef) (*AddResult, error) {
-	return v.AddRecord(claim, scope, text, confidence, nil, nil, nil, sources)
+	return v.AddRecord(claim, scope, text, confidence, nil, nil, nil, sources, "")
 }
 
-// AddRecord is Add plus optional relationship fields.
-func (v *Vault) AddRecord(claim string, scope []string, text string, confidence float64, supersedes, related, conflicts []string, sources []DocRef) (*AddResult, error) {
+// AddRecord is Add plus optional relationship fields and query_local.
+func (v *Vault) AddRecord(claim string, scope []string, text string, confidence float64, supersedes, related, conflicts []string, sources []DocRef, queryLocal string) (*AddResult, error) {
 	claim = strings.TrimSpace(claim)
 	if claim == "" {
 		return nil, fmt.Errorf("claim is required")
@@ -136,6 +136,7 @@ func (v *Vault) AddRecord(claim string, scope []string, text string, confidence 
 		Related:            cleanScope(related),
 		ConflictsWith:      cleanScope(conflicts),
 		Sources:            cleanDocRefs(sources),
+		QueryLocal:         strings.TrimSpace(queryLocal),
 		EvidenceLog: []Evidence{{
 			At:   now,
 			Kind: EvidenceOriginal,

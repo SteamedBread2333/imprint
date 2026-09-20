@@ -13,7 +13,9 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const schemaVersion = "1"
+const schemaVersion = "2"
+
+const rulesSelectCols = `id, claim, body, query_local, status, confidence, reinforcement_count, created_at, updated_at, last_touched_at`
 
 const schemaSQL = `
 CREATE TABLE IF NOT EXISTS meta (
@@ -24,6 +26,7 @@ CREATE TABLE IF NOT EXISTS rules (
   id                  TEXT PRIMARY KEY,
   claim               TEXT NOT NULL,
   body                TEXT NOT NULL DEFAULT '',
+  query_local         TEXT NOT NULL DEFAULT '',
   status              TEXT NOT NULL,
   confidence          REAL NOT NULL,
   reinforcement_count INTEGER NOT NULL DEFAULT 0,
@@ -133,7 +136,28 @@ func (s *Store) ensureMeta() error {
 		}
 		return nil
 	}
-	return err
+	if err != nil {
+		return err
+	}
+	return migrateSchema(s.db, v)
+}
+
+func migrateSchema(db *sql.DB, current string) error {
+	if current == schemaVersion {
+		return nil
+	}
+	if current == "1" {
+		if _, err := db.Exec(`ALTER TABLE rules ADD COLUMN query_local TEXT NOT NULL DEFAULT ''`); err != nil {
+			if !strings.Contains(strings.ToLower(err.Error()), "duplicate column") {
+				return fmt.Errorf("migrate schema v1→v2: %w", err)
+			}
+		}
+		if _, err := db.Exec(`UPDATE meta SET value = ? WHERE key = 'schema_version'`, schemaVersion); err != nil {
+			return err
+		}
+		return nil
+	}
+	return fmt.Errorf("unsupported vault schema version %q", current)
 }
 
 func formatTime(t time.Time) string {
@@ -233,17 +257,18 @@ func insertEvidence(tx *sql.Tx, ruleID string, log []model.Evidence) error {
 
 func upsertRuleRow(tx *sql.Tx, r *model.Record) error {
 	_, err := tx.Exec(`
-INSERT INTO rules(id, claim, body, status, confidence, reinforcement_count, created_at, updated_at, last_touched_at)
-VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO rules(id, claim, body, query_local, status, confidence, reinforcement_count, created_at, updated_at, last_touched_at)
+VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
   claim = excluded.claim,
   body = excluded.body,
+  query_local = excluded.query_local,
   status = excluded.status,
   confidence = excluded.confidence,
   reinforcement_count = excluded.reinforcement_count,
   updated_at = excluded.updated_at,
   last_touched_at = excluded.last_touched_at`,
-		r.ID, r.Claim, r.Body, string(r.Status), r.Confidence, r.ReinforcementCount,
+		r.ID, r.Claim, r.Body, r.QueryLocal, string(r.Status), r.Confidence, r.ReinforcementCount,
 		formatTime(r.CreatedAt), formatTime(r.UpdatedAt), formatTime(r.LastTouchedAt),
 	)
 	return err
@@ -477,7 +502,7 @@ func (s *Store) assembleRecords(rows *sql.Rows) ([]*model.Record, error) {
 		var r model.Record
 		var status, created, updated, touched string
 		if err := rows.Scan(
-			&r.ID, &r.Claim, &r.Body, &status, &r.Confidence, &r.ReinforcementCount,
+			&r.ID, &r.Claim, &r.Body, &r.QueryLocal, &status, &r.Confidence, &r.ReinforcementCount,
 			&created, &updated, &touched,
 		); err != nil {
 			return nil, err
@@ -543,7 +568,7 @@ func (s *Store) assembleRecords(rows *sql.Rows) ([]*model.Record, error) {
 // GetRecord returns one rule by id.
 func (s *Store) GetRecord(id string) (*model.Record, error) {
 	rows, err := s.db.Query(`
-SELECT id, claim, body, status, confidence, reinforcement_count, created_at, updated_at, last_touched_at
+SELECT `+rulesSelectCols+`
 FROM rules WHERE id = ?`, id)
 	if err != nil {
 		return nil, err
@@ -561,7 +586,7 @@ FROM rules WHERE id = ?`, id)
 
 // AllRecords returns every rule, optionally excluding non-active archived statuses.
 func (s *Store) AllRecords(includeArchived bool) ([]*model.Record, error) {
-	q := `SELECT id, claim, body, status, confidence, reinforcement_count, created_at, updated_at, last_touched_at FROM rules`
+	q := `SELECT ` + rulesSelectCols + ` FROM rules`
 	if !includeArchived {
 		q += ` WHERE status != 'superseded'`
 	}
@@ -578,7 +603,7 @@ func (s *Store) AllRecords(includeArchived bool) ([]*model.Record, error) {
 func (s *Store) ActiveCandidates(scope []string, minConfidence float64) ([]*model.Record, error) {
 	if len(scope) == 0 {
 		rows, err := s.db.Query(`
-SELECT id, claim, body, status, confidence, reinforcement_count, created_at, updated_at, last_touched_at
+SELECT `+rulesSelectCols+`
 FROM rules WHERE status = 'active' AND confidence >= ? ORDER BY id`, minConfidence)
 		if err != nil {
 			return nil, err
@@ -588,7 +613,7 @@ FROM rules WHERE status = 'active' AND confidence >= ? ORDER BY id`, minConfiden
 	}
 	// scope AND: rule must have all tags
 	rows, err := s.db.Query(`
-SELECT r.id, r.claim, r.body, r.status, r.confidence, r.reinforcement_count, r.created_at, r.updated_at, r.last_touched_at
+SELECT r.id, r.claim, r.body, r.query_local, r.status, r.confidence, r.reinforcement_count, r.created_at, r.updated_at, r.last_touched_at
 FROM rules r
 WHERE r.status = 'active' AND r.confidence >= ?
 AND (SELECT COUNT(DISTINCT LOWER(rs.tag)) FROM rule_scopes rs

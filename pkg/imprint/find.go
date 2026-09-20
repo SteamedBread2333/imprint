@@ -4,7 +4,8 @@ import (
 	"math"
 	"sort"
 	"strings"
-	"unicode"
+
+	"github.com/SteamedBread2333/imprint/internal/textseg"
 )
 
 const (
@@ -16,51 +17,8 @@ const (
 	weightBody     = 1.0
 )
 
-func isCJK(r rune) bool {
-	return unicode.Is(unicode.Han, r) || unicode.Is(unicode.Hiragana, r) || unicode.Is(unicode.Katakana, r)
-}
-
 func tokenize(s string) []string {
-	var out []string
-	var buf []rune
-	kind := 0 // 1 latin/digit, 2 CJK
-	flush := func() {
-		if len(buf) == 0 {
-			return
-		}
-		if kind == 2 {
-			for i := range buf {
-				out = append(out, string(buf[i]))
-				if i+1 < len(buf) {
-					out = append(out, string(buf[i:i+2]))
-				}
-			}
-		} else if len(buf) > 1 {
-			out = append(out, string(buf))
-		}
-		buf = buf[:0]
-		kind = 0
-	}
-	for _, r := range strings.ToLower(s) {
-		switch {
-		case isCJK(r):
-			if kind == 1 {
-				flush()
-			}
-			kind = 2
-			buf = append(buf, r)
-		case unicode.IsLetter(r) || unicode.IsNumber(r):
-			if kind == 2 {
-				flush()
-			}
-			kind = 1
-			buf = append(buf, r)
-		default:
-			flush()
-		}
-	}
-	flush()
-	return out
+	return textseg.Tokenize(s)
 }
 
 func evidenceText(r *Record) string {
@@ -72,14 +30,19 @@ func evidenceText(r *Record) string {
 	return b.String()
 }
 
-func fieldTokens(rec *Record) (claim, scope, evidence, body []string) {
-	return tokenize(rec.Claim), tokenize(strings.Join(rec.Scope, " ")), tokenize(evidenceText(rec)), tokenize(rec.Body)
+func fieldTokens(rec *Record) (claim, scope, evidence, queryLocal, body []string) {
+	return tokenize(rec.Claim),
+		tokenize(strings.Join(rec.Scope, " ")),
+		tokenize(evidenceText(rec)),
+		tokenize(rec.QueryLocal),
+		tokenize(rec.Body)
 }
 
-func weightedLen(claim, scope, evidence, body []string) float64 {
+func weightedLen(claim, scope, evidence, queryLocal, body []string) float64 {
 	return weightClaim*float64(len(claim)) +
 		weightScope*float64(len(scope)) +
 		weightEvidence*float64(len(evidence)) +
+		weightEvidence*float64(len(queryLocal)) +
 		weightBody*float64(len(body))
 }
 
@@ -106,10 +69,10 @@ func buildIndex(recs []*Record) *termIndex {
 	}
 	var totalDL float64
 	for _, rec := range recs {
-		claim, scope, evidence, body := fieldTokens(rec)
-		totalDL += weightedLen(claim, scope, evidence, body)
+		claim, scope, evidence, queryLocal, body := fieldTokens(rec)
+		totalDL += weightedLen(claim, scope, evidence, queryLocal, body)
 		seen := map[string]struct{}{}
-		for _, group := range [][]string{claim, scope, evidence, body} {
+		for _, group := range [][]string{claim, scope, evidence, queryLocal, body} {
 			for _, t := range group {
 				seen[t] = struct{}{}
 			}
@@ -138,15 +101,15 @@ func (idx *termIndex) score(rec *Record, query string) float64 {
 		return 0
 	}
 	terms := tokenize(q)
-	claim, scope, evidence, body := fieldTokens(rec)
-	hay := strings.ToLower(rec.Claim + " " + evidenceText(rec) + " " + rec.Body + " " + strings.Join(rec.Scope, " "))
+	claim, scope, evidence, queryLocal, body := fieldTokens(rec)
+	hay := strings.ToLower(rec.Claim + " " + evidenceText(rec) + " " + rec.QueryLocal + " " + rec.Body + " " + strings.Join(rec.Scope, " "))
 	if len(terms) == 0 {
 		if strings.Contains(hay, strings.ToLower(q)) {
 			return 0.5
 		}
 		return 0
 	}
-	dl := weightedLen(claim, scope, evidence, body)
+	dl := weightedLen(claim, scope, evidence, queryLocal, body)
 	if dl <= 0 {
 		dl = 1
 	}
@@ -159,6 +122,7 @@ func (idx *termIndex) score(rec *Record, query string) float64 {
 		tf := weightClaim*countTerm(claim, term) +
 			weightScope*countTerm(scope, term) +
 			weightEvidence*countTerm(evidence, term) +
+			weightEvidence*countTerm(queryLocal, term) +
 			weightBody*countTerm(body, term)
 		if tf == 0 {
 			continue
@@ -242,8 +206,66 @@ func rankScore(rec *Record, scope []string, query string, idx *termIndex) (float
 
 // Find ranks active rules with confidence >= 0.3.
 // Scope is an AND filter: every requested tag must be present.
-// Query is optional BM25 ranking over claim, scope, evidence, and body.
+// Query is optional BM25 ranking over claim, scope, evidence, query_local, and body.
 func (v *Vault) Find(scope []string, query string, topK int) ([]FindHit, error) {
+	return v.findRanked(scope, query, topK)
+}
+
+// FindMerged runs BM25 for query and effective query_local, merging by rule id (max score).
+func (v *Vault) FindMerged(scope []string, query, queryLocal string, topK int) ([]FindHit, error) {
+	if topK <= 0 {
+		topK = DefaultTopK
+	}
+	q := strings.TrimSpace(query)
+	localQ := EffectiveQueryLocal(query, queryLocal)
+	if q == "" && localQ == "" {
+		return v.Find(scope, "", topK)
+	}
+	if localQ == "" || localQ == q {
+		return v.Find(scope, q, topK)
+	}
+	h1, err := v.findRanked(scope, q, topK*3)
+	if err != nil {
+		return nil, err
+	}
+	h2, err := v.findRanked(scope, localQ, topK*3)
+	if err != nil {
+		return nil, err
+	}
+	merged := mergeFindHits(h1, h2)
+	if len(merged) > topK {
+		merged = merged[:topK]
+	}
+	return merged, nil
+}
+
+func mergeFindHits(a, b []FindHit) []FindHit {
+	byID := make(map[string]FindHit, len(a)+len(b))
+	for _, h := range a {
+		byID[h.ID] = h
+	}
+	for _, h := range b {
+		if prev, ok := byID[h.ID]; !ok || h.Score > prev.Score {
+			byID[h.ID] = h
+		}
+	}
+	out := make([]FindHit, 0, len(byID))
+	for _, h := range byID {
+		out = append(out, h)
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Score != out[j].Score {
+			return out[i].Score > out[j].Score
+		}
+		if out[i].Confidence != out[j].Confidence {
+			return out[i].Confidence > out[j].Confidence
+		}
+		return out[i].ID > out[j].ID
+	})
+	return out
+}
+
+func (v *Vault) findRanked(scope []string, query string, topK int) ([]FindHit, error) {
 	if topK <= 0 {
 		topK = DefaultTopK
 	}
@@ -285,6 +307,7 @@ func (v *Vault) Find(scope []string, query string, topK int) ([]FindHit, error) 
 			Scope:      h.rec.Scope,
 			Confidence: h.rec.Confidence,
 			Score:      h.score,
+			QueryLocal: h.rec.QueryLocal,
 		})
 	}
 	return out, nil

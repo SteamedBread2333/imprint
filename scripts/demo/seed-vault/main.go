@@ -151,7 +151,7 @@ func ensure(v *imprint.Vault, d demoRule) error {
 			fmt.Printf("skip %s (%s)\n", id, d.claim)
 			return nil
 		}
-		res, err := v.SupersedeWithSources(id, d.claim, splitCSV(d.scope), "attach demo sources", d.text, d.sources)
+		res, err := v.SupersedeWithSources(id, d.claim, splitCSV(d.scope), "attach demo sources", d.text, d.sources, "")
 		if err != nil {
 			return err
 		}

@@ -331,11 +331,11 @@ func TestGraph(t *testing.T) {
 func TestForgetStripsInboundAndGetBacklinks(t *testing.T) {
 	dir := t.TempDir()
 	v := frozen(t, dir, day(0))
-	a, err := v.AddRecord("Keep related A", []string{"demo"}, "a", 0.6, nil, nil, nil, nil)
+	a, err := v.AddRecord("Keep related A", []string{"demo"}, "a", 0.6, nil, nil, nil, nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := v.AddRecord("Keep related B", []string{"demo"}, "b", 0.6, nil, []string{a.ID}, nil, nil)
+	b, err := v.AddRecord("Keep related B", []string{"demo"}, "b", 0.6, nil, []string{a.ID}, nil, nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -407,6 +407,42 @@ func TestAddWithSourcesAndSupersedeInherit(t *testing.T) {
 	fresh, err := v.Get(replaced.ID)
 	if err != nil || len(fresh.Sources) != 1 {
 		t.Fatalf("inherited sources = %+v err=%v", fresh.Sources, err)
+	}
+}
+
+func TestFindMergedQueryLocal(t *testing.T) {
+	dir := t.TempDir()
+	v := frozen(t, dir, day(0))
+	added, err := v.AddRecord("Documentation framing policy", []string{"docs"}, "user text", 0.85, nil, nil, nil, nil, "否定式堆砌 文档写作")
+	if err != nil {
+		t.Fatal(err)
+	}
+	hits, err := v.FindMerged([]string{"docs"}, "documentation framing", "否定式堆砌", 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) == 0 || hits[0].ID != added.ID {
+		t.Fatalf("find merged = %+v", hits)
+	}
+	if hits[0].QueryLocal != "否定式堆砌 文档写作" {
+		t.Fatalf("query_local on hit = %q", hits[0].QueryLocal)
+	}
+}
+
+func TestSupersedeInheritsQueryLocal(t *testing.T) {
+	dir := t.TempDir()
+	v := frozen(t, dir, day(0))
+	added, err := v.AddRecord("Policy A", []string{"docs"}, "text", 0.85, nil, nil, nil, nil, "本地检索词")
+	if err != nil {
+		t.Fatal(err)
+	}
+	replaced, err := v.Supersede(added.ID, "Policy B", []string{"docs"}, "update", "text")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := v.Get(replaced.ID)
+	if err != nil || got.QueryLocal != "本地检索词" {
+		t.Fatalf("inherited query_local = %q err=%v", got.QueryLocal, err)
 	}
 }
 

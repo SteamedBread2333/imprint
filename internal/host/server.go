@@ -163,9 +163,10 @@ func Serve(ctx context.Context, cfg Config) error {
 			topK = v
 		}
 		query := r.URL.Query().Get("query")
+		queryLocal := r.URL.Query().Get("query_local")
 		scope := splitCSV(r.URL.Query().Get("scope"))
-		if cfg.Shelves != nil && shelves.MatchQuery(cfg.Shelves.Config(), query) {
-			enriched, _, err := linking.EnrichFind(cfg.Vault, cfg.Shelves.IndexStore(), scope, query, topK)
+		if cfg.Shelves != nil && shelves.MatchFindQuery(cfg.Shelves.Config(), query, queryLocal) {
+			enriched, _, err := linking.EnrichFind(cfg.Vault, cfg.Shelves.IndexStore(), scope, query, queryLocal, topK)
 			if err != nil {
 				writeErr(w, http.StatusInternalServerError, err)
 				return
@@ -173,7 +174,7 @@ func Serve(ctx context.Context, cfg Config) error {
 			writeJSON(w, enriched)
 			return
 		}
-		hits, err := cfg.Vault.Find(scope, query, topK)
+		hits, err := cfg.Vault.FindMerged(scope, query, queryLocal, topK)
 		if err != nil {
 			writeErr(w, http.StatusInternalServerError, err)
 			return

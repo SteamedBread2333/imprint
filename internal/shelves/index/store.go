@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -259,6 +260,58 @@ func (s *Store) SearchStore(query string, topK int) []SearchHit {
 		})
 	}
 	return out
+}
+
+// SearchStoreMerged runs BM25 for query and queryLocal, deduping chunk ids by max score.
+func SearchStoreMerged(st *Store, query, queryLocal string, topK int) []SearchHit {
+	if st == nil {
+		return nil
+	}
+	if topK <= 0 {
+		topK = 5
+	}
+	q := strings.TrimSpace(query)
+	localQ := strings.TrimSpace(queryLocal)
+	if q == "" && localQ == "" {
+		return nil
+	}
+	var merged []SearchHit
+	if q != "" {
+		merged = mergeSearchHits(merged, st.SearchStore(q, topK*3))
+	}
+	if localQ != "" && localQ != q {
+		merged = mergeSearchHits(merged, st.SearchStore(localQ, topK*3))
+	}
+	if len(merged) > topK {
+		merged = merged[:topK]
+	}
+	return merged
+}
+
+func mergeSearchHits(a, b []SearchHit) []SearchHit {
+	byID := make(map[string]SearchHit, len(a)+len(b))
+	for _, h := range a {
+		byID[h.ID] = h
+	}
+	for _, h := range b {
+		if prev, ok := byID[h.ID]; !ok || h.Score > prev.Score {
+			byID[h.ID] = h
+		}
+	}
+	out := make([]SearchHit, 0, len(byID))
+	for _, h := range byID {
+		out = append(out, h)
+	}
+	sortSearchHits(out)
+	return out
+}
+
+func sortSearchHits(h []SearchHit) {
+	for i := 1; i < len(h); i++ {
+		for j := i; j > 0 && h[j].Score > h[j-1].Score; j-- {
+			h[j], h[j-1] = h[j-1], h[j]
+		}
+	}
 }
 
 // EmptyStore returns a zero store for missing index.

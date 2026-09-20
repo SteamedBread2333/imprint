@@ -3,6 +3,8 @@ package index
 import (
 	"math"
 	"strings"
+
+	"github.com/SteamedBread2333/imprint/internal/textseg"
 )
 
 const (
@@ -20,7 +22,7 @@ func Search(chunks []Chunk, query string, topK int) []scored {
 	if topK <= 0 {
 		topK = 5
 	}
-	terms := Tokenize(query)
+	terms := textseg.Tokenize(query)
 	if len(terms) == 0 {
 		return nil
 	}
@@ -29,7 +31,7 @@ func Search(chunks []Chunk, query string, topK int) []scored {
 	var avgdl float64
 	docTokens := make([][]string, n)
 	for i, c := range chunks {
-		toks := Tokenize(c.Heading + " " + c.Text)
+		toks := textseg.Tokenize(c.Heading + " " + c.Text)
 		docTokens[i] = toks
 		avgdl += float64(len(toks))
 		seen := map[string]struct{}{}
