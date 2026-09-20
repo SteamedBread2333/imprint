@@ -18,15 +18,15 @@ func registerTools(server *sdkmcp.Server, v *imprint.Vault, shelvesSvc *shelves.
 	}, s.find)
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
 		Name:        "add",
-		Description: "Add after ADD classification. Required: claim, scope, text. Optional sources [{path, heading?, chunk?}] persist rule→doc links in vault (default: no project markdown edits). Use when user points at docs or find returned a matching document.",
+		Description: "Add after ADD classification. Required: English claim (imperative policy), scope, text (user verbatim). Optional query_local (LLM local-language search terms, not verbatim), sources [{path, heading?, chunk?}] for rule→doc links in vault (default: no project markdown edits).",
 	}, s.add)
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
 		Name:        "reinforce",
-		Description: "Reinforce an existing rule (+0.1 confidence, cap 0.95).",
+		Description: "Reinforce an existing rule (+0.1 confidence, cap 0.95). Optional evidence note and query_local update.",
 	}, s.reinforce)
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
 		Name:        "supersede",
-		Description: "Mark old_id superseded; write new active rule (claim, scope). Inherits old sources unless sources is set. Optional sources [{path, heading?, chunk?}] replace inherited rule→doc links in vault.",
+		Description: "Mark old_id superseded; write new active rule (English claim, scope). Inherits old sources and query_local unless overridden. Optional sources [{path, heading?, chunk?}] replace inherited rule→doc links in vault.",
 	}, s.supersede)
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
 		Name:        "forget",
@@ -98,9 +98,9 @@ func (s *vaultTools) find(_ context.Context, _ *sdkmcp.CallToolRequest, args fin
 }
 
 type docRefArg struct {
-	Path    string `json:"path,omitempty"`
-	Heading string `json:"heading,omitempty"`
-	Chunk   string `json:"chunk,omitempty"`
+	Path    string `json:"path,omitempty" jsonschema:"workspace-relative document path"`
+	Heading string `json:"heading,omitempty" jsonschema:"optional markdown heading"`
+	Chunk   string `json:"chunk,omitempty" jsonschema:"optional shelves chunk id"`
 }
 
 func parseDocRefs(in []docRefArg) []imprint.DocRef {
@@ -115,7 +115,7 @@ func parseDocRefs(in []docRefArg) []imprint.DocRef {
 }
 
 type addArgs struct {
-	Claim      string      `json:"claim" jsonschema:"imperative claim text"`
+	Claim      string      `json:"claim" jsonschema:"English imperative claim for agents; user wording in text, local search terms in query_local"`
 	Scope      string      `json:"scope" jsonschema:"comma-separated scope tags"`
 	Text       string      `json:"text" jsonschema:"user's original words"`
 	Confidence float64     `json:"confidence,omitempty" jsonschema:"starting confidence; 0 uses default 0.6"`
@@ -147,9 +147,9 @@ func (s *vaultTools) reinforce(_ context.Context, _ *sdkmcp.CallToolRequest, arg
 
 type supersedeArgs struct {
 	OldID      string      `json:"old_id" jsonschema:"rule id to archive"`
-	Claim      string      `json:"claim" jsonschema:"new claim"`
+	Claim      string      `json:"claim" jsonschema:"English imperative new claim"`
 	Scope      string      `json:"scope" jsonschema:"comma-separated scope tags"`
-	Reason     string      `json:"reason,omitempty"`
+	Reason     string      `json:"reason,omitempty" jsonschema:"optional supersede reason (evidence if text omitted)"`
 	Text       string      `json:"text,omitempty" jsonschema:"user's original words for the new rule"`
 	QueryLocal string      `json:"query_local,omitempty" jsonschema:"optional query_local; omit to inherit from old rule"`
 	Sources    []docRefArg `json:"sources,omitempty" jsonschema:"optional sources; omit to inherit from old rule"`
@@ -200,12 +200,12 @@ func (s *vaultTools) get(_ context.Context, _ *sdkmcp.CallToolRequest, args getA
 }
 
 type listArgs struct {
-	Status            string  `json:"status,omitempty"`
-	Scope             string  `json:"scope,omitempty" jsonschema:"comma-separated scope tags (AND)"`
-	Query             string  `json:"query,omitempty"`
-	MinConfidence     float64 `json:"min_confidence,omitempty"`
-	Since             string  `json:"since,omitempty" jsonschema:"YYYY-MM-DD or RFC3339"`
-	Limit             int     `json:"limit,omitempty"`
+	Status        string  `json:"status,omitempty" jsonschema:"active, dormant, or superseded"`
+	Scope         string  `json:"scope,omitempty" jsonschema:"comma-separated scope tags (AND filter)"`
+	Query         string  `json:"query,omitempty" jsonschema:"optional BM25 filter on rules"`
+	MinConfidence float64 `json:"min_confidence,omitempty" jsonschema:"minimum confidence threshold"`
+	Since         string  `json:"since,omitempty" jsonschema:"YYYY-MM-DD or RFC3339; rules touched since"`
+	Limit         int     `json:"limit,omitempty" jsonschema:"max rows (default unlimited)"`
 }
 
 func (s *vaultTools) list(_ context.Context, _ *sdkmcp.CallToolRequest, args listArgs) (*sdkmcp.CallToolResult, any, error) {
@@ -228,7 +228,7 @@ func (s *vaultTools) list(_ context.Context, _ *sdkmcp.CallToolRequest, args lis
 }
 
 type showArgs struct {
-	Limit int `json:"limit,omitempty"`
+	Limit int `json:"limit,omitempty" jsonschema:"max active rules to return (default all)"`
 }
 
 func (s *vaultTools) show(_ context.Context, _ *sdkmcp.CallToolRequest, args showArgs) (*sdkmcp.CallToolResult, any, error) {
@@ -240,9 +240,9 @@ func (s *vaultTools) show(_ context.Context, _ *sdkmcp.CallToolRequest, args sho
 }
 
 type sweepArgs struct {
-	DecayDays        int     `json:"decay_days,omitempty"`
-	DecayAmount      float64 `json:"decay_amount,omitempty"`
-	DormantThreshold float64 `json:"dormant_threshold,omitempty"`
+	DecayDays        int     `json:"decay_days,omitempty" jsonschema:"days without touch before decay (default 90)"`
+	DecayAmount      float64 `json:"decay_amount,omitempty" jsonschema:"confidence subtracted per decay (default 0.05)"`
+	DormantThreshold float64 `json:"dormant_threshold,omitempty" jsonschema:"mark dormant below this confidence (default 0.3)"`
 }
 
 func (s *vaultTools) sweep(_ context.Context, _ *sdkmcp.CallToolRequest, args sweepArgs) (*sdkmcp.CallToolResult, any, error) {

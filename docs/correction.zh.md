@@ -89,7 +89,7 @@ sequenceDiagram
 ### 只记用户原话
 
 - **`--text` / `text`**：用户原话（evidence）
-- **`claim`**：可执行的陈述句（给智能体读）
+- **`claim`**：**英文**可执行陈述句（给智能体读）
 - **`query_local`（可选）**：LLM 从用户输入提炼的**本地语言检索词**，与 `claim`/`query` 分离；同轮 `add`/`supersede`/`reinforce` 落库，供后续 `find` 双路 BM25；**不是**把 evidence 复制一遍
 - 不要存密钥；不要推断用户没说的偏好
 
