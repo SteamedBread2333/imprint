@@ -206,8 +206,6 @@ func (a *App) Run(args []string) int {
 		return a.cmdInit(g, rest)
 	case "export":
 		return a.cmdExport(g, rest)
-	case "migrate-shards":
-		return a.cmdMigrateShards(g, rest)
 	case "clear":
 		return a.cmdClear(g, rest)
 	case "up":
@@ -269,7 +267,6 @@ Debug & advanced:
   host start | host stop | host serve   Split host control (prefer up/down)
   plugin list | enable | disable | start | stop   Split plugin control (prefer up/down)
   host serve  Foreground vault + shelves API (Ctrl+C)
-  migrate-shards   Import legacy imprint-*.md into vault.db (one-off)
   clear       Delete every rule (requires --confirm --yes)
   version     Print version
 
@@ -313,8 +310,6 @@ See docs/editors.md.
 `
 	case "export":
 		return "Usage: imprint export\n"
-	case "migrate-shards":
-		return "Usage: imprint migrate-shards [--dry-run]\n\nImport legacy imprint-NNNN.md shards (and archive/) into vault.db. Markdown wins on id conflict; unmatched vault.db rules are kept.\n"
 	case "clear":
 		return "Usage: imprint clear --confirm --yes\n\nIrreversible. Both flags are required.\n"
 	case "up":

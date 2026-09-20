@@ -191,39 +191,6 @@ func TestCLIUnknownCommand(t *testing.T) {
 	}
 }
 
-func TestCLIMigrateShardsDryRun(t *testing.T) {
-	dir := t.TempDir()
-	shard := filepath.Join(dir, "imprint-0001.md")
-	if err := os.WriteFile(shard, []byte(`---
-id: r-2026-09-11-001
-claim: legacy
-scope: [demo]
-confidence: 0.6
-status: active
-reinforcement_count: 0
-created_at: 2026-09-11T12:00:00Z
-updated_at: 2026-09-11T12:00:00Z
-last_touched_at: 2026-09-11T12:00:00Z
-supersedes: []
-related: []
-conflicts_with: []
-evidence_log:
-  - at: 2026-09-11T12:00:00Z
-    kind: original
-    text: legacy
----
-`), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	app, out, errw := testApp(t, dir)
-	if code := app.Run([]string{"--json", "--vault", dir, "migrate-shards", "--dry-run"}); code != 0 {
-		t.Fatalf("migrate-shards exit %d stderr=%s", code, errw)
-	}
-	if !strings.Contains(out.String(), `"from_markdown":1`) {
-		t.Fatalf("output %s", out)
-	}
-}
-
 func TestCLIHelpMentionsVaultDB(t *testing.T) {
 	dir := t.TempDir()
 	app, out, _ := testApp(t, dir)

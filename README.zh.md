@@ -173,7 +173,6 @@ shelves 在 `imprint.yaml` 顶层 host 配置（`shelves:`）。见 [docs/shelve
 | 命令 | 作用 |
 | --- | --- |
 | `imprint host serve [--listen ADDR]` | 前台 host（Ctrl+C）— 调试 API |
-| `imprint migrate-shards [--dry-run]` | 将旧 `imprint-*.md` 导入 `vault.db`（一次性） |
 | `imprint clear --confirm --yes` | 删除全部规则 — 不可逆 |
 | `imprint version` | 打印版本 |
 

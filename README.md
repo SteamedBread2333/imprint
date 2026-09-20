@@ -173,7 +173,6 @@ Shelves is top-level host config (`shelves:` in `imprint.yaml`). See [docs/shelv
 | Command | What it does |
 | --- | --- |
 | `imprint host serve [--listen ADDR]` | Foreground host (Ctrl+C) |
-| `imprint migrate-shards [--dry-run]` | Import legacy `imprint-*.md` into `vault.db` (one-off) |
 | `imprint clear --confirm --yes` | Delete every rule — irreversible |
 | `imprint version` | Print version |
 
