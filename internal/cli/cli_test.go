@@ -95,6 +95,38 @@ func TestCLIAddFindReinforceJSON(t *testing.T) {
 	}
 }
 
+func TestCLIFindQueryLocal(t *testing.T) {
+	dir := t.TempDir()
+	app, out, errw := testApp(t, dir)
+	code := app.Run([]string{
+		"--json", "--vault", dir, "add",
+		"Documentation framing policy",
+		"--scope", "docs",
+		"--text", "user text",
+		"--query-local", "否定式堆砌 文档写作",
+	})
+	if code != 0 {
+		t.Fatalf("add exit %d stderr=%s", code, errw)
+	}
+	out.Reset()
+	code = app.Run([]string{
+		"--json", "--vault", dir, "find",
+		"--scope", "docs",
+		"--query", "documentation framing",
+		"--query-local", "否定式堆砌",
+	})
+	if code != 0 {
+		t.Fatalf("find exit %d stderr=%s", code, errw)
+	}
+	var hits []imprint.FindHit
+	if err := json.Unmarshal(out.Bytes(), &hits); err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 || hits[0].QueryLocal != "否定式堆砌 文档写作" {
+		t.Fatalf("find merged %+v", hits)
+	}
+}
+
 func TestCLIForgetGetSweepShowClear(t *testing.T) {
 	dir := t.TempDir()
 	app, out, errw := testApp(t, dir)

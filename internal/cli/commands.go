@@ -156,6 +156,7 @@ func (a *App) cmdFind(g globals, args []string) int {
 	fs := newFlags()
 	scope := fs.String("scope", "")
 	query := fs.String("query", "")
+	queryLocal := fs.String("query-local", "")
 	topK := fs.Int("top-k", imprint.DefaultTopK)
 	pos, err := fs.parse(args)
 	if err != nil {
@@ -172,7 +173,7 @@ func (a *App) cmdFind(g globals, args []string) int {
 	if err != nil {
 		return a.fail(g.json, err)
 	}
-	hits, err := v.Find(splitCSV(*scope), *query, *topK)
+	hits, err := v.FindMerged(splitCSV(*scope), *query, *queryLocal, *topK)
 	if err != nil {
 		return a.fail(g.json, err)
 	}

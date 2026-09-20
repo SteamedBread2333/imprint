@@ -109,7 +109,7 @@ Every tool returns **pretty-printed JSON** in the tool result text. On failure, 
 
 | Tool | CLI equivalent | Notes |
 | --- | --- | --- |
-| `find` | `imprint find` | `scope`, optional `query`, optional `query_local` (local-language BM25 pass; merged with `query` on vault + shelves), optional `top_k`. With shelves + query or effective local → `{ rules, documents, links }`. |
+| `find` | `imprint find` | `scope`, optional `query`, optional `query_local` (dual merge on vault; + shelves when MCP), optional `top_k`. CLI: `--query-local`, rules only. MCP+shelves → `{ rules, documents, links }`. |
 | `add` | `imprint add` | `claim`, `scope`, `text` required; optional `confidence`, `query_local`, `sources`. |
 | `reinforce` | `imprint reinforce` | `id`, optional `evidence`, optional `query_local` (updates stored field). |
 | `supersede` | `imprint supersede` | `old_id`, `claim`, `scope`; optional `reason`, `text`, `query_local` (omit to inherit), `sources` (omit to inherit). |

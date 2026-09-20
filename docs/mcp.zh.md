@@ -116,7 +116,7 @@ go install github.com/SteamedBread2333/imprint/cmd/imprint-mcp@latest
 
 | 工具          | 对应 CLI              | 说明                                                                                    |
 | ----------- | ------------------- | ------------------------------------------------------------------------------------- |
-| `find`      | `imprint find`      | `scope`，可选 `query`、`query_local`（本地语言 BM25 追加一路，与 query 双跑 merge）、`top_k`。shelves 开且 query 或 effective local 非空 → `{ rules, documents, links }`。 |
+| `find`      | `imprint find`      | `scope`，可选 `query`、`query_local`（双跑 merge）、`top_k`。CLI 同参数（`--query-local`），仅 vault 规则；MCP+shelves 开且 query 或 effective local 非空 → `{ rules, documents, links }`。 |
 | `add`       | `imprint add`       | 必填 `claim`、`scope`、`text`；可选 `confidence`、`query_local`（落库）、`sources`。 |
 | `reinforce` | `imprint reinforce` | `id`，可选 `evidence`、`query_local`（更新落库字段）。 |
 | `supersede` | `imprint supersede` | `old_id`、`claim`、`scope`；可选 `reason`、`text`、`query_local`（省略则继承）、`sources`（省略则继承）。 |
