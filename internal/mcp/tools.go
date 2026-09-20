@@ -14,7 +14,7 @@ func registerTools(server *sdkmcp.Server, v *imprint.Vault, shelvesSvc *shelves.
 	s := &vaultTools{v: v, shelves: shelvesSvc}
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
 		Name: "find",
-		Description: "Search active rules (scope AND-filtered; optional query + query_local dual BM25, merge by id max score). Shelves+MCP returns { rules, documents, links }. Weak document hits and co_search links below 75% of top doc score are dropped. Prefer rule claim over documents when answering. links: sources (persistent), cited_by, co_search (assist only).",
+		Description: "Search active rules (scope AND-filtered; optional query + query_local dual BM25, merge by id max score). Call at most ONCE per user message — prepare scope, query, and query_local together before invoking; reuse results for write classification. Reference/核对 only; do not block code reads. Shelves+MCP returns { rules, documents, links }. Weak document hits and co_search links below 75% of top doc score are dropped. Prefer rule claim over documents when answering. links: sources (persistent), cited_by, co_search (assist only).",
 	}, s.find)
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
 		Name:        "add",

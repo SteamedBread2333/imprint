@@ -86,19 +86,29 @@ imprint --json --vault ./.imprint/memory show
 imprint --json --vault ./.imprint/memory sweep
 ```
 
+## Recall model (async, reference-only)
+
+- **Imprint is核对和参考**, not the primary research path. **Do not block** coding, grep, or file reads waiting on find results.
+- **Critical path:** user task → read/write code or docs → answer. **Side path:** one find to check stored policy; adjust only if a rule claim conflicts.
+- Find hits **confirm or constrain** — they do not replace reading `server.go`, tests, or project docs for implementation.
+
 ## Must do
 
-1. Before coding or style answers → **MCP `find`** with **narrow scope** + **`query`** (shelves on); when local-language terms differ from `query`, also pass **`query_local`**. **Answer from rule claims first**; documents are supplemental (weak hits filtered). Use **`resolved_sources`**, **`documents`**, **`links`**. Cite `[r-id]` when a rule shapes behavior. CLI fallback = vault rules only.
-2. **Same-turn write:** durable preference → MCP `find` → classify ADD / REINFORCE / SUPERSEDE / IGNORE → **write in this turn**. Document hit → pass **`sources`** on `add` / `supersede`; distilled local search terms → **`query_local`** on `add` / `supersede` / `reinforce`.
-3. **IGNORE** one-off tasks and session-only steps. **ADD / REINFORCE / SUPERSEDE** only for cross-session policy in the user's words.
-4. Analyse the requirement before modifying code.
-5. Before every write, classify again; no duplicates. Confidence: default 0.6; corrections 0.85; "always" 0.9.
-6. User negates in plain speech → `find` then `forget` or `supersede`.
-7. User asks what's recorded → `show` or **`imprint desk open`** (`/`, `/docs`, `/unified`).
-8. After imprint feature work here → update README, docs, **vault rules** (same turn), **`internal/cli/templates/body.md`** (`imprint init` embed source) and **`.cursor/rules/imprint-memory.mdc`**, and self-test.
+1. **At most one `find` per user message** (per agent turn). Before calling, prepare **all** parameters in one pass: `scope` + `query` + `query_local` (when CJK/local terms differ). **Never** chain finds (`find` → grep → `find` → `find`); merge keywords up front (e.g. `query`: `host debug route timeout`, `query_local`: `调试 慢接口 debug 路由`).
+2. **Reuse that same find** for write classification (ADD / REINFORCE / SUPERSEDE / IGNORE) — do **not** run a second find before `add` / `supersede`.
+3. When shelves is on: **answer from rule claims first**; documents are supplemental (weak hits filtered). Cite `[r-id]` only when a rule shapes behavior. CLI fallback = vault rules only.
+4. **Same-turn write:** durable preference → classify from the **single find above** → **write in this turn**. Document hit → pass **`sources`** on `add` / `supersede`; distilled local search terms → **`query_local`** on `add` / `supersede` / `reinforce`.
+5. **IGNORE** one-off tasks and session-only steps. **ADD / REINFORCE / SUPERSEDE** only for cross-session policy in the user's words.
+6. Analyse the requirement before modifying code. **Implementation requests:** code/docs on the critical path; imprint find is optional核对 unless policy is unclear.
+7. Before every write, classify again from existing find results; no duplicates. Confidence: default 0.6; corrections 0.85; "always" 0.9.
+8. User negates in plain speech → use the **one** find (or `list` if no find yet) then `forget` or `supersede`.
+9. User asks what's recorded → `show` or **`imprint desk open`** (`/`, `/docs`, `/unified`).
+10. After imprint feature work here → update README, docs, **vault rules** (same turn), **`internal/cli/templates/body.md`** (`imprint init` embed source) and **`.cursor/rules/imprint-memory.mdc`**, and self-test.
 
 ## Must not
 
+- **Multiple `find` calls in one turn** to “refine” scope/query — widen parameters once instead.
+- **Pre-find codebase archaeology** (many greps/files) whose only goal is tuning find args — parse the user message, call find once, then read code if implementing.
 - Pre-coding recall with documents/links — use **MCP** `find`/`get` (see table).
 - Assume vault updates from chat. Don't backfill from history unless asked.
 - Infer preferences. Don't store secrets. Don't hand-edit `vault.db` (`sweep` only).
