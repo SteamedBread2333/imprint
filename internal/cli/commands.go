@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/SteamedBread2333/imprint/internal/telemetry"
 	"github.com/SteamedBread2333/imprint/pkg/imprint"
 )
 
@@ -210,7 +211,7 @@ func (a *App) cmdReinforce(g globals, args []string) int {
 		return a.fail(g.json, err)
 	}
 	if len(pos) != 1 {
-		return a.fail(g.json, fmt.Errorf("usage: imprint reinforce ID [--evidence TEXT]"))
+		return a.fail(g.json, fmt.Errorf("usage: imprint reinforce ID --evidence TEXT"))
 	}
 	v, err := a.openVault(g)
 	if err != nil {
@@ -532,6 +533,59 @@ func (a *App) cmdExport(g globals, args []string) int {
 	c := a.console()
 	c.Heading("export")
 	c.Done("wrote %s", exportPath)
+	c.blank()
+	return 0
+}
+
+func (a *App) cmdReport(g globals, args []string) int {
+	fs := newFlags()
+	days := fs.Int("days", 30)
+	if _, err := fs.parse(args); err != nil {
+		if err == errHelp {
+			fmt.Fprint(a.out(), commandHelp("report"))
+			return 0
+		}
+		return a.fail(g.json, err)
+	}
+	v, err := a.openVault(g)
+	if err != nil {
+		return a.fail(g.json, err)
+	}
+	defer v.Close()
+	report, err := v.Report(*days)
+	if err != nil {
+		return a.fail(g.json, err)
+	}
+	tel, err := telemetry.Summarize(
+		filepath.Join(v.Dir, imprint.StateDirName, "telemetry"),
+		a.now().Add(-time.Duration(*days)*24*time.Hour),
+	)
+	if err != nil {
+		return a.fail(g.json, err)
+	}
+	payload := struct {
+		*imprint.ReportResult
+		Telemetry telemetry.Summary `json:"telemetry"`
+	}{ReportResult: report, Telemetry: tel}
+	if g.json {
+		_ = a.writeJSON(payload)
+		return 0
+	}
+	c := a.console()
+	c.Heading("report")
+	fmt.Fprintf(a.out(), "  since          %s\n", report.Since.Format(time.RFC3339))
+	fmt.Fprintf(a.out(), "  rules          %d\n", len(report.Rules))
+	fmt.Fprintf(a.out(), "  duplicates     %d\n", len(report.Duplicates))
+	fmt.Fprintf(a.out(), "  conflicts      %d\n", len(report.Conflicts))
+	fmt.Fprintf(a.out(), "  telemetry      %d events, %.1fms average\n", tel.Events, tel.AvgLatency)
+	for kind, count := range report.EventCounts {
+		fmt.Fprintf(a.out(), "  %-14s %d\n", kind, count)
+	}
+	for _, rule := range report.Rules {
+		if rule.Recommendation != "" {
+			fmt.Fprintf(a.out(), "  review %-24s %s\n", rule.ID, rule.Recommendation)
+		}
+	}
 	c.blank()
 	return 0
 }

@@ -8,7 +8,7 @@ import (
 func TestFindReturnsDormantAsLowWeightFallbackWithoutWaking(t *testing.T) {
 	dir := t.TempDir()
 	oldTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
-	v, err := OpenWithNow(dir, func() time.Time { return oldTime })
+	v, err := Open(OpenOptions{Dir: dir, Now: func() time.Time { return oldTime }})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +44,7 @@ func TestFindReturnsDormantAsLowWeightFallbackWithoutWaking(t *testing.T) {
 func TestReinforceWakesDormantRule(t *testing.T) {
 	dir := t.TempDir()
 	oldTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
-	v, err := OpenWithNow(dir, func() time.Time { return oldTime })
+	v, err := Open(OpenOptions{Dir: dir, Now: func() time.Time { return oldTime }})
 	if err != nil {
 		t.Fatal(err)
 	}

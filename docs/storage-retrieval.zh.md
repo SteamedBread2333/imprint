@@ -94,7 +94,7 @@ erDiagram
     string body
     float confidence
     string status
-    datetime last_touched_at
+    datetime last_confirmed_at
   }
   entry_tags {
     string entry_id FK

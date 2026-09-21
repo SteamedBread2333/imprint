@@ -15,7 +15,7 @@ func main() {
 	vault := flag.String("vault", ".imprint", "vault directory")
 	flag.Parse()
 
-	v, err := imprint.Open(*vault)
+	v, err := imprint.Open(imprint.OpenOptions{Dir: *vault})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -75,9 +75,9 @@ var demoRules = []demoRule{
 		},
 	},
 	{
-		claim: "Persistent imprint-to-doc links use vault sources only; do not require [[r-…]] in project markdown",
-		scope: "imprint,architecture,linking",
-		text:  "文档和 imprint 的持久关联只写 vault 的 sources，默认不要在项目 markdown 里加 [[r-…]]。",
+		claim:      "Persistent imprint-to-doc links use vault sources only; do not require [[r-…]] in project markdown",
+		scope:      "imprint,architecture,linking",
+		text:       "文档和 imprint 的持久关联只写 vault 的 sources，默认不要在项目 markdown 里加 [[r-…]]。",
 		confidence: 0.85,
 		sources: []imprint.DocRef{
 			{Path: "docs/imprint-shelves-linking.zh.md", Heading: "推荐：不污染项目 markdown"},
@@ -85,9 +85,9 @@ var demoRules = []demoRule{
 		},
 	},
 	{
-		claim:  "Agent recall before coding uses MCP find with scope and query; CLI find/get stays vault-only",
-		scope:  "imprint,mcp,agent",
-		text:   "写代码前 Agent 用 MCP find(scope, query)；CLI find/get 见 mcp 文档对比表。",
+		claim:      "Agent recall before coding uses MCP find with scope and query; CLI find/get stays vault-only",
+		scope:      "imprint,mcp,agent",
+		text:       "写代码前 Agent 用 MCP find(scope, query)；CLI find/get 见 mcp 文档对比表。",
 		confidence: 0.85,
 		sources: []imprint.DocRef{
 			{Path: "docs/mcp.zh.md", Heading: "MCP vs CLI"},
@@ -95,9 +95,9 @@ var demoRules = []demoRule{
 		},
 	},
 	{
-		claim:  "Human audit of imprint-doc links uses desk unified graph, not agent find",
-		scope:  "imprint,desk,audit",
-		text:   "人要审计 imprint 和文档怎么连上的，用 desk 的统一视图；Agent 日常召回还是 MCP find/get。",
+		claim:      "Human audit of imprint-doc links uses desk unified graph, not agent find",
+		scope:      "imprint,desk,audit",
+		text:       "人要审计 imprint 和文档怎么连上的，用 desk 的统一视图；Agent 日常召回还是 MCP find/get。",
 		confidence: 0.85,
 		sources: []imprint.DocRef{
 			{Path: "docs/shelves-builtin.zh.md", Heading: "Desk UI"},
@@ -105,9 +105,9 @@ var demoRules = []demoRule{
 		},
 	},
 	{
-		claim:  "On ADD when find returns a matching document, attach sources in the same turn",
-		scope:  "imprint,agent,writes",
-		text:   "ADD 时如果 find 命中了 document，同轮 add 就要带上 sources，只写 vault。",
+		claim:      "On ADD when find returns a matching document, attach sources in the same turn",
+		scope:      "imprint,agent,writes",
+		text:       "ADD 时如果 find 命中了 document，同轮 add 就要带上 sources，只写 vault。",
 		confidence: 0.9,
 		sources: []imprint.DocRef{
 			{Path: "docs/correction.zh.md", Heading: "写入循环"},
@@ -116,9 +116,9 @@ var demoRules = []demoRule{
 		},
 	},
 	{
-		claim:  "After imprint feature work, update README flowchart and all related docs before considering done",
-		scope:  "imprint,documentation,workflow",
-		text:   "imprint 功能开发完成后要更新 README 流程图和相关文档，并自测。",
+		claim:      "After imprint feature work, update README flowchart and all related docs before considering done",
+		scope:      "imprint,documentation,workflow",
+		text:       "imprint 功能开发完成后要更新 README 流程图和相关文档，并自测。",
 		confidence: 0.85,
 		sources: []imprint.DocRef{
 			{Path: "README.zh.md", Heading: "快速开始"},

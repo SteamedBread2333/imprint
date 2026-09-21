@@ -183,8 +183,9 @@ Handler 默认 **30 秒**超时（`503` + `{"error":"timeout"}`），请求不�
 }
 ```
 
-- **无 query** 或 shelves 禁用：响应为 **规则数组**（或带 `resolved_sources` 的 enriched hits，若规则已有 `sources`）。
-- `get`：`r-…` → vault 条目 + `resolved_sources`；16 位 hex chunk id → 文档 chunk + `referenced_rules`（+ `cited_rules` 若正文含 `[[r-…]]`）。
+- 默认 MCP `find` 为紧凑形状：规则只返回 claim/计数，不内联 evidence；文档 snippet 约 300 字。`full:true` 仅审计，才可能带 source 正文。
+- **无 query** 或 shelves 禁用：仅紧凑 **rules**。
+- `get`：规则默认折叠 evidence 与来源正文，只给指针和 `evidence_count`。`include_evidence:true` 展开最近证据（`evidence_limit` 默认 3）；`full:true` 仅审计。chunk id → 文档 chunk + `referenced_rules`（+ `cited_rules` 若正文含 `[[r-…]]`）。
 
 Agent 约定见 `imprint init` 写入的编辑器规则与 [correction.zh.md](correction.zh.md)。
 

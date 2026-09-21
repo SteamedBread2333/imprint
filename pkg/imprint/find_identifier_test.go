@@ -3,7 +3,7 @@ package imprint
 import "testing"
 
 func TestFindMatchesIdentifierFormattingVariants(t *testing.T) {
-	v, err := Open(t.TempDir())
+	v, err := Open(OpenOptions{Dir: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}

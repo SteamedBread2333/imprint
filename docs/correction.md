@@ -63,7 +63,7 @@ Prefer **MCP tools**; fall back to **`imprint --json`** ([mcp.md](mcp.md)).
 | Class | When | Command | Vault effect |
 | --- | --- | --- | --- |
 | **ADD** | `find` empty; **new** preference (optional `sources` when document hit) | `add` | New `active` imprint, default confidence **0.6** |
-| **REINFORCE** | Rule exists; user **confirms again** | `reinforce` | confidence **+0.1** (cap **0.95**), `reinforcement_count++`, may wake `dormant` |
+| **REINFORCE** | Rule exists; user **confirms again** with non-empty evidence | `reinforce` | diminishing gain `min(0.95, old + (0.95-old)*0.25)`, `reinforcement_count++`, may wake `dormant` |
 | **SUPERSEDE** | Preference **changed**, scope **widened/narrowed**, old claim **invalid** | `supersede` | Old → `superseded` status; new `active` with `supersedes: [old_id]` |
 | **IGNORE** | One-off task, chit-chat, agent-**inferred** preference | (no write) | — |
 
@@ -72,7 +72,9 @@ Also:
 | Op | When |
 | --- | --- |
 | **forget** | User negates in **plain speech** (“don’t record that”); agent `find`s then `forget`s — user never mentions imprint |
-| **sweep** | Periodic decay of untouched rules (default 90d −0.05; below 0.3 → `dormant`) |
+| **sweep** | Periodic decay of rules not confirmed recently (`last_confirmed_at`; default 90d −0.05; below 0.3 → `dormant`) |
+
+Language scope tags (`ts`, `tsx`, `golang`) canonicalize to GitHub Linguist names via go-enry on add/find/list/supersede. Non-language tags (`naming`, `frontend`) pass through.
 
 ### Confidence (agent convention)
 

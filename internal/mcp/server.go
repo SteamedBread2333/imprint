@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 
 	"github.com/SteamedBread2333/imprint/internal/plugin"
 	"github.com/SteamedBread2333/imprint/internal/shelves"
+	"github.com/SteamedBread2333/imprint/internal/telemetry"
 	"github.com/SteamedBread2333/imprint/pkg/imprint"
 )
 
@@ -41,7 +43,20 @@ func Run(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return err
 	}
-	v, err := imprint.OpenWithNow(dir, Now)
+	opts := imprint.OpenOptions{Dir: dir, Now: Now}
+	if cfgPath := resolvePluginConfigPathForRun(cfg, dir); cfgPath != "" {
+		pcfg, loadErr := plugin.Load(cfgPath)
+		if loadErr != nil {
+			return loadErr
+		}
+		if pcfg.Telemetry.Enabled {
+			opts.Telemetry = telemetry.New(
+				filepath.Join(dir, imprint.StateDirName, "telemetry"),
+				pcfg.Telemetry.RetentionDays, Now, os.Stderr,
+			)
+		}
+	}
+	v, err := imprint.Open(opts)
 	if err != nil {
 		return fmt.Errorf("open vault %s: %w", dir, err)
 	}

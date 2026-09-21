@@ -14,33 +14,54 @@ import (
 
 // Vault is a SQLite-backed imprint store at Dir/vault.db.
 type Vault struct {
-	Dir   string
-	store *sqlite.Store
-	now   func() time.Time
+	Dir       string
+	store     *sqlite.Store
+	now       func() time.Time
+	telemetry EventSink
 }
 
-// Open creates (if needed) and returns a vault at dir.
-func Open(dir string) (*Vault, error) {
-	return OpenWithNow(dir, time.Now)
+// OpenOptions configures a vault. Construction is immutable after Open.
+type OpenOptions struct {
+	Dir       string
+	Now       func() time.Time
+	Telemetry EventSink
 }
 
-// OpenWithNow is Open with an injectable clock (tests, CLI -- now).
-func OpenWithNow(dir string, now func() time.Time) (*Vault, error) {
-	if strings.TrimSpace(dir) == "" {
+// TelemetryEvent contains content-free operational measurements.
+type TelemetryEvent struct {
+	At             time.Time
+	Op             string
+	ScopeCount     int
+	QueryTermCount int
+	RuleHitCount   int
+	DocHitCount    int
+	WakeCandidate  bool
+	LatencyMS      int64
+	Code           string
+}
+
+// EventSink receives privacy-safe telemetry.
+type EventSink interface {
+	Record(TelemetryEvent) error
+}
+
+// Open creates (if needed) and returns a configured vault.
+func Open(opts OpenOptions) (*Vault, error) {
+	if strings.TrimSpace(opts.Dir) == "" {
 		return nil, fmt.Errorf("vault path is empty")
 	}
-	abs, err := filepath.Abs(dir)
+	abs, err := filepath.Abs(opts.Dir)
 	if err != nil {
 		return nil, err
 	}
-	if now == nil {
-		now = time.Now
+	if opts.Now == nil {
+		opts.Now = time.Now
 	}
-	st, err := sqlite.Open(abs, now)
+	st, err := sqlite.Open(abs, opts.Now)
 	if err != nil {
 		return nil, err
 	}
-	return &Vault{Dir: abs, store: st, now: now}, nil
+	return &Vault{Dir: abs, store: st, now: opts.Now, telemetry: opts.Telemetry}, nil
 }
 
 // Close releases the underlying SQLite connection.
@@ -56,6 +77,16 @@ func (v *Vault) instant() time.Time {
 		return time.Now().UTC()
 	}
 	return v.now().UTC().Truncate(time.Second)
+}
+
+func (v *Vault) emit(event TelemetryEvent) {
+	if v.telemetry == nil {
+		return
+	}
+	if event.At.IsZero() {
+		event.At = v.instant()
+	}
+	_ = v.telemetry.Record(event)
 }
 
 func (v *Vault) load(id string) (*Record, error) {
@@ -92,10 +123,10 @@ func initialAddConfidence(c float64) float64 {
 	return c
 }
 
-func cleanScope(scope []string) []string {
+func cleanStrings(values []string) []string {
 	seen := map[string]struct{}{}
 	var out []string
-	for _, s := range scope {
+	for _, s := range values {
 		s = strings.TrimSpace(s)
 		if s == "" {
 			continue
@@ -108,6 +139,15 @@ func cleanScope(scope []string) []string {
 		out = append(out, s)
 	}
 	return out
+}
+
+func (v *Vault) cleanScope(scope []string) []string {
+	values := cleanStrings(scope)
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		out = append(out, CanonicalScope(value))
+	}
+	return cleanStrings(out)
 }
 
 func (v *Vault) save(r *Record) error {
@@ -126,11 +166,12 @@ func (v *Vault) AddWithSources(claim string, scope []string, text string, confid
 
 // AddRecord is Add plus optional relationship fields and query_local.
 func (v *Vault) AddRecord(claim string, scope []string, text string, confidence float64, supersedes, related, conflicts []string, sources []DocRef, queryLocal string) (*AddResult, error) {
+	start := time.Now()
 	claim = strings.TrimSpace(claim)
 	if claim == "" {
 		return nil, fmt.Errorf("claim is required")
 	}
-	scope = cleanScope(scope)
+	scope = v.cleanScope(scope)
 	if len(scope) == 0 {
 		return nil, fmt.Errorf("scope is required")
 	}
@@ -139,9 +180,11 @@ func (v *Vault) AddRecord(claim string, scope []string, text string, confidence 
 		guardedText{field: "text", text: text},
 		guardedText{field: "query_local", text: queryLocal},
 	); err != nil {
+		v.emit(TelemetryEvent{Op: "write_rejected", Code: "privacy_rejected"})
 		return nil, err
 	}
 	if err := v.checkSourcePaths(sources); err != nil {
+		v.emit(TelemetryEvent{Op: "write_rejected", Code: "privacy_rejected"})
 		return nil, err
 	}
 	duplicates, err := v.duplicateCandidates(claim, scope)
@@ -149,6 +192,7 @@ func (v *Vault) AddRecord(claim string, scope []string, text string, confidence 
 		return nil, err
 	}
 	if len(duplicates) > 0 {
+		v.emit(TelemetryEvent{Op: "write_rejected", Code: "duplicate"})
 		return nil, &WriteGuardError{
 			Code:       "duplicate",
 			Message:    "similar active rule already exists",
@@ -170,10 +214,9 @@ func (v *Vault) AddRecord(claim string, scope []string, text string, confidence 
 		ReinforcementCount: 0,
 		CreatedAt:          now,
 		UpdatedAt:          now,
-		LastTouchedAt:      now,
-		Supersedes:         cleanScope(supersedes),
-		Related:            cleanScope(related),
-		ConflictsWith:      cleanScope(conflicts),
+		Supersedes:         cleanStrings(supersedes),
+		Related:            cleanStrings(related),
+		ConflictsWith:      cleanStrings(conflicts),
 		Sources:            cleanDocRefs(sources),
 		QueryLocal:         MergeQueryLocalForStore(queryLocal, text),
 		EvidenceLog: []Evidence{{
@@ -186,6 +229,7 @@ func (v *Vault) AddRecord(claim string, scope []string, text string, confidence 
 	if err := v.store.InsertRecord(rec); err != nil {
 		return nil, err
 	}
+	v.emit(TelemetryEvent{Op: "add", ScopeCount: len(scope), LatencyMS: time.Since(start).Milliseconds()})
 	return &AddResult{ID: rec.ID, Confidence: rec.Confidence, Path: rec.Path}, nil
 }
 
@@ -270,7 +314,7 @@ func (v *Vault) ListFilter(f ListFilter) ([]ListItem, error) {
 		return nil, err
 	}
 	status := strings.TrimSpace(strings.ToLower(f.Status))
-	scope := cleanScope(f.Scope)
+	scope := v.cleanScope(f.Scope)
 	query := strings.TrimSpace(f.Query)
 	var corpus []*Record
 	if query != "" {
@@ -285,7 +329,7 @@ func (v *Vault) ListFilter(f ListFilter) ([]ListItem, error) {
 		if f.MinConfidence > 0 && r.Confidence < f.MinConfidence {
 			continue
 		}
-		if !f.Since.IsZero() && r.LastTouchedAt.Before(f.Since) {
+		if !f.Since.IsZero() && r.UpdatedAt.Before(f.Since) {
 			continue
 		}
 		if len(scope) > 0 {
@@ -344,6 +388,7 @@ func (v *Vault) Show(limit int) ([]*Record, error) {
 
 // Forget permanently deletes a record and strips inbound relationship ids.
 func (v *Vault) Forget(id string) (*ForgetResult, error) {
+	start := time.Now()
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return nil, fmt.Errorf("id is required")
@@ -354,6 +399,7 @@ func (v *Vault) Forget(id string) (*ForgetResult, error) {
 	if err := v.store.DeleteRecord(id); err != nil {
 		return nil, err
 	}
+	v.emit(TelemetryEvent{Op: "forget", LatencyMS: time.Since(start).Milliseconds()})
 	return &ForgetResult{Success: true}, nil
 }
 

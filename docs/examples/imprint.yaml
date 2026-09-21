@@ -5,6 +5,10 @@
 host:
   listen: 127.0.0.1:9470
 
+telemetry:
+  enabled: true
+  retention_days: 30
+
 shelves:
   enabled: true
   config:

@@ -1,12 +1,15 @@
 package sqlite_test
 
 import (
+	"database/sql"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/SteamedBread2333/imprint/internal/vault/sqlite"
 	"github.com/SteamedBread2333/imprint/pkg/imprint"
+	_ "modernc.org/sqlite"
 )
 
 func testStore(t *testing.T) (*sqlite.Store, func()) {
@@ -32,7 +35,6 @@ func TestPutGetEvidence(t *testing.T) {
 		Status:     imprint.StatusActive,
 		CreatedAt:  now,
 		UpdatedAt:  now,
-		LastTouchedAt: now,
 		EvidenceLog: []imprint.Evidence{{
 			At: now, Kind: imprint.EvidenceOriginal, Text: "snake_case please",
 		}},
@@ -59,8 +61,8 @@ func TestScopeANDCandidates(t *testing.T) {
 	defer cleanup()
 	now := time.Date(2026, 9, 18, 12, 0, 0, 0, time.UTC)
 	for _, r := range []*imprint.Record{
-		{ID: "r-2026-09-18-001", Claim: "a", Scope: []string{"go", "naming"}, Status: imprint.StatusActive, Confidence: 0.8, CreatedAt: now, UpdatedAt: now, LastTouchedAt: now},
-		{ID: "r-2026-09-18-002", Claim: "b", Scope: []string{"go"}, Status: imprint.StatusActive, Confidence: 0.8, CreatedAt: now, UpdatedAt: now, LastTouchedAt: now},
+		{ID: "r-2026-09-18-001", Claim: "a", Scope: []string{"go", "naming"}, Status: imprint.StatusActive, Confidence: 0.8, CreatedAt: now, UpdatedAt: now},
+		{ID: "r-2026-09-18-002", Claim: "b", Scope: []string{"go"}, Status: imprint.StatusActive, Confidence: 0.8, CreatedAt: now, UpdatedAt: now},
 	} {
 		if err := st.PutRecord(r); err != nil {
 			t.Fatal(err)
@@ -82,7 +84,7 @@ func TestRulesReferencingDoc(t *testing.T) {
 	rec := &imprint.Record{
 		ID: "r-2026-09-18-001", Claim: "follow style", Scope: []string{"docs"},
 		Status: imprint.StatusActive, Confidence: 0.7,
-		CreatedAt: now, UpdatedAt: now, LastTouchedAt: now,
+		CreatedAt: now, UpdatedAt: now,
 		Sources: []imprint.DocRef{{Path: "docs/style.md", Heading: "Naming"}},
 	}
 	if err := st.PutRecord(rec); err != nil {
@@ -109,7 +111,7 @@ func TestQueryLocalRoundTrip(t *testing.T) {
 	rec := &imprint.Record{
 		ID: "r-2026-09-18-001", Claim: "Avoid disclaimer stacking", Scope: []string{"docs"},
 		QueryLocal: "否定式堆砌 文档写作", Status: imprint.StatusActive, Confidence: 0.85,
-		CreatedAt: now, UpdatedAt: now, LastTouchedAt: now,
+		CreatedAt: now, UpdatedAt: now,
 	}
 	if err := st.PutRecord(rec); err != nil {
 		t.Fatal(err)
@@ -132,12 +134,38 @@ func TestImportAndDBPath(t *testing.T) {
 	}
 	now := time.Date(2026, 9, 18, 12, 0, 0, 0, time.UTC)
 	if err := st.ImportRecords([]*imprint.Record{
-		{ID: "r-2026-09-18-001", Claim: "x", Scope: []string{"a"}, Status: imprint.StatusActive, Confidence: 0.6, CreatedAt: now, UpdatedAt: now, LastTouchedAt: now},
+		{ID: "r-2026-09-18-001", Claim: "x", Scope: []string{"a"}, Status: imprint.StatusActive, Confidence: 0.6, CreatedAt: now, UpdatedAt: now},
 	}); err != nil {
 		t.Fatal(err)
 	}
 	all, err := st.AllRecords(true)
 	if err != nil || len(all) != 1 {
 		t.Fatalf("all = %d err=%v", len(all), err)
+	}
+}
+
+func TestOpenRejectsUnsupportedSchema(t *testing.T) {
+	dir := t.TempDir()
+	st, err := sqlite.Open(dir, time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open("sqlite", sqlite.DBPath(dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`UPDATE meta SET value = 'legacy' WHERE key = 'schema_version'`); err != nil {
+		_ = db.Close()
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	_, err = sqlite.Open(dir, time.Now)
+	if err == nil || !strings.Contains(err.Error(), "unsupported vault schema") {
+		t.Fatalf("error = %v", err)
 	}
 }

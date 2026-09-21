@@ -4,10 +4,10 @@ import "testing"
 
 func TestStartNeedsShell(t *testing.T) {
 	cases := map[string]bool{
-		"go run ./cmd/imprint-desk serve":        false,
-		"node dist/cli.js serve":                 false,
+		"go run ./cmd/imprint-desk serve":         false,
+		"node dist/cli.js serve":                  false,
 		"npm run build && node dist/cli.js serve": true,
-		"echo a | wc -l":                         true,
+		"echo a | wc -l":                          true,
 	}
 	for line, want := range cases {
 		if got := startNeedsShell(line); got != want {

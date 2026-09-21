@@ -64,7 +64,7 @@ func TestCLIAddFindReinforceJSON(t *testing.T) {
 	if err := json.Unmarshal(out.Bytes(), &rf); err != nil {
 		t.Fatal(err)
 	}
-	if rf.Confidence != 0.7 || rf.ReinforcementCount != 1 {
+	if rf.Confidence != 0.6875 || rf.ReinforcementCount != 1 {
 		t.Fatalf("reinforce %+v", rf)
 	}
 
@@ -284,5 +284,24 @@ func TestCLIExportJSONL(t *testing.T) {
 	}
 	if rec.Claim != "Use gofmt" {
 		t.Fatalf("record = %+v", rec)
+	}
+}
+
+func TestCLIReportJSON(t *testing.T) {
+	dir := t.TempDir()
+	app, out, errw := testApp(t, dir)
+	if code := app.Run([]string{"--json", "--vault", dir, "add", "Prefer table tests", "--scope", "go", "--text", "team policy"}); code != 0 {
+		t.Fatalf("add: %s", errw)
+	}
+	out.Reset()
+	if code := app.Run([]string{"--json", "--vault", dir, "find", "--scope", "go", "--query", "table tests"}); code != 0 {
+		t.Fatalf("find: %s", errw)
+	}
+	out.Reset()
+	if code := app.Run([]string{"--json", "--vault", dir, "report", "--days", "30"}); code != 0 {
+		t.Fatalf("report: %s", errw)
+	}
+	if !strings.Contains(out.String(), `"event_counts"`) || !strings.Contains(out.String(), `"recall_count"`) {
+		t.Fatalf("report = %s", out)
 	}
 }

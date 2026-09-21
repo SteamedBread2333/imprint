@@ -14,9 +14,9 @@ import (
 
 func startTestServer(t *testing.T, dir string) *sdkmcp.ClientSession {
 	t.Helper()
-	v, err := imprint.OpenWithNow(dir, func() time.Time {
+	v, err := imprint.Open(imprint.OpenOptions{Dir: dir, Now: func() time.Time {
 		return time.Date(2026, 9, 14, 12, 0, 0, 0, time.UTC)
-	})
+	}})
 	if err != nil {
 		t.Fatal(err)
 	}

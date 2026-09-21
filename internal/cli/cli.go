@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/SteamedBread2333/imprint/internal/plugin"
+	"github.com/SteamedBread2333/imprint/internal/telemetry"
 	"github.com/SteamedBread2333/imprint/pkg/imprint"
 )
 
@@ -158,7 +161,20 @@ func (a *App) openVault(g globals) (*imprint.Vault, error) {
 	if err != nil {
 		return nil, err
 	}
-	return imprint.OpenWithNow(dir, a.now)
+	opts := imprint.OpenOptions{Dir: dir, Now: a.now}
+	if cfgPath, ok := plugin.ResolveConfigPathForVault(dir); ok {
+		cfg, err := plugin.Load(cfgPath)
+		if err != nil {
+			return nil, err
+		}
+		if cfg.Telemetry.Enabled {
+			opts.Telemetry = telemetry.New(
+				filepath.Join(dir, imprint.StateDirName, "telemetry"),
+				cfg.Telemetry.RetentionDays, a.now, a.errw(),
+			)
+		}
+	}
+	return imprint.Open(opts)
 }
 
 // Run dispatches a command. Returns a process exit code.
@@ -202,6 +218,8 @@ func (a *App) Run(args []string) int {
 		return a.cmdSweep(g, rest)
 	case "show":
 		return a.cmdShow(g, rest)
+	case "report":
+		return a.cmdReport(g, rest)
 	case "init":
 		return a.cmdInit(g, rest)
 	case "export":
@@ -260,6 +278,7 @@ Everyday — vault (no local stack required):
   list        Short listing
   get         Full record by id
   show        User-facing listing
+  report      Lifecycle, recall, duplicate, conflict, and telemetry audit
   sweep       Decay stale rules and mark low-confidence ones dormant
   export      Write JSON or JSONL under .imprint/export/
 
@@ -282,7 +301,7 @@ func commandHelp(cmd string) string {
 	case "find":
 		return "Usage: imprint find [--scope tag,tag] [--query TEXT] [--query-local TERMS] [--top-k 5]\n"
 	case "reinforce":
-		return "Usage: imprint reinforce ID [--evidence TEXT] [--query-local TERMS]\n"
+		return "Usage: imprint reinforce ID --evidence TEXT [--query-local TERMS]\n"
 	case "supersede":
 		return "Usage: imprint supersede OLD_ID --claim NEW --scope tag,tag [--reason TEXT] [--text ORIG] [--query-local TERMS]\n"
 	case "forget":
@@ -310,6 +329,8 @@ See docs/editors.md.
 `
 	case "export":
 		return "Usage: imprint export [--format json|jsonl]\n\nWrites vault.json (default) or vault.jsonl under .imprint/export/.\n"
+	case "report":
+		return "Usage: imprint report [--days 30]\n\nAudit lifecycle events, recall stats, duplicates, conflicts, recommendations, and telemetry.\n"
 	case "clear":
 		return "Usage: imprint clear --confirm --yes\n\nIrreversible. Both flags are required.\n"
 	case "up":

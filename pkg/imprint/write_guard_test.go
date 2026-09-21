@@ -6,7 +6,7 @@ import (
 )
 
 func TestAddRejectsDuplicateActiveClaim(t *testing.T) {
-	v, err := Open(t.TempDir())
+	v, err := Open(OpenOptions{Dir: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -25,7 +25,7 @@ func TestAddRejectsDuplicateActiveClaim(t *testing.T) {
 }
 
 func TestAddAllowsSameClaimInUnrelatedScope(t *testing.T) {
-	v, err := Open(t.TempDir())
+	v, err := Open(OpenOptions{Dir: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +38,7 @@ func TestAddAllowsSameClaimInUnrelatedScope(t *testing.T) {
 }
 
 func TestWritePrivacyGuards(t *testing.T) {
-	v, err := Open(t.TempDir())
+	v, err := Open(OpenOptions{Dir: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}

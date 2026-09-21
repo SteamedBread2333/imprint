@@ -111,14 +111,14 @@ Every tool returns **pretty-printed JSON** in the tool result text. On failure, 
 | --- | --- | --- |
 | `find` | `imprint find` | Compact by default: rule claims/counts plus `{rules,documents,links,conflict_set}`. Optional `query`, `query_local`, `top_k`; `full:true` is audit-only. A query may return at most one penalized dormant `wake_candidate`; only explicit `reinforce` wakes it. |
 | `add` | `imprint add` | `claim`, `scope`, `text` required; optional `confidence`, `query_local`, `sources`. Rejects sensitive data, denied source paths, and high-similarity active duplicates. |
-| `reinforce` | `imprint reinforce` | `id`, optional `evidence`, optional `query_local` (updates stored field). |
+| `reinforce` | `imprint reinforce` | `id` and required non-empty `evidence`; optional `query_local`. Find hits never raise confidence. |
 | `supersede` | `imprint supersede` | `old_id`, `claim`, `scope`; optional `reason`, `text`, `query_local` (omit to inherit), `sources` (omit to inherit). |
 | `forget` | `imprint forget` | `id`. |
 | `get` | `imprint get` | Rule get folds evidence and source text by default. `include_evidence:true` uses `evidence_limit` (default 3); `full:true` is audit-only. Chunk get is unchanged. |
 | `list` | `imprint list` | Optional `status`, `scope`, `query`, `min_confidence`, `since`, `limit`. |
 | `show` | `imprint show` | Optional `limit`. |
 | `sweep` | `imprint sweep` | Optional `decay_days`, `decay_amount`, `dormant_threshold`. |
-**Not exposed:** `init` (one-time setup), `export`, `clear` (irreversible; use CLI with `--confirm --yes` if you really need it).
+**Not exposed:** `init` (one-time setup), `export`, `report` (CLI audit), `clear` (irreversible; use CLI with `--confirm --yes` if you really need it).
 
 ### Agent workflow
 

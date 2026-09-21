@@ -63,7 +63,6 @@ func main() {
 			ReinforcementCount: i % 4,
 			CreatedAt:          t,
 			UpdatedAt:          t,
-			LastTouchedAt:      t,
 			Supersedes:         []string{},
 			Related:            []string{},
 			ConflictsWith:      []string{},
@@ -96,7 +95,7 @@ func main() {
 		recs[i].ConflictsWith = []string{recs[i-5].ID}
 	}
 
-	v, err := imprint.Open(*vault)
+	v, err := imprint.Open(imprint.OpenOptions{Dir: *vault})
 	if err != nil {
 		fatal(err)
 	}

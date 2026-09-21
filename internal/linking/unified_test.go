@@ -10,7 +10,7 @@ import (
 
 func TestBuildUnifiedGraphSourcesAndCitedBy(t *testing.T) {
 	dir := t.TempDir()
-	v, err := imprint.Open(dir)
+	v, err := imprint.Open(imprint.OpenOptions{Dir: dir})
 	if err != nil {
 		t.Fatal(err)
 	}

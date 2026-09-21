@@ -126,10 +126,10 @@ CLI 直接读写 vault。
 | `imprint init` | 写入 `imprint.yaml`（若尚无）和编辑器智能体规则 |
 | `imprint find [--scope a,b] [--query TEXT]` | 召回 imprint（scope **AND**）；shelves 开且带 query → 含 documents、links |
 | `imprint add CLAIM --scope a,b --text ORIG` | 新建 imprint（MCP 可带 `sources` 关联文档） |
-| `imprint reinforce ID [--evidence TEXT]` | 加强规则（置信度 +0.1） |
+| `imprint reinforce ID --evidence TEXT` | 用户明确重申后加强规则（递减增益，上限 0.95） |
 | `imprint supersede OLD --claim NEW --scope a,b` | 替换规则；旧规则标记 `superseded` |
-| `imprint forget ID` | 永久删除 |
-| `imprint list` · `show` · `get ID` | 浏览与查看 |
+| `imprint forget ID` | 永久删除（生命周期事件保留） |
+| `imprint list` · `show` · `get ID` · `report` | 浏览、查看，以及生命周期 / 召回 / telemetry 审计 |
 | `imprint sweep` · `export` | 衰减陈旧规则 · 写入 `.imprint/export/vault.json`，或用 `--format jsonl` 写 `vault.jsonl` |
 
 ```bash
@@ -215,7 +215,9 @@ docs/                   # 常见 shelves root
 
 **紧凑召回：** MCP `find` 默认只返回 claim、计数与有上限的文档 snippet；`get r-…` 默认折叠 evidence 和来源正文。仅审计时使用 `include_evidence` 或 `full`。dormant 规则最多以一条降权 `wake_candidate` 入场，只有明确 `reinforce` 才会唤醒。
 
-**写入安全：** `add`、`reinforce`、`supersede` 会拒绝疑似 secret 和个人信息。source 必须位于工作区内，且不能指向 credentials、`.env*`、`*.pem` 或 `*.key`；`add` 还会返回高相似 active 候选并拒绝重复写入。
+**写入安全：** `add`、`reinforce`、`supersede` 会拒绝疑似 secret 和个人信息。source 必须位于工作区内，且不能指向 credentials、`.env*`、`*.pem` 或 `*.key`；`add` 还会返回高相似 active 候选并拒绝重复写入。`reinforce` 必须带非空 evidence，confidence 用递减增益；find 命中只更新召回统计。语言类 scope（`ts`、`tsx`、`golang`）由 GitHub Linguist（go-enry）归一；非语言标签原样保留。
+
+**审计：** `imprint report --days 30` 汇总生命周期事件、重复、冲突、零召回规则和 telemetry 延迟。telemetry 按日写入 `.imprint/state/telemetry/`，不存 query、claim、evidence 或 path 正文。
 
 **与 vault 关联：** vault 的 `sources` 指向文档 path 或 heading；紧凑 `get r-…` 返回来源指针，`full:true` 才解析正文。设计：[docs/imprint-shelves-linking.zh.md](docs/imprint-shelves-linking.zh.md)。
 
@@ -243,6 +245,7 @@ make publish V=X.Y.Z  # 打 tag，CI 上传 Release + GHCR
 | 编辑器 `init` | [docs/editors.zh.md](docs/editors.zh.md) | [docs/editors.md](docs/editors.md) |
 | Shelves 与关联 | [docs/shelves-builtin.zh.md](docs/shelves-builtin.zh.md) · [docs/imprint-shelves-linking.zh.md](docs/imprint-shelves-linking.zh.md) | [docs/shelves-builtin.md](docs/shelves-builtin.md) · [docs/imprint-shelves-linking.md](docs/imprint-shelves-linking.md) |
 | 写入循环与场景 | [docs/correction.zh.md](docs/correction.zh.md) | [docs/correction.md](docs/correction.md) |
+| 测试与验收 | [docs/testing.zh.md](docs/testing.zh.md) | [docs/testing.md](docs/testing.md) |
 
 MCP 示例（需手动合并）：[cursor-mcp.json](docs/examples/cursor-mcp.json) · [cursor-mcp-global.json](docs/examples/cursor-mcp-global.json)
 

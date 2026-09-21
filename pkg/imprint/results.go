@@ -81,6 +81,8 @@ type ForgetResult struct {
 }
 
 type Backlink = model.Backlink
+type RuleStats = model.RuleStats
+type RuleEvent = model.RuleEvent
 
 // ListFilter is the optional slice for list.
 type ListFilter struct {
@@ -105,6 +107,31 @@ type ListItem struct {
 type SweepResult struct {
 	Decayed  int `json:"decayed"`
 	Archived int `json:"archived"`
+}
+
+type ReportRule struct {
+	ID              string     `json:"id"`
+	Claim           string     `json:"claim"`
+	Status          string     `json:"status"`
+	Confidence      float64    `json:"confidence"`
+	RecallCount     int        `json:"recall_count"`
+	LastRecalledAt  *time.Time `json:"last_recalled_at,omitempty"`
+	LastConfirmedAt time.Time  `json:"last_confirmed_at"`
+	Recommendation  string     `json:"recommendation,omitempty"`
+}
+
+type DuplicatePair struct {
+	A     string  `json:"a"`
+	B     string  `json:"b"`
+	Score float64 `json:"score"`
+}
+
+type ReportResult struct {
+	Since       time.Time       `json:"since"`
+	EventCounts map[string]int  `json:"event_counts"`
+	Duplicates  []DuplicatePair `json:"duplicates,omitempty"`
+	Conflicts   []ConflictSet   `json:"conflicts,omitempty"`
+	Rules       []ReportRule    `json:"rules"`
 }
 
 // ErrorBody is printed on stdout when --json commands fail.

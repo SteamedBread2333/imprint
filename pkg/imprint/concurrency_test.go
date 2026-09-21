@@ -26,7 +26,7 @@ func TestConcurrentAddsAcrossVaultInstances(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			v, err := OpenWithNow(dir, func() time.Time { return now })
+			v, err := Open(OpenOptions{Dir: dir, Now: func() time.Time { return now }})
 			if err != nil {
 				errs <- fmt.Errorf("open: %w", err)
 				return
@@ -67,7 +67,7 @@ func TestConcurrentAddsAcrossVaultInstances(t *testing.T) {
 		t.Fatalf("unique ids = %d, want %d", len(seen), writers)
 	}
 
-	v, err := Open(dir)
+	v, err := Open(OpenOptions{Dir: dir})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +84,7 @@ func TestConcurrentAddsAcrossVaultInstances(t *testing.T) {
 func TestConcurrentReinforceIsAtomic(t *testing.T) {
 	dir := t.TempDir()
 	now := time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)
-	v, err := OpenWithNow(dir, func() time.Time { return now })
+	v, err := Open(OpenOptions{Dir: dir, Now: func() time.Time { return now }})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +104,7 @@ func TestConcurrentReinforceIsAtomic(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			v, err := OpenWithNow(dir, func() time.Time { return now.Add(time.Duration(i+1) * time.Second) })
+			v, err := Open(OpenOptions{Dir: dir, Now: func() time.Time { return now.Add(time.Duration(i+1) * time.Second) }})
 			if err != nil {
 				errs <- err
 				return
@@ -127,7 +127,7 @@ func TestConcurrentReinforceIsAtomic(t *testing.T) {
 		return
 	}
 
-	v, err = Open(dir)
+	v, err = Open(OpenOptions{Dir: dir})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,8 +139,8 @@ func TestConcurrentReinforceIsAtomic(t *testing.T) {
 	if got.ReinforcementCount != writers {
 		t.Fatalf("reinforcement_count = %d, want %d", got.ReinforcementCount, writers)
 	}
-	if math.Abs(got.Confidence-0.8) > 1e-9 {
-		t.Fatalf("confidence = %v, want 0.8", got.Confidence)
+	if math.Abs(got.Confidence-0.7759765625) > 1e-9 {
+		t.Fatalf("confidence = %v, want 0.7759765625", got.Confidence)
 	}
 	if len(got.EvidenceLog) != writers+1 {
 		t.Fatalf("evidence count = %d, want %d", len(got.EvidenceLog), writers+1)
@@ -150,7 +150,7 @@ func TestConcurrentReinforceIsAtomic(t *testing.T) {
 func TestConcurrentSupersedeAllowsOneSuccessor(t *testing.T) {
 	dir := t.TempDir()
 	now := time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)
-	v, err := OpenWithNow(dir, func() time.Time { return now })
+	v, err := Open(OpenOptions{Dir: dir, Now: func() time.Time { return now }})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -169,7 +169,7 @@ func TestConcurrentSupersedeAllowsOneSuccessor(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			v, err := OpenWithNow(dir, func() time.Time { return now.Add(time.Duration(i+1) * time.Second) })
+			v, err := Open(OpenOptions{Dir: dir, Now: func() time.Time { return now.Add(time.Duration(i+1) * time.Second) }})
 			if err != nil {
 				results <- err
 				return
@@ -200,7 +200,7 @@ func TestConcurrentSupersedeAllowsOneSuccessor(t *testing.T) {
 		t.Fatalf("successful supersedes = %d, want 1", successes)
 	}
 
-	v, err = Open(dir)
+	v, err = Open(OpenOptions{Dir: dir})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -251,7 +251,7 @@ func TestConcurrentAddsAcrossProcesses(t *testing.T) {
 	if t.Failed() {
 		return
 	}
-	v, err := Open(dir)
+	v, err := Open(OpenOptions{Dir: dir})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -285,7 +285,7 @@ func TestConcurrencyWorker(t *testing.T) {
 		t.Fatal(err)
 	}
 	now := time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)
-	v, err := OpenWithNow(os.Getenv("IMPRINT_TEST_VAULT"), func() time.Time { return now })
+	v, err := Open(OpenOptions{Dir: os.Getenv("IMPRINT_TEST_VAULT"), Now: func() time.Time { return now }})
 	if err != nil {
 		t.Fatal(err)
 	}

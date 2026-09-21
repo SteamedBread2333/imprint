@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 
 	"github.com/SteamedBread2333/imprint/internal/host"
 	"github.com/SteamedBread2333/imprint/internal/plugin"
 	"github.com/SteamedBread2333/imprint/internal/shelves"
+	"github.com/SteamedBread2333/imprint/internal/telemetry"
 	"github.com/SteamedBread2333/imprint/pkg/imprint"
 )
 
@@ -62,7 +64,14 @@ func (a *App) cmdHostServe(g globals, rest []string) int {
 	if err != nil {
 		return a.fail(g.json, err)
 	}
-	v, err := imprint.OpenWithNow(vaultDir, a.now)
+	opts := imprint.OpenOptions{Dir: vaultDir, Now: a.now}
+	if pcfg.Telemetry.Enabled {
+		opts.Telemetry = telemetry.New(
+			filepath.Join(vaultDir, imprint.StateDirName, "telemetry"),
+			pcfg.Telemetry.RetentionDays, a.now, a.errw(),
+		)
+	}
+	v, err := imprint.Open(opts)
 	if err != nil {
 		return a.fail(g.json, err)
 	}

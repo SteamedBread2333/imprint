@@ -10,7 +10,7 @@ import (
 
 func TestEnrichChunkGetReferencedRules(t *testing.T) {
 	dir := t.TempDir()
-	v, err := imprint.Open(dir)
+	v, err := imprint.Open(imprint.OpenOptions{Dir: dir})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,7 +32,7 @@ func TestEnrichChunkGetReferencedRules(t *testing.T) {
 
 func TestEnrichFindDualQuery(t *testing.T) {
 	dir := t.TempDir()
-	v, err := imprint.Open(dir)
+	v, err := imprint.Open(imprint.OpenOptions{Dir: dir})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestEnrichFindDualQuery(t *testing.T) {
 
 func TestCompactFindIncludesExplicitConflicts(t *testing.T) {
 	dir := t.TempDir()
-	v, err := imprint.Open(dir)
+	v, err := imprint.Open(imprint.OpenOptions{Dir: dir})
 	if err != nil {
 		t.Fatal(err)
 	}

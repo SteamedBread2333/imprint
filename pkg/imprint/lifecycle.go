@@ -6,21 +6,31 @@ import (
 	"time"
 )
 
-// Reinforce raises confidence by 0.1 (capped at 0.95) and increments reinforcement_count.
+// Reinforce applies diminishing confidence gain after explicit reaffirmation.
 func (v *Vault) Reinforce(id, evidence string) (*ReinforceResult, error) {
 	return v.ReinforceQueryLocal(id, evidence, "")
 }
 
 // ReinforceQueryLocal is Reinforce; when queryLocal is non-empty it updates stored query_local.
 func (v *Vault) ReinforceQueryLocal(id, evidence, queryLocal string) (*ReinforceResult, error) {
+	start := time.Now()
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return nil, fmt.Errorf("id is required")
+	}
+	if strings.TrimSpace(evidence) == "" {
+		v.emit(TelemetryEvent{Op: "write_rejected", Code: "reinforce_evidence_required"})
+		return nil, &WriteGuardError{
+			Code:    "reinforce_evidence_required",
+			Message: "reinforce requires non-empty user reaffirmation evidence",
+			Field:   "evidence",
+		}
 	}
 	if err := checkSensitiveText(
 		guardedText{field: "evidence", text: evidence},
 		guardedText{field: "query_local", text: queryLocal},
 	); err != nil {
+		v.emit(TelemetryEvent{Op: "write_rejected", Code: "privacy_rejected"})
 		return nil, err
 	}
 	now := v.instant()
@@ -33,6 +43,7 @@ func (v *Vault) ReinforceQueryLocal(id, evidence, queryLocal string) (*Reinforce
 	if err != nil {
 		return nil, err
 	}
+	v.emit(TelemetryEvent{Op: "reinforce", LatencyMS: time.Since(start).Milliseconds()})
 	return &ReinforceResult{
 		ID:                 id,
 		Confidence:         confidence,
@@ -47,6 +58,7 @@ func (v *Vault) Supersede(oldID, newClaim string, newScope []string, reason, ori
 
 // SupersedeWithSources archives oldID and writes a new rule, optionally replacing inherited sources.
 func (v *Vault) SupersedeWithSources(oldID, newClaim string, newScope []string, reason, originalText string, sources []DocRef, queryLocal string) (*SupersedeResult, error) {
+	start := time.Now()
 	oldID = strings.TrimSpace(oldID)
 	newClaim = strings.TrimSpace(newClaim)
 	if oldID == "" {
@@ -55,7 +67,7 @@ func (v *Vault) SupersedeWithSources(oldID, newClaim string, newScope []string, 
 	if newClaim == "" {
 		return nil, fmt.Errorf("new_claim is required")
 	}
-	newScope = cleanScope(newScope)
+	newScope = v.cleanScope(newScope)
 	if len(newScope) == 0 {
 		return nil, fmt.Errorf("new_scope is required")
 	}
@@ -65,9 +77,11 @@ func (v *Vault) SupersedeWithSources(oldID, newClaim string, newScope []string, 
 		guardedText{field: "text", text: originalText},
 		guardedText{field: "query_local", text: queryLocal},
 	); err != nil {
+		v.emit(TelemetryEvent{Op: "write_rejected", Code: "privacy_rejected"})
 		return nil, err
 	}
 	if err := v.checkSourcePaths(sources); err != nil {
+		v.emit(TelemetryEvent{Op: "write_rejected", Code: "privacy_rejected"})
 		return nil, err
 	}
 	old, err := v.load(oldID)
@@ -101,7 +115,6 @@ func (v *Vault) SupersedeWithSources(oldID, newClaim string, newScope []string, 
 		ReinforcementCount: 0,
 		CreatedAt:          now,
 		UpdatedAt:          now,
-		LastTouchedAt:      now,
 		Supersedes:         []string{old.ID},
 		Related:            []string{old.ID},
 		Sources:            useSources,
@@ -126,11 +139,13 @@ func (v *Vault) SupersedeWithSources(oldID, newClaim string, newScope []string, 
 	if err := v.store.SupersedePair(old, newRec, expectedUpdatedAt); err != nil {
 		return nil, err
 	}
+	v.emit(TelemetryEvent{Op: "supersede", ScopeCount: len(newScope), LatencyMS: time.Since(start).Milliseconds()})
 	return &SupersedeResult{ID: newID, SupersededOldID: old.ID}, nil
 }
 
 // Sweep decays untouched rules and archives those below the dormant threshold.
 func (v *Vault) Sweep(decayDays int, decayAmount, dormantThreshold float64) (*SweepResult, error) {
+	start := time.Now()
 	if decayDays <= 0 {
 		decayDays = DefaultDecayDays
 	}
@@ -146,5 +161,6 @@ func (v *Vault) Sweep(decayDays int, decayAmount, dormantThreshold float64) (*Sw
 	if err != nil {
 		return nil, err
 	}
+	v.emit(TelemetryEvent{Op: "sweep", LatencyMS: time.Since(start).Milliseconds()})
 	return &SweepResult{Decayed: decayed, Archived: archived}, nil
 }

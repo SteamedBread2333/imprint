@@ -21,6 +21,11 @@ type GlossaryConfig struct {
 	Path string `yaml:"path"`
 }
 
+type TelemetryConfig struct {
+	Enabled       bool `yaml:"enabled"`
+	RetentionDays int  `yaml:"retention_days"`
+}
+
 // ShelvesConfig is workspace doc indexing (host + MCP).
 type ShelvesConfig struct {
 	Enabled bool           `yaml:"enabled"`
@@ -57,6 +62,7 @@ type Config struct {
 	Host      HostConfig             `yaml:"host"`
 	Shelves   ShelvesConfig          `yaml:"shelves"`
 	Glossary  GlossaryConfig         `yaml:"glossary"`
+	Telemetry TelemetryConfig        `yaml:"telemetry"`
 	Plugins   map[string]PluginEntry `yaml:"plugins"`
 	filePath  string
 	workspace string
@@ -101,9 +107,10 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("plugins config path is empty")
 	}
 	cfg := &Config{
-		Host:     HostConfig{Listen: imprint.DefaultHostListen},
-		Plugins:  map[string]PluginEntry{},
-		filePath: path,
+		Host:      HostConfig{Listen: imprint.DefaultHostListen},
+		Plugins:   map[string]PluginEntry{},
+		Telemetry: TelemetryConfig{Enabled: true, RetentionDays: 30},
+		filePath:  path,
 	}
 	cfg.workspace = workspaceForConfig(path)
 	raw, err := os.ReadFile(path)
@@ -122,6 +129,9 @@ func Load(path string) (*Config, error) {
 	}
 	if cfg.Plugins == nil {
 		cfg.Plugins = map[string]PluginEntry{}
+	}
+	if cfg.Telemetry.RetentionDays <= 0 {
+		cfg.Telemetry.RetentionDays = 30
 	}
 	normalizeLegacyShelves(cfg)
 	cfg.Vault = imprint.NormalizeVaultRel(cfg.Vault)

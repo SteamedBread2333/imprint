@@ -64,9 +64,10 @@ Default path: user speaks → MCP **`find(scope, query[, query_local])`** → do
 - **`confidence` on add**: omit → **0.6**; **0.85** when user corrects; **never 0.9 on add** (tier 0.9 via `reinforce` over time).
 - **`sources`**: only when a document **excerpt substantively supports** the rule—not topical overlap (same section title without matching content).
 - `add` after ADD only: `claim`, `scope`, `text` required; optional **`sources`** / **`query_local`** as above.
-- `reinforce` +0.1 (cap 0.95); optional **`query_local`** update; `supersede` inherits **`sources`** and **`query_local`** unless overridden; `forget` strips inbound links.
+- `reinforce` requires non-empty user reaffirmation evidence; confidence uses diminishing gain `min(0.95, old + (0.95-old)*0.25)`. Find hits never change confidence. `supersede` inherits **`sources`** and **`query_local`** unless overridden; `forget` strips inbound links and keeps a lifecycle event.
 - Server-side guards reject likely secrets/personal data, denied source paths, and high-similarity active duplicates.
 - `list`: `--scope`, `--query`, `--min-confidence`, `--since`.
+- Language scope tags are canonicalized via GitHub Linguist aliases (go-enry) on add/find/list/supersede; unknown tags pass through. Telemetry writes privacy-safe daily JSONL under `.imprint/state/telemetry/` when enabled. `imprint report --days 30` is CLI audit-only.
 
 ## Retrieval (maintainers)
 
@@ -86,6 +87,7 @@ imprint --json --vault ./.imprint forget ID
 imprint --json --vault ./.imprint list --status active --scope go --min-confidence 0.85
 imprint --json --vault ./.imprint show
 imprint --json --vault ./.imprint sweep
+imprint --json --vault ./.imprint report --days 30
 imprint --vault ./.imprint export --format jsonl
 ```
 

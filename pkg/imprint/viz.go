@@ -15,7 +15,7 @@ type GraphNode struct {
 	ConflictsWith      []string   `json:"conflicts_with"`
 	EvidenceLog        []Evidence `json:"evidence_log"`
 	QueryLocal         string     `json:"query_local,omitempty"`
-	LastTouchedAt      time.Time  `json:"last_touched_at"`
+	UpdatedAt          time.Time  `json:"updated_at"`
 	ReferencedBy       []Backlink `json:"referenced_by,omitempty"`
 }
 
@@ -52,7 +52,7 @@ func graphNode(recs []*Record, r *Record) GraphNode {
 		ConflictsWith:      r.ConflictsWith,
 		EvidenceLog:        r.EvidenceLog,
 		QueryLocal:         r.QueryLocal,
-		LastTouchedAt:      r.LastTouchedAt,
+		UpdatedAt:          r.UpdatedAt,
 		ReferencedBy:       backlinksFrom(recs, r.ID),
 	}
 }

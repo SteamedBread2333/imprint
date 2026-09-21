@@ -4,6 +4,7 @@ import (
 	"math"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/SteamedBread2333/imprint/internal/textseg"
 )
@@ -210,11 +211,18 @@ func rankScore(rec *Record, scope []string, query string, idx *termIndex) (float
 // Scope is an AND filter: every requested tag must be present.
 // Query is optional BM25 ranking over claim, scope, evidence, query_local, and body.
 func (v *Vault) Find(scope []string, query string, topK int) ([]FindHit, error) {
-	return v.findRanked(scope, query, topK)
+	start := time.Now()
+	hits, err := v.findRanked(scope, query, topK)
+	if err == nil {
+		v.recordHits(hits)
+		v.emitFind(scope, query, hits, time.Since(start))
+	}
+	return hits, err
 }
 
 // FindMerged runs BM25 for query and effective query_local, merging by rule id (max score).
 func (v *Vault) FindMerged(scope []string, query, queryLocal string, topK int) ([]FindHit, error) {
+	start := time.Now()
 	if topK <= 0 {
 		topK = DefaultTopK
 	}
@@ -239,7 +247,30 @@ func (v *Vault) FindMerged(scope []string, query, queryLocal string, topK int) (
 	if len(merged) > topK {
 		merged = merged[:topK]
 	}
+	v.recordHits(merged)
+	v.emitFind(scope, q+" "+localQ, merged, time.Since(start))
 	return merged, nil
+}
+
+func (v *Vault) emitFind(scope []string, query string, hits []FindHit, elapsed time.Duration) {
+	wake := false
+	for _, hit := range hits {
+		wake = wake || hit.WakeCandidate
+	}
+	v.emit(TelemetryEvent{
+		Op: "find", ScopeCount: len(scope), QueryTermCount: len(tokenize(query)),
+		RuleHitCount: len(hits), WakeCandidate: wake, LatencyMS: elapsed.Milliseconds(),
+	})
+}
+
+func (v *Vault) recordHits(hits []FindHit) {
+	ids := make([]string, 0, len(hits))
+	for _, hit := range hits {
+		ids = append(ids, hit.ID)
+	}
+	if err := v.store.RecordHits(ids, v.instant()); err != nil {
+		v.emit(TelemetryEvent{Op: "stats_write_failed", Code: "stats_write_failed"})
+	}
 }
 
 func limitDormantFindHits(hits []FindHit, limit int) []FindHit {
@@ -290,7 +321,7 @@ func (v *Vault) findRanked(scope []string, query string, topK int) ([]FindHit, e
 	if topK <= 0 {
 		topK = DefaultTopK
 	}
-	scope = cleanScope(scope)
+	scope = v.cleanScope(scope)
 	active, err := v.store.ActiveCandidates(scope, MinRecallConfidence)
 	if err != nil {
 		return nil, err
@@ -325,7 +356,7 @@ func (v *Vault) findRanked(scope []string, query string, topK int) ([]FindHit, e
 			if hits[i].rec.Confidence != hits[j].rec.Confidence {
 				return hits[i].rec.Confidence > hits[j].rec.Confidence
 			}
-			return hits[i].rec.LastTouchedAt.After(hits[j].rec.LastTouchedAt)
+			return hits[i].rec.UpdatedAt.After(hits[j].rec.UpdatedAt)
 		})
 		return hits
 	}

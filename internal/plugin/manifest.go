@@ -12,14 +12,14 @@ import (
 
 // Manifest is imprint.plugin.json in a plugin package root.
 type Manifest struct {
-	APIVersion   int              `json:"apiVersion"`
-	ID           string           `json:"id"`
-	Name         string           `json:"name"`
-	Version      string           `json:"version"`
-	Capabilities []string         `json:"capabilities"`
-	Entry        ManifestEntry    `json:"entry"`
-	ConfigSchema map[string]any   `json:"configSchema,omitempty"`
-	Tools        []ManifestTool   `json:"tools"`
+	APIVersion   int            `json:"apiVersion"`
+	ID           string         `json:"id"`
+	Name         string         `json:"name"`
+	Version      string         `json:"version"`
+	Capabilities []string       `json:"capabilities"`
+	Entry        ManifestEntry  `json:"entry"`
+	ConfigSchema map[string]any `json:"configSchema,omitempty"`
+	Tools        []ManifestTool `json:"tools"`
 	dir          string
 }
 

@@ -63,7 +63,7 @@ sequenceDiagram
 | 分类 | 何时用 | 命令 | 对 vault 的影响 |
 | --- | --- | --- | --- |
 | **新增** | `find` 无匹配；用户**新**偏好（document 命中时可带 `sources`；已提炼本地检索词时同轮 `query_local` 落库） | `add` | 新 `active` imprint，默认 confidence **0.6** |
-| **强化** | 已有规则；用户**再次确认**同一偏好 | `reinforce` | confidence **+0.1**（上限 **0.95**），`reinforcement_count++`，可唤醒 `dormant` |
+| **强化** | 已有规则；用户**再次确认**同一偏好并给出非空 evidence | `reinforce` | 递减增益 `min(0.95, old + (0.95-old)*0.25)`，`reinforcement_count++`，可唤醒 `dormant` |
 | **替换** | 偏好**改了**、范围**扩大/缩小**、旧 claim **不再成立** | `supersede` | 旧规则 → `superseded` 状态；新规则 `active`，链上 `supersedes: [old_id]` |
 | **忽略** | 一次性指令、闲聊、智能体**推断**出的偏好 | （不写） | 无 |
 
@@ -72,7 +72,9 @@ sequenceDiagram
 | 操作 | 何时用 |
 | --- | --- |
 | **删除** | 用户用**日常口语**否定某条（「别记了」「那个不算」）；由智能体 `find` 后 `forget`，用户不提 imprint |
-| **sweep** | 定期衰减长期未触达规则（默认 90 天 −0.05；低于 0.3 → `dormant` 归档） |
+| **sweep** | 定期衰减长期未确认规则（按 `last_confirmed_at`；默认 90 天 −0.05；低于 0.3 → `dormant` 归档） |
+
+语言类 scope（`ts`、`tsx`、`golang`）在 add/find/list/supersede 时由 go-enry（GitHub Linguist）归一；非语言标签（`naming`、`frontend`）原样保留。
 
 ### 置信度约定（智能体侧）
 
@@ -141,7 +143,7 @@ imprint --json --vault ./.imprint reinforce r-2026-09-14-001 \
 
 MCP `reinforce`：`id` + `evidence`。
 
-**结果**：confidence 0.6 → 0.7；`evidence_log` 多一条 `kind: reinforce`。
+**结果**：confidence 0.6 → 0.6875；`evidence_log` 多一条 `kind: reinforce`。
 
 ---
 

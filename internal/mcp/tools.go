@@ -161,7 +161,7 @@ func (s *vaultTools) add(_ context.Context, _ *sdkmcp.CallToolRequest, args addA
 
 type reinforceArgs struct {
 	ID         string `json:"id" jsonschema:"rule id from find (do not ask the user)"`
-	Evidence   string `json:"evidence,omitempty" jsonschema:"optional evidence note"`
+	Evidence   string `json:"evidence" jsonschema:"required user reaffirmation evidence; empty evidence is rejected"`
 	QueryLocal string `json:"query_local,omitempty" jsonschema:"optional LLM local-language terms, not verbatim; updates stored query_local"`
 }
 

@@ -13,9 +13,9 @@ import (
 	"github.com/SteamedBread2333/imprint/internal/vault/model"
 )
 
-const schemaVersion = "3"
+const schemaVersion = "1"
 
-const rulesSelectCols = `id, claim, body, query_local, status, confidence, reinforcement_count, created_at, updated_at, last_touched_at`
+const rulesSelectCols = `id, claim, body, query_local, status, confidence, reinforcement_count, created_at, updated_at`
 
 const schemaSQL = `
 CREATE TABLE IF NOT EXISTS meta (
@@ -31,11 +31,25 @@ CREATE TABLE IF NOT EXISTS rules (
   confidence          REAL NOT NULL,
   reinforcement_count INTEGER NOT NULL DEFAULT 0,
   created_at          TEXT NOT NULL,
-  updated_at          TEXT NOT NULL,
-  last_touched_at     TEXT NOT NULL
+  updated_at          TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_rules_status ON rules(status);
-CREATE INDEX IF NOT EXISTS idx_rules_last_touched ON rules(last_touched_at);
+CREATE TABLE IF NOT EXISTS rule_stats (
+  rule_id           TEXT PRIMARY KEY,
+  recall_count      INTEGER NOT NULL DEFAULT 0,
+  last_recalled_at  TEXT,
+  last_confirmed_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_rule_stats_confirmed ON rule_stats(last_confirmed_at);
+CREATE TABLE IF NOT EXISTS rule_events (
+  seq           INTEGER PRIMARY KEY AUTOINCREMENT,
+  rule_id       TEXT NOT NULL,
+  at            TEXT NOT NULL,
+  kind          TEXT NOT NULL,
+  metadata_json TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_rule_events_at ON rule_events(at);
+CREATE INDEX IF NOT EXISTS idx_rule_events_rule ON rule_events(rule_id, at);
 CREATE TABLE IF NOT EXISTS rule_scopes (
   rule_id TEXT NOT NULL,
   tag     TEXT NOT NULL,
@@ -142,37 +156,10 @@ func (s *Store) ensureMeta() error {
 	if err != nil {
 		return err
 	}
-	return migrateSchema(s.db, v)
-}
-
-func migrateSchema(db *sql.DB, current string) error {
-	if current == "1" {
-		if _, err := db.Exec(`ALTER TABLE rules ADD COLUMN query_local TEXT NOT NULL DEFAULT ''`); err != nil {
-			if !strings.Contains(strings.ToLower(err.Error()), "duplicate column") {
-				return fmt.Errorf("migrate schema v1→v2: %w", err)
-			}
-		}
-		if _, err := db.Exec(`UPDATE meta SET value = '2' WHERE key = 'schema_version'`); err != nil {
-			return err
-		}
-		current = "2"
-	}
-	if current == "2" {
-		if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS id_sequences (
-			day TEXT PRIMARY KEY,
-			next_value INTEGER NOT NULL
-		)`); err != nil {
-			return fmt.Errorf("migrate schema v2→v3: %w", err)
-		}
-		if _, err := db.Exec(`UPDATE meta SET value = '3' WHERE key = 'schema_version'`); err != nil {
-			return err
-		}
-		current = "3"
-	}
-	if current == schemaVersion {
+	if v == schemaVersion {
 		return nil
 	}
-	return fmt.Errorf("unsupported vault schema version %q", current)
+	return fmt.Errorf("unsupported vault schema version %q; delete vault.db and rebuild", v)
 }
 
 func formatTime(t time.Time) string {
@@ -308,10 +295,26 @@ func insertEvidence(tx *sql.Tx, ruleID string, log []model.Evidence) error {
 	return nil
 }
 
+func upsertInitialStats(tx *sql.Tx, ruleID string, confirmedAt time.Time) error {
+	_, err := tx.Exec(`
+INSERT INTO rule_stats(rule_id, recall_count, last_recalled_at, last_confirmed_at)
+VALUES(?, 0, NULL, ?)
+ON CONFLICT(rule_id) DO NOTHING`, ruleID, formatTime(confirmedAt))
+	return err
+}
+
+func insertRuleEvent(tx *sql.Tx, ruleID string, at time.Time, kind, metadata string) error {
+	_, err := tx.Exec(
+		`INSERT INTO rule_events(rule_id, at, kind, metadata_json) VALUES(?, ?, ?, ?)`,
+		ruleID, formatTime(at), kind, metadata,
+	)
+	return err
+}
+
 func upsertRuleRow(tx *sql.Tx, r *model.Record) error {
 	_, err := tx.Exec(`
-INSERT INTO rules(id, claim, body, query_local, status, confidence, reinforcement_count, created_at, updated_at, last_touched_at)
-VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO rules(id, claim, body, query_local, status, confidence, reinforcement_count, created_at, updated_at)
+VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
   claim = excluded.claim,
   body = excluded.body,
@@ -319,10 +322,9 @@ ON CONFLICT(id) DO UPDATE SET
   status = excluded.status,
   confidence = excluded.confidence,
   reinforcement_count = excluded.reinforcement_count,
-  updated_at = excluded.updated_at,
-  last_touched_at = excluded.last_touched_at`,
+  updated_at = excluded.updated_at`,
 		r.ID, r.Claim, r.Body, r.QueryLocal, string(r.Status), r.Confidence, r.ReinforcementCount,
-		formatTime(r.CreatedAt), formatTime(r.UpdatedAt), formatTime(r.LastTouchedAt),
+		formatTime(r.CreatedAt), formatTime(r.UpdatedAt),
 	)
 	return err
 }
@@ -396,7 +398,16 @@ func (s *Store) SupersedePair(oldRec, newRec *model.Record, expectedUpdatedAt ti
 		if err := putRecordTx(tx, newRec); err != nil {
 			return err
 		}
-		return putRecordTx(tx, oldRec)
+		if err := upsertInitialStats(tx, newRec.ID, newRec.CreatedAt); err != nil {
+			return err
+		}
+		if err := putRecordTx(tx, oldRec); err != nil {
+			return err
+		}
+		if err := insertRuleEvent(tx, oldRec.ID, newRec.CreatedAt, "supersede", `{"successor":"`+newRec.ID+`"}`); err != nil {
+			return err
+		}
+		return insertRuleEvent(tx, newRec.ID, newRec.CreatedAt, "add", `{"supersedes":"`+oldRec.ID+`"}`)
 	})
 }
 
@@ -409,7 +420,7 @@ func (s *Store) AppendEvidence(ruleID string, e model.Evidence) error {
 	return err
 }
 
-// ReinforceRecord atomically increments confidence/count, wakes dormant rules,
+// ReinforceRecord atomically applies diminishing confidence gain, wakes dormant rules,
 // updates query_local when supplied, and appends evidence.
 func (s *Store) ReinforceRecord(id string, now time.Time, e model.Evidence, queryLocal string, maxConfidence float64) (float64, int, error) {
 	var confidence float64
@@ -427,30 +438,31 @@ func (s *Store) ReinforceRecord(id string, now time.Time, e model.Evidence, quer
 		}
 		err := tx.QueryRow(`
 UPDATE rules
-SET confidence = CASE
-      WHEN confidence + 0.1 > ? THEN ?
-      ELSE confidence + 0.1
-    END,
+SET confidence = MIN(?, confidence + (? - confidence) * 0.25),
     reinforcement_count = reinforcement_count + 1,
     status = CASE WHEN status = ? THEN ? ELSE status END,
     query_local = CASE WHEN ? = '' THEN query_local ELSE ? END,
-    updated_at = ?,
-    last_touched_at = ?
+    updated_at = ?
 WHERE id = ?
 RETURNING confidence, reinforcement_count`,
 			maxConfidence, maxConfidence,
 			string(model.StatusDormant), string(model.StatusActive),
 			queryLocal, queryLocal,
-			formatTime(now), formatTime(now), id,
+			formatTime(now), id,
 		).Scan(&confidence, &count)
 		if err != nil {
 			return err
 		}
-		_, err = tx.Exec(
+		if _, err = tx.Exec(
 			`INSERT INTO evidence_events(rule_id, at, kind, text) VALUES(?, ?, ?, ?)`,
 			id, formatTime(e.At), string(e.Kind), e.Text,
-		)
-		return err
+		); err != nil {
+			return err
+		}
+		if _, err = tx.Exec(`UPDATE rule_stats SET last_confirmed_at = ? WHERE rule_id = ?`, formatTime(now), id); err != nil {
+			return err
+		}
+		return insertRuleEvent(tx, id, now, "reinforce", "")
 	})
 	return confidence, count, err
 }
@@ -467,23 +479,27 @@ SET confidence = MAX(0, confidence - ?),
       ELSE status
     END,
     updated_at = ?
-WHERE status = ? AND last_touched_at <= ?
-RETURNING status`,
+WHERE status = ? AND id IN (
+  SELECT rule_id FROM rule_stats WHERE last_confirmed_at <= ?
+)
+RETURNING id, status`,
 			decayAmount, decayAmount, dormantThreshold, string(model.StatusDormant),
 			formatTime(now), string(model.StatusActive), formatTime(cutoff),
 		)
 		if err != nil {
 			return err
 		}
+		var dormantIDs []string
 		for rows.Next() {
-			var status string
-			if err := rows.Scan(&status); err != nil {
+			var id, status string
+			if err := rows.Scan(&id, &status); err != nil {
 				_ = rows.Close()
 				return err
 			}
 			decayed++
 			if status == string(model.StatusDormant) {
 				archived++
+				dormantIDs = append(dormantIDs, id)
 			}
 		}
 		if err := rows.Err(); err != nil {
@@ -512,29 +528,129 @@ RETURNING id`,
 				return err
 			}
 			archived++
+			dormantIDs = append(dormantIDs, id)
 		}
 		if err := rows.Err(); err != nil {
 			_ = rows.Close()
 			return err
 		}
-		return rows.Close()
+		if err := rows.Close(); err != nil {
+			return err
+		}
+		for _, id := range dormantIDs {
+			if err := insertRuleEvent(tx, id, now, "sweep_dormant", ""); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 	return decayed, archived, err
 }
 
 // InsertRecord creates a new rule with all fields.
 func (s *Store) InsertRecord(r *model.Record) error {
-	return s.PutRecord(r)
+	return s.withTx(func(tx *sql.Tx) error {
+		if err := putRecordTx(tx, r); err != nil {
+			return err
+		}
+		if err := upsertInitialStats(tx, r.ID, r.CreatedAt); err != nil {
+			return err
+		}
+		return insertRuleEvent(tx, r.ID, r.CreatedAt, "add", "")
+	})
+}
+
+// RecordHits updates operational recall statistics without touching rule facts.
+func (s *Store) RecordHits(ids []string, at time.Time) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	return s.withTx(func(tx *sql.Tx) error {
+		for _, id := range ids {
+			if _, err := tx.Exec(`
+INSERT INTO rule_stats(rule_id, recall_count, last_recalled_at, last_confirmed_at)
+SELECT ?, 1, ?, created_at
+FROM rules WHERE id = ?
+ON CONFLICT(rule_id) DO UPDATE SET
+  recall_count = recall_count + 1,
+  last_recalled_at = excluded.last_recalled_at`,
+				id, formatTime(at), id); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// StatsForRules returns operational stats keyed by rule id.
+func (s *Store) StatsForRules(ids []string) (map[string]model.RuleStats, error) {
+	out := map[string]model.RuleStats{}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(ids)), ",")
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	rows, err := s.db.Query(`
+SELECT rule_id, recall_count, last_recalled_at, last_confirmed_at
+FROM rule_stats WHERE rule_id IN (`+placeholders+`)`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var st model.RuleStats
+		var recalled sql.NullString
+		var confirmed string
+		if err := rows.Scan(&st.RuleID, &st.RecallCount, &recalled, &confirmed); err != nil {
+			return nil, err
+		}
+		st.LastConfirmedAt = parseTime(confirmed)
+		if recalled.Valid {
+			t := parseTime(recalled.String)
+			st.LastRecalledAt = &t
+		}
+		out[st.RuleID] = st
+	}
+	return out, rows.Err()
+}
+
+// EventsSince returns lifecycle events at or after since.
+func (s *Store) EventsSince(since time.Time) ([]model.RuleEvent, error) {
+	rows, err := s.db.Query(`
+SELECT seq, rule_id, at, kind, metadata_json
+FROM rule_events WHERE at >= ? ORDER BY seq`, formatTime(since))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []model.RuleEvent
+	for rows.Next() {
+		var ev model.RuleEvent
+		var at string
+		if err := rows.Scan(&ev.Seq, &ev.RuleID, &at, &ev.Kind, &ev.Metadata); err != nil {
+			return nil, err
+		}
+		ev.At = parseTime(at)
+		out = append(out, ev)
+	}
+	return out, rows.Err()
 }
 
 // DeleteRecord removes a rule and all related rows.
 func (s *Store) DeleteRecord(id string) error {
 	return s.withTx(func(tx *sql.Tx) error {
+		if err := insertRuleEvent(tx, id, s.instant(), "forget", ""); err != nil {
+			return err
+		}
 		for _, q := range []string{
 			`DELETE FROM evidence_events WHERE rule_id = ?`,
 			`DELETE FROM rule_scopes WHERE rule_id = ?`,
 			`DELETE FROM rule_edges WHERE from_id = ? OR to_id = ?`,
 			`DELETE FROM rule_sources WHERE rule_id = ?`,
+			`DELETE FROM rule_stats WHERE rule_id = ?`,
 			`DELETE FROM rules WHERE id = ?`,
 		} {
 			args := []any{id}
@@ -678,17 +794,16 @@ func (s *Store) assembleRecords(rows *sql.Rows) ([]*model.Record, error) {
 	var recs []*model.Record
 	for rows.Next() {
 		var r model.Record
-		var status, created, updated, touched string
+		var status, created, updated string
 		if err := rows.Scan(
 			&r.ID, &r.Claim, &r.Body, &r.QueryLocal, &status, &r.Confidence, &r.ReinforcementCount,
-			&created, &updated, &touched,
+			&created, &updated,
 		); err != nil {
 			return nil, err
 		}
 		r.Status = model.Status(status)
 		r.CreatedAt = parseTime(created)
 		r.UpdatedAt = parseTime(updated)
-		r.LastTouchedAt = parseTime(touched)
 		r.Path = DBPath(s.Dir)
 		ids = append(ids, r.ID)
 		recs = append(recs, &r)
@@ -791,7 +906,7 @@ FROM rules WHERE status = 'active' AND confidence >= ? ORDER BY id`, minConfiden
 	}
 	// scope AND: rule must have all tags
 	rows, err := s.db.Query(`
-SELECT r.id, r.claim, r.body, r.query_local, r.status, r.confidence, r.reinforcement_count, r.created_at, r.updated_at, r.last_touched_at
+SELECT r.id, r.claim, r.body, r.query_local, r.status, r.confidence, r.reinforcement_count, r.created_at, r.updated_at
 FROM rules r
 WHERE r.status = 'active' AND r.confidence >= ?
 AND (SELECT COUNT(DISTINCT LOWER(rs.tag)) FROM rule_scopes rs
@@ -818,7 +933,7 @@ FROM rules WHERE status = 'dormant' ORDER BY id`)
 		return s.assembleRecords(rows)
 	}
 	rows, err := s.db.Query(`
-SELECT r.id, r.claim, r.body, r.query_local, r.status, r.confidence, r.reinforcement_count, r.created_at, r.updated_at, r.last_touched_at
+SELECT r.id, r.claim, r.body, r.query_local, r.status, r.confidence, r.reinforcement_count, r.created_at, r.updated_at
 FROM rules r
 WHERE r.status = 'dormant'
 AND (SELECT COUNT(DISTINCT LOWER(rs.tag)) FROM rule_scopes rs
@@ -991,7 +1106,7 @@ func filepathSlash(p string) string {
 // Clear removes all vault data.
 func (s *Store) Clear() error {
 	return s.withTx(func(tx *sql.Tx) error {
-		for _, t := range []string{"evidence_events", "rule_scopes", "rule_edges", "rule_sources", "rules"} {
+		for _, t := range []string{"evidence_events", "rule_scopes", "rule_edges", "rule_sources", "rule_stats", "rule_events", "rules"} {
 			if _, err := tx.Exec(`DELETE FROM ` + t); err != nil {
 				return err
 			}
@@ -1003,7 +1118,7 @@ func (s *Store) Clear() error {
 // ImportRecords replaces the entire vault contents.
 func (s *Store) ImportRecords(recs []*model.Record) error {
 	return s.withTx(func(tx *sql.Tx) error {
-		for _, t := range []string{"evidence_events", "rule_scopes", "rule_edges", "rule_sources", "rules"} {
+		for _, t := range []string{"evidence_events", "rule_scopes", "rule_edges", "rule_sources", "rule_stats", "rule_events", "rules"} {
 			if _, err := tx.Exec(`DELETE FROM ` + t); err != nil {
 				return err
 			}
@@ -1016,6 +1131,12 @@ func (s *Store) ImportRecords(recs []*model.Record) error {
 				return err
 			}
 			if err := insertEvidence(tx, r.ID, r.EvidenceLog); err != nil {
+				return err
+			}
+			if err := upsertInitialStats(tx, r.ID, r.CreatedAt); err != nil {
+				return err
+			}
+			if err := insertRuleEvent(tx, r.ID, r.CreatedAt, "add", `{"imported":true}`); err != nil {
 				return err
 			}
 		}

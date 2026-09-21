@@ -14,7 +14,7 @@ import (
 
 func TestFindToolSchemaIncludesQueryLocal(t *testing.T) {
 	dir := t.TempDir()
-	v, err := imprint.Open(dir)
+	v, err := imprint.Open(imprint.OpenOptions{Dir: dir})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +59,7 @@ func TestFindToolSchemaIncludesQueryLocal(t *testing.T) {
 
 func TestAddToolSchemaIncludesSources(t *testing.T) {
 	dir := t.TempDir()
-	v, err := imprint.Open(dir)
+	v, err := imprint.Open(imprint.OpenOptions{Dir: dir})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +119,7 @@ func TestWriteAndGetToolSchemaPrompts(t *testing.T) {
 	}
 	need := map[string][]string{
 		"supersede": {"query_local", "sources"},
-		"reinforce": {"query_local"},
+		"reinforce": {"query_local", "evidence"},
 	}
 	for name, fields := range need {
 		tool := byName[name]

@@ -126,10 +126,10 @@ Read and write the vault directly from the CLI.
 | `imprint init` | Write `imprint.yaml` (if missing) and editor agent rules |
 | `imprint find [--scope a,b] [--query TEXT]` | Recall imprints (scope **AND**); with query + shelves → also `documents`, `links` |
 | `imprint add CLAIM --scope a,b --text ORIG` | Create an imprint (MCP may include `sources` linking docs) |
-| `imprint reinforce ID [--evidence TEXT]` | Strengthen a rule (+0.1 confidence) |
+| `imprint reinforce ID --evidence TEXT` | Strengthen a rule after explicit reaffirmation (diminishing gain, cap 0.95) |
 | `imprint supersede OLD --claim NEW --scope a,b` | Replace a rule; old → `superseded` |
-| `imprint forget ID` | Delete permanently |
-| `imprint list` · `show` · `get ID` | Browse and inspect |
+| `imprint forget ID` | Delete permanently (lifecycle event remains) |
+| `imprint list` · `show` · `get ID` · `report` | Browse, inspect, and audit lifecycle / recall / telemetry |
 | `imprint sweep` · `export` | Decay stale rules · write `.imprint/export/vault.json` or `vault.jsonl` (`--format jsonl`) |
 
 ```bash
@@ -215,7 +215,9 @@ Rules live in `vault.db`. IDs: `r-YYYY-MM-DD-NNN`. Status: `active` | `dormant` 
 
 **Compact recall:** MCP `find` returns claim/count metadata and bounded document snippets by default; `get r-…` folds evidence and source text. Use `include_evidence` or `full` only for audit. Dormant rules can contribute at most one penalized `wake_candidate`; only an explicit `reinforce` wakes one.
 
-**Write safety:** `add`, `reinforce`, and `supersede` reject likely secrets and personal data. Source paths must remain inside the workspace and may not target credentials, `.env*`, `*.pem`, or `*.key`. `add` also rejects high-similarity active duplicates with candidate IDs.
+**Write safety:** `add`, `reinforce`, and `supersede` reject likely secrets and personal data. Source paths must remain inside the workspace and may not target credentials, `.env*`, `*.pem`, or `*.key`. `add` also rejects high-similarity active duplicates with candidate IDs. `reinforce` requires non-empty evidence and uses diminishing confidence gain; find hits only update recall stats. Language scope tags (`ts`, `tsx`, `golang`) are canonicalized with GitHub Linguist via go-enry; non-language tags pass through.
+
+**Audit:** `imprint report --days 30` summarizes lifecycle events, duplicates, conflicts, zero-recall rules, and telemetry latency. Telemetry is a daily JSONL under `.imprint/state/telemetry/` and never stores query, claim, evidence, or path text.
 
 **Linking:** Vault `sources` point rules at doc paths or headings; compact `get r-…` returns source pointers, while `full:true` resolves excerpts. Design: [docs/imprint-shelves-linking.md](docs/imprint-shelves-linking.md).
 
@@ -243,6 +245,7 @@ Local builds without a tag print `devel`.
 | Editor `init` | [docs/editors.md](docs/editors.md) | [docs/editors.zh.md](docs/editors.zh.md) |
 | Shelves & linking | [docs/shelves-builtin.md](docs/shelves-builtin.md) · [docs/imprint-shelves-linking.md](docs/imprint-shelves-linking.md) | [docs/shelves-builtin.zh.md](docs/shelves-builtin.zh.md) · [docs/imprint-shelves-linking.zh.md](docs/imprint-shelves-linking.zh.md) |
 | Write loop & scenarios | [docs/correction.md](docs/correction.md) | [docs/correction.zh.md](docs/correction.zh.md) |
+| Testing & acceptance | [docs/testing.md](docs/testing.md) | [docs/testing.zh.md](docs/testing.zh.md) |
 
 MCP examples (merge manually): [cursor-mcp.json](docs/examples/cursor-mcp.json) · [cursor-mcp-global.json](docs/examples/cursor-mcp-global.json)
 

@@ -131,15 +131,18 @@ Mount **imprint-mcp** only. With shelves enabled and **`find` + query**:
 
 ```json
 {
-  "rules": [{ "id", "resolved_sources": [...], ... }],
+  "rules": [{ "id", "claim", "scope", "confidence", "score", "sources_count", "evidence_count" }],
   "documents": [{ "id", "path", "heading", "score", "snippet" }],
-  "links": [{ "rule_id", "chunk_id", "kind", "score" }]
+  "links": [{ "rule_id", "chunk_id", "kind", "score" }],
+  "conflict_set": [{ "a", "b" }]
 }
 ```
 
-Without query, or shelves off: **rules array** only (enriched with `resolved_sources` when rules have `sources`).
+Default MCP `find` is compact: rule claims and counts, no evidence text. Document snippets are bounded (~300 chars). `full:true` is audit-only and may include source excerpts.
 
-`get`: `r-…` → vault record + `resolved_sources`; chunk id → chunk + **`referenced_rules`** (+ `cited_rules` if markdown cites rules).
+Without query, or shelves off: compact **rules** only.
+
+`get`: compact rule by default (source pointers, `evidence_count`; no `evidence_log`). `include_evidence:true` expands the newest evidence (`evidence_limit` default 3). `full:true` is audit-only. Chunk id → chunk + **`referenced_rules`** (+ `cited_rules` if markdown cites rules).
 
 ---
 

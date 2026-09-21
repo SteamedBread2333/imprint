@@ -14,7 +14,7 @@ import (
 
 func frozen(t *testing.T, dir string, at time.Time) *Vault {
 	t.Helper()
-	v, err := OpenWithNow(dir, func() time.Time { return at })
+	v, err := Open(OpenOptions{Dir: dir, Now: func() time.Time { return at }})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,14 +170,14 @@ func TestReinforceCapsAndCount(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r1.Confidence != 0.95 || r1.ReinforcementCount != 1 {
+	if r1.Confidence != 0.875 || r1.ReinforcementCount != 1 {
 		t.Fatalf("first reinforce = %+v", r1)
 	}
 	r2, err := v.Reinforce(added.ID, "said it once more")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r2.Confidence != 0.95 || r2.ReinforcementCount != 2 {
+	if r2.Confidence != 0.89375 || r2.ReinforcementCount != 2 {
 		t.Fatalf("capped reinforce = %+v", r2)
 	}
 }
@@ -463,7 +463,7 @@ func TestSupersedeInheritsQueryLocal(t *testing.T) {
 
 func TestVaultDBCreated(t *testing.T) {
 	dir := t.TempDir()
-	if _, err := Open(dir); err != nil {
+	if _, err := Open(OpenOptions{Dir: dir}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(sqlite.DBPath(dir)); err != nil {

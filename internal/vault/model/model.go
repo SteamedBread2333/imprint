@@ -68,7 +68,6 @@ type Record struct {
 	ReinforcementCount int        `json:"reinforcement_count"`
 	CreatedAt          time.Time  `json:"created_at"`
 	UpdatedAt          time.Time  `json:"updated_at"`
-	LastTouchedAt      time.Time  `json:"last_touched_at"`
 	Supersedes         []string   `json:"supersedes"`
 	Related            []string   `json:"related"`
 	ConflictsWith      []string   `json:"conflicts_with"`
@@ -82,4 +81,22 @@ type Record struct {
 
 func (r *Record) Title() string {
 	return r.Claim
+}
+
+// RuleStats holds operational recall/confirmation data outside rule facts.
+type RuleStats struct {
+	RuleID          string     `json:"rule_id"`
+	RecallCount     int        `json:"recall_count"`
+	LastRecalledAt  *time.Time `json:"last_recalled_at,omitempty"`
+	LastConfirmedAt time.Time  `json:"last_confirmed_at"`
+}
+
+// RuleEvent is an append-only lifecycle audit row. RuleID intentionally has
+// no foreign key so forget events survive hard deletion.
+type RuleEvent struct {
+	Seq      int64     `json:"seq"`
+	RuleID   string    `json:"rule_id"`
+	At       time.Time `json:"at"`
+	Kind     string    `json:"kind"`
+	Metadata string    `json:"metadata,omitempty"`
 }
