@@ -52,8 +52,12 @@ func TestEditorRuleMatchesBody(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rule, err := os.ReadFile(filepath.Join(root, ".cursor/rules/imprint-memory.mdc"))
+	rulePath := filepath.Join(root, ".cursor/rules/imprint-memory.mdc")
+	rule, err := os.ReadFile(rulePath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			t.Skip(".cursor/ is gitignored; imprint init writes the editor rule locally")
+		}
 		t.Fatal(err)
 	}
 	text := string(rule)
@@ -80,6 +84,9 @@ func TestDocsHaveNoLegacyTerms(t *testing.T) {
 	for _, rel := range paths {
 		raw, err := os.ReadFile(filepath.Join(root, rel))
 		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
 			t.Fatal(err)
 		}
 		text := string(raw)

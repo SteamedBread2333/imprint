@@ -4,7 +4,7 @@
 
 # imprint
 
-**Portable markdown memory for AI agents**
+**Portable vault memory for AI agents**
 
 English · [中文](README.zh.md)
 

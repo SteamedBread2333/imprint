@@ -4,7 +4,7 @@
 
 # imprint
 
-**智能体长期记忆 · 可携带的 markdown**
+**智能体长期记忆 · 可携带的 vault**
 
 [English](README.md) · 中文
 
