@@ -16,7 +16,7 @@ func TestResolvePluginConfigPathIgnoresProcessCwd(t *testing.T) {
 		if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
 			t.Fatal(err)
 		}
-		body := "vault: .imprint/memory\n"
+		body := "vault: .imprint\n"
 		if root == rootB {
 			body += "shelves:\n  enabled: true\n"
 		}
@@ -44,7 +44,7 @@ func TestResolvePluginConfigPathFromVault(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(cfgPath, []byte("vault: .imprint/memory\n"), 0o644); err != nil {
+	if err := os.WriteFile(cfgPath, []byte("vault: .imprint\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	vault := imprint.DefaultVaultDir(dir)

@@ -51,18 +51,18 @@ type PluginEntry struct {
 	Config  map[string]any `yaml:"config"`
 }
 
-// Config is imprint.yaml under .imprint/ in the project.
+// Config is imprint.yaml at the project root (legacy: .imprint/imprint.yaml).
 type Config struct {
-	Vault    string                 `yaml:"vault"`
-	Host     HostConfig             `yaml:"host"`
-	Shelves  ShelvesConfig          `yaml:"shelves"`
-	Glossary GlossaryConfig         `yaml:"glossary"`
-	Plugins  map[string]PluginEntry `yaml:"plugins"`
+	Vault     string                 `yaml:"vault"`
+	Host      HostConfig             `yaml:"host"`
+	Shelves   ShelvesConfig          `yaml:"shelves"`
+	Glossary  GlossaryConfig         `yaml:"glossary"`
+	Plugins   map[string]PluginEntry `yaml:"plugins"`
 	filePath  string
 	workspace string
 }
 
-// ResolveConfigPath walks up from cwd for .imprint/imprint.yaml.
+// ResolveConfigPath walks up from cwd for imprint.yaml (root or legacy .imprint/).
 func ResolveConfigPath(getwd func() (string, error)) (string, error) {
 	if getwd == nil {
 		getwd = os.Getwd
@@ -76,17 +76,22 @@ func ResolveConfigPath(getwd func() (string, error)) (string, error) {
 		return "", err
 	}
 	if found {
-		return imprint.ConfigPath(root), nil
+		return imprint.ResolveConfigFile(root), nil
 	}
 	return imprint.ConfigPath(cwd), nil
 }
 
 // ResolveConfigPathForVault returns imprint.yaml for the project that owns vaultDir.
 func ResolveConfigPathForVault(vaultDir string) (string, bool) {
-	if root, ok := imprint.FindProjectRootFromVault(vaultDir); ok {
-		return imprint.ConfigPath(root), true
+	root, ok := imprint.FindProjectRootFromVault(vaultDir)
+	if !ok {
+		return "", false
 	}
-	return "", false
+	p := imprint.ResolveConfigFile(root)
+	if st, err := os.Stat(p); err == nil && !st.IsDir() {
+		return p, true
+	}
+	return imprint.ConfigPath(root), true
 }
 
 // Load reads imprint.yaml from path. Missing file yields defaults.
@@ -119,6 +124,7 @@ func Load(path string) (*Config, error) {
 		cfg.Plugins = map[string]PluginEntry{}
 	}
 	normalizeLegacyShelves(cfg)
+	cfg.Vault = imprint.NormalizeVaultRel(cfg.Vault)
 	if strings.TrimSpace(cfg.Vault) == "" {
 		cfg.Vault = defaultVaultRel(cfg.workspace)
 	}
@@ -144,7 +150,7 @@ func normalizeLegacyShelves(cfg *Config) {
 
 func defaultVaultRel(workspace string) string {
 	_ = workspace
-	return filepath.Join(imprint.ImprintDirName, imprint.VaultDirName)
+	return imprint.DefaultVaultRel()
 }
 
 // FileExists reports whether imprint.yaml was loaded from an on-disk file.
@@ -184,7 +190,7 @@ func workspaceForConfig(path string) string {
 	return dir
 }
 
-// Workspace returns the project repo root (parent of .imprint/).
+// Workspace returns the project repo root (directory that contains imprint.yaml).
 func (c *Config) Workspace() string {
 	if c.workspace != "" {
 		return c.workspace
@@ -197,7 +203,7 @@ func (c *Config) Workspace() string {
 
 // ResolveVaultAbs returns the absolute vault directory for this config.
 func (c *Config) ResolveVaultAbs() string {
-	v := strings.TrimSpace(c.Vault)
+	v := imprint.NormalizeVaultRel(c.Vault)
 	if v == "" {
 		v = defaultVaultRel(c.Workspace())
 	}
@@ -207,7 +213,7 @@ func (c *Config) ResolveVaultAbs() string {
 	return filepath.Join(c.Workspace(), filepath.FromSlash(v))
 }
 
-// DefaultShelvesStateDir is .imprint/.shelves/.cache under the project root.
+// DefaultShelvesStateDir is .imprint/state under the project root.
 func DefaultShelvesStateDir(projectRoot string) string {
 	return imprint.DefaultShelvesCacheDir(projectRoot)
 }

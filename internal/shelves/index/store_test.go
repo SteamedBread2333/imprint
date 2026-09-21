@@ -22,7 +22,7 @@ func TestSQLiteSaveLoad(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(DBPath(dir)); err != nil {
-		t.Fatalf("index.db missing: %v", err)
+		t.Fatalf("shelves.db missing: %v", err)
 	}
 	got, err := LoadStore(dir)
 	if err != nil {

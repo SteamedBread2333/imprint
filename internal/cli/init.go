@@ -9,6 +9,9 @@ import (
 //go:embed templates/body.md
 var imprintBody []byte
 
+//go:embed templates/imprint.yaml
+var imprintYAML []byte
+
 func (a *App) cmdInit(g globals, args []string) int {
 	force, editors, err := parseInitEditors(args)
 	if err != nil {
@@ -23,7 +26,7 @@ func (a *App) cmdInit(g globals, args []string) int {
 	if err != nil {
 		return a.fail(g.json, err)
 	}
-	written, err := writeInitEditors(root, force, editors)
+	written, err := writeInitProject(root, force, editors)
 	if err != nil {
 		return a.fail(g.json, err)
 	}

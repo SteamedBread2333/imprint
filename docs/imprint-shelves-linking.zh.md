@@ -12,8 +12,8 @@ imprint（vault 规则）和 shelves（工作区文档索引）目前是**两套
 
 | 系统 | 存储 | ID 形态 | 图 |
 | --- | --- | --- | --- |
-| **imprint** | `.imprint/memory/vault.db` | `r-YYYY-MM-DD-NNN` | `/graph` — 规则间 `supersedes` / `related` / `conflicts_with` |
-| **shelves** | `.imprint/.shelves/.cache/index.db` | 16 位 hex chunk id | `/docs/graph` — 文件 / 目录 / chunk 层级 |
+| **imprint** | `.imprint/vault.db` | `r-YYYY-MM-DD-NNN` | `/graph` — 规则间 `supersedes` / `related` / `conflicts_with` |
+| **shelves** | `.imprint/state/shelves.db` | 16 位 hex chunk id | `/docs/graph` — 文件 / 目录 / chunk 层级 |
 
 仅有的交集（改造前）：`find` 带 `query` 时并行返回 rules + documents。**现已实现** vault `sources`、`referenced_rules` 反查、`find` 的 `links`；见下文。
 

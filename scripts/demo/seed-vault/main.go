@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	vault := flag.String("vault", ".imprint/memory", "vault directory")
+	vault := flag.String("vault", ".imprint", "vault directory")
 	flag.Parse()
 
 	v, err := imprint.Open(*vault)

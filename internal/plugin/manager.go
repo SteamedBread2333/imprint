@@ -16,25 +16,25 @@ import (
 
 // Status is one plugin row for list/reload.
 type Status struct {
-	ID       string `json:"id"`
-	Enabled  bool   `json:"enabled"`
-	Package  string `json:"package"`
-	Port     int    `json:"port"`
-	Running  bool   `json:"running"`
-	Healthy  bool   `json:"healthy"`
-	URL      string `json:"url,omitempty"`
-	Error    string `json:"error,omitempty"`
-	Name     string `json:"name,omitempty"`
-	Version  string `json:"version,omitempty"`
+	ID       string    `json:"id"`
+	Enabled  bool      `json:"enabled"`
+	Package  string    `json:"package"`
+	Port     int       `json:"port"`
+	Running  bool      `json:"running"`
+	Healthy  bool      `json:"healthy"`
+	URL      string    `json:"url,omitempty"`
+	Error    string    `json:"error,omitempty"`
+	Name     string    `json:"name,omitempty"`
+	Version  string    `json:"version,omitempty"`
 	Manifest *Manifest `json:"-"`
 }
 
 // Manager starts and stops plugin processes.
 type Manager struct {
-	cfg     *Config
-	mu      sync.Mutex
-	procs   map[string]*exec.Cmd
-	status  map[string]Status
+	cfg    *Config
+	mu     sync.Mutex
+	procs  map[string]*exec.Cmd
+	status map[string]Status
 }
 
 // Config returns the manager's plugin configuration.
@@ -146,12 +146,15 @@ func (m *Manager) startOne(ctx context.Context, id string, entry PluginEntry) er
 	}
 	cmd.Dir = pkgDir
 	vaultDir := m.cfg.ResolveVaultAbs()
+	pluginState := imprint.PluginStateDir(m.cfg.Workspace(), id)
+	_ = os.MkdirAll(pluginState, 0o755)
 	cmd.Env = append(os.Environ(),
 		fmt.Sprintf("IMPRINT_PLUGIN_PORT=%d", port),
 		fmt.Sprintf("IMPRINT_HOST_URL=%s", m.cfg.HostURL()),
 		fmt.Sprintf("IMPRINT_VAULT=%s", vaultDir),
 		fmt.Sprintf("IMPRINT_WORKSPACE=%s", m.cfg.Workspace()),
 		fmt.Sprintf("IMPRINT_PLUGIN_CONFIG=%s", m.cfg.filePath),
+		fmt.Sprintf("IMPRINT_PLUGIN_STATE=%s", pluginState),
 	)
 	nullOut, _ := os.Open(os.DevNull)
 	cmd.Stdout = nullOut
@@ -301,10 +304,10 @@ func EnabledTools(cfg *Config) (routes []ToolRoute, skipped []string) {
 		resolved := ResolveTools(id, man.Tools, taken)
 		for _, t := range resolved {
 			routes = append(routes, ToolRoute{
-				PluginID:    id,
-				Tool:        t,
-				BaseURL:     base,
-				Registered:  t.RegisteredAs,
+				PluginID:   id,
+				Tool:       t,
+				BaseURL:    base,
+				Registered: t.RegisteredAs,
 			})
 		}
 	}

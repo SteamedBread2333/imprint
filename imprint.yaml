@@ -1,0 +1,20 @@
+# Team convention — commit this file.
+# Private runtime lives in gitignored .imprint/ (vault.db, state/, export/).
+
+host:
+  listen: 127.0.0.1:9470
+
+shelves:
+  enabled: true
+  config:
+    roots:
+      - docs
+      - .cursor/rules
+
+plugins:
+  desk:
+    enabled: true
+    package: ../imprint-desk-plugin
+    config:
+      hostUrl: http://127.0.0.1:9470
+      port: 4173

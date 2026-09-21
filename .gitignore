@@ -27,7 +27,7 @@ go.work.sum
 .env.*
 !.env.example
 
-# --- vault & plugin caches (user data, never commit) ---
+# --- vault & derived state (user data, never commit) ---
 .imprint/
 /loadvault/
 

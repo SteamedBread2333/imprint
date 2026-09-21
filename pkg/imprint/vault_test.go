@@ -289,16 +289,16 @@ func TestResolveDir(t *testing.T) {
 	if err := os.MkdirAll(proj, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	mem := filepath.Join(root, "proj", ".imprint", "memory")
-	if err := os.MkdirAll(mem, 0o755); err != nil {
+	imprintDir := filepath.Join(root, "proj", ".imprint")
+	if err := os.MkdirAll(imprintDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	got, err := ResolveDir("", false, func(string) string { return "" }, func() (string, error) { return proj, nil }, func() (string, error) { return root, nil })
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != mem {
-		t.Fatalf("walk-up got %s want %s", got, mem)
+	if got != imprintDir {
+		t.Fatalf("walk-up got %s want %s", got, imprintDir)
 	}
 }
 

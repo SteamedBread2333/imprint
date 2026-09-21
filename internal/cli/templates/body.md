@@ -21,7 +21,7 @@ Mount: `docs/mcp.md`, `docs/examples/cursor-mcp.json`. Write loop: `docs/correct
 - **Users never maintain the vault.** They speak normally; you run `find` / `add` / `reinforce` / `supersede` / `forget` — never ask for imprint commands or rule ids.
 - **You maintain the vault, not the chat.** A durable preference stays unwritten until you call a write tool in the same turn.
 - **Review and prune is fine.** `show` / `get` (or `imprint desk open`); explain in plain language; then `supersede` / `forget` / `sweep` after they agree.
-- Vault: `.imprint/memory/vault.db` (`IMPRINT_VAULT`, `--vault`, `--global`). `path` on add/get = `vault.db`.
+- Vault: `.imprint/vault.db` (`IMPRINT_VAULT`, `--vault`, `--global`). `path` on add/get = `vault.db`.
 
 ## Link model (all types)
 
@@ -75,15 +75,15 @@ Default path: user speaks → MCP **`find(scope, query[, query_local])`** → do
 
 ```bash
 # CLI — vault read/write; find/get see CLI column above
-imprint --json --vault ./.imprint/memory find --scope go,naming --query PascalCase [--query-local LOCAL_TERMS]
-imprint --json --vault ./.imprint/memory add "CLAIM" --scope tag,tag --text "user's original words" [--query-local TERMS]
-imprint --json --vault ./.imprint/memory reinforce ID --evidence "..." [--query-local TERMS]
-imprint --json --vault ./.imprint/memory supersede ID --claim "NEW" --scope tag,tag --reason "..." [--query-local TERMS]
-imprint --json --vault ./.imprint/memory get ID
-imprint --json --vault ./.imprint/memory forget ID
-imprint --json --vault ./.imprint/memory list --status active --scope go --min-confidence 0.85
-imprint --json --vault ./.imprint/memory show
-imprint --json --vault ./.imprint/memory sweep
+imprint --json --vault ./.imprint find --scope go,naming --query PascalCase [--query-local LOCAL_TERMS]
+imprint --json --vault ./.imprint add "CLAIM" --scope tag,tag --text "user's original words" [--query-local TERMS]
+imprint --json --vault ./.imprint reinforce ID --evidence "..." [--query-local TERMS]
+imprint --json --vault ./.imprint supersede ID --claim "NEW" --scope tag,tag --reason "..." [--query-local TERMS]
+imprint --json --vault ./.imprint get ID
+imprint --json --vault ./.imprint forget ID
+imprint --json --vault ./.imprint list --status active --scope go --min-confidence 0.85
+imprint --json --vault ./.imprint show
+imprint --json --vault ./.imprint sweep
 ```
 
 ## Recall model (async, reference-only)

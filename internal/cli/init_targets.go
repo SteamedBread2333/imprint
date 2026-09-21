@@ -63,6 +63,33 @@ func parseInitEditors(args []string) (force bool, editors []initEditor, err erro
 	return force, editors, nil
 }
 
+func writeInitProject(root string, force bool, editors []initEditor) ([]string, error) {
+	var written []string
+	if p, err := writeInitYAML(root, force); err != nil {
+		return written, err
+	} else if p != "" {
+		written = append(written, p)
+	}
+	more, err := writeInitEditors(root, force, editors)
+	if err != nil {
+		return written, err
+	}
+	return append(written, more...), nil
+}
+
+func writeInitYAML(root string, force bool) (string, error) {
+	p := filepath.Join(root, "imprint.yaml")
+	if _, err := os.Stat(p); err == nil && !force {
+		return "", nil
+	} else if err != nil && !os.IsNotExist(err) {
+		return "", err
+	}
+	if err := writeInitFile(p, bytes.TrimSpace(imprintYAML), true); err != nil {
+		return "", err
+	}
+	return p, nil
+}
+
 func writeInitEditors(root string, force bool, editors []initEditor) ([]string, error) {
 	var written []string
 	for _, ed := range editors {

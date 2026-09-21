@@ -3,7 +3,7 @@
 > **Setup:** [README.md](../README.md#quick-start) — install and `imprint init`.  
 > This page is **reference** (paths, flags, Codex merge rules).
 
-`imprint init` writes the same imprint rules per editor. It does **not** write MCP config.
+`imprint init` writes `imprint.yaml` (if missing) and the same imprint rules per editor. It does **not** write MCP config.
 
 ```bash
 imprint init              # all editors
@@ -13,8 +13,9 @@ imprint init --force      # overwrite / refresh
 
 ## Output paths
 
-| Editor | Flag | Project path |
+| File | Flag | Project path |
 | --- | --- | --- |
+| Team config | (always) | `imprint.yaml` (skipped if it already exists) |
 | Cursor | `--cursor` | `.cursor/rules/imprint-memory.mdc` |
 | Claude Code | `--claude` | `.claude/rules/imprint-memory.md` |
 | Codex | `--codex` | see below |

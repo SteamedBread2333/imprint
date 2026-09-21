@@ -5,10 +5,10 @@ import (
 	"path/filepath"
 )
 
-// ResolveDir picks the vault directory.
+// ResolveDir picks the vault directory (the folder that contains vault.db).
 //
-// Order: flagVault, --global (~/.imprint), walk-up .imprint/memory,
-// IMPRINT_VAULT, otherwise ./.imprint/memory under cwd.
+// Order: flagVault, --global (~/.imprint), walk-up .imprint,
+// IMPRINT_VAULT, otherwise ./.imprint under cwd.
 func ResolveDir(flagVault string, global bool, getenv func(string) string, getwd func() (string, error), home func() (string, error)) (string, error) {
 	if getenv == nil {
 		getenv = os.Getenv
@@ -27,13 +27,16 @@ func ResolveDir(flagVault string, global bool, getenv func(string) string, getwd
 		if err != nil {
 			return "", err
 		}
-		return filepath.Join(h, ImprintDirName), nil
+		root := filepath.Join(h, ImprintDirName)
+		_ = MigrateLegacyLayout(h)
+		return root, nil
 	}
 	root, found, err := FindProjectRoot(getwd)
 	if err != nil {
 		return "", err
 	}
 	if found {
+		_ = MigrateLegacyLayout(root)
 		return DefaultVaultDir(root), nil
 	}
 	if env := getenv("IMPRINT_VAULT"); env != "" {

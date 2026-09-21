@@ -33,7 +33,7 @@ flowchart LR
 
   subgraph persist [写入时 · 只写 vault]
     A[add / supersede] --> S[sources path/heading]
-    S --> V[(.imprint/memory/)]
+    S --> V[(.imprint/vault.db)]
   end
 
   subgraph reverse [读 chunk · 不改文档]
@@ -52,7 +52,7 @@ flowchart LR
 
 ## 配置
 
-在 `.imprint/imprint.yaml`：
+在 `imprint.yaml`：
 
 ```yaml
 host:
@@ -65,7 +65,7 @@ shelves:
       - docs
       - .cursor/rules
       # - .cursor/skills
-    # stateDir: .imprint/.shelves/.cache   # 可选
+    # stateDir: .imprint/state   # 可选
 ```
 
 
@@ -73,7 +73,7 @@ shelves:
 | ----------------- | ----------------------------------------------------------- |
 | `enabled`         | `true` 时扫描 `roots` 并提供搜索；`false` 时停止索引与搜索，缓存只读保留            |
 | `config.roots`    | **要纳入索引的目录**（`.md`、`.mdc`、`.txt`），路径相对仓库根 — **shelves 搜什么** |
-| `config.stateDir` | SQLite 缓存目录。默认 `.imprint/.shelves/.cache`                   |
+| `config.stateDir` | SQLite 缓存目录。默认 `.imprint/state`（`shelves.db`）                   |
 
 
 

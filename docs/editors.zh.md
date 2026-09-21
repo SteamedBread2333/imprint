@@ -3,7 +3,7 @@
 > **上手：** [README.zh.md](../README.zh.md#快速开始) — 安装与 `imprint init`。  
 > 本文是**参考**（各编辑器路径、参数、Codex 合并规则）。
 
-`imprint init` 写入各编辑器规则；**不写** MCP 配置。
+`imprint init` 写入 `imprint.yaml`（若尚无）以及各编辑器规则；**不写** MCP 配置。
 
 ```bash
 imprint init              # 全部编辑器
@@ -13,8 +13,9 @@ imprint init --force      # 覆盖 / 刷新
 
 ## 写入路径
 
-| 编辑器 | 标志 | 项目内路径 | 说明 |
+| 文件 | 标志 | 项目内路径 | 说明 |
 | --- | --- | --- | --- |
+| 团队配置 | （始终） | `imprint.yaml`（已存在则跳过） | roots、插件开关，进 git |
 | **Cursor** | `--cursor` | `.cursor/rules/imprint-memory.mdc` | `alwaysApply: true` |
 | **Claude Code** | `--claude` | `.claude/rules/imprint-memory.md` | 无 `paths` → 每会话加载 |
 | **Codex** | `--codex` | 见下节 | 官方 `AGENTS.md` 机制 |

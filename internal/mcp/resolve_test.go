@@ -31,7 +31,7 @@ func TestResolveVaultDirFromProject(t *testing.T) {
 
 func TestResolveVaultDirFromProjectRelativeVault(t *testing.T) {
 	root := t.TempDir()
-	vaultRel := ".imprint/memory"
+	vaultRel := ".imprint"
 	vaultAbs := filepath.Join(root, vaultRel)
 	if err := os.MkdirAll(vaultAbs, 0o755); err != nil {
 		t.Fatal(err)
@@ -57,7 +57,7 @@ func TestResolvePluginConfigFromProjectIgnoresCwd(t *testing.T) {
 		if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(cfgPath, []byte("vault: .imprint/memory\n"), 0o644); err != nil {
+		if err := os.WriteFile(cfgPath, []byte("vault: .imprint\n"), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}

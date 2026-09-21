@@ -237,7 +237,7 @@ Usage:
 Full reference: README.md (中文: README.zh.md)
 
 Global flags:
-  --vault PATH   Vault directory (default: ./.imprint/memory, or walk-up)
+  --vault PATH   Vault directory (default: ./.imprint, or walk-up)
   --global       Use ~/.imprint
   --json         Machine-readable JSON on stdout
 
@@ -261,7 +261,7 @@ Everyday — vault (no local stack required):
   get         Full record by id
   show        User-facing listing
   sweep       Decay stale rules and mark low-confidence ones dormant
-  export      Dump every record as JSON
+  export      Write vault.json under .imprint/export/
 
 Debug & advanced:
   host start | host stop | host serve   Split host control (prefer up/down)
@@ -271,7 +271,7 @@ Debug & advanced:
   version     Print version
 
 Vault:
-  .imprint/memory/vault.db   Rule store (gitignore via .imprint/)
+  .imprint/vault.db          Rule store (gitignore via .imprint/)
   imprint desk open          Interactive graph (desk plugin)
 `
 
@@ -298,7 +298,7 @@ func commandHelp(cmd string) string {
 	case "init":
 		return `Usage: imprint init [--force] [--cursor] [--claude] [--codex] [--trae] [--workbuddy]
 
-Writes imprint memory rules for AI editors (default: all). Does not write MCP config.
+Writes imprint.yaml (if missing) and imprint memory rules for AI editors (default: all). Does not write MCP config.
 
   Cursor      .cursor/rules/imprint-memory.mdc
   Claude Code .claude/rules/imprint-memory.md
@@ -309,7 +309,7 @@ Writes imprint memory rules for AI editors (default: all). Does not write MCP co
 See docs/editors.md.
 `
 	case "export":
-		return "Usage: imprint export\n"
+		return "Usage: imprint export\n\nWrites .imprint/export/vault.json (next to vault.db).\n"
 	case "clear":
 		return "Usage: imprint clear --confirm --yes\n\nIrreversible. Both flags are required.\n"
 	case "up":

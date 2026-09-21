@@ -61,8 +61,8 @@ flowchart LR
     MCP --> Shelves
   end
   subgraph disk [磁盘]
-    Memory[".imprint/memory/"]
-    Cache[".shelves/.cache/"]
+    Memory[".imprint/vault.db"]
+    Cache[".imprint/state/shelves.db"]
     Roots["roots 下 .md"]
   end
   Agent <-->|find · add · get| MCP
@@ -78,8 +78,8 @@ flowchart LR
 | --------- | ----------------------------------------------------------------------------- |
 | **宿主**    | Cursor、Claude Desktop 等启动 `imprint-mcp`，经 stdin/stdout 通信。                    |
 | **工具**    | vault 命令对应 MCP 工具（`find`、`add` …）。**MCP** 在 shelves 开时 enrich `find`/`get`；**CLI** `find`/`get` 仅 vault。 |
-| **Vault** | `.imprint/memory/vault.db`（SQLite）；`find`/`get`/`add` 读写 claim、evidence、**sources**。 |
-| **Shelves** | 读 `.imprint/imprint.yaml` 的 `roots`；`find`+query 时 BM25 文档并返回 `documents`、`links`；`get chunk` 返回 `referenced_rules`。 |
+| **Vault** | `.imprint/vault.db`（SQLite）；`find`/`get`/`add` 读写 claim、evidence、**sources**。 |
+| **Shelves** | 读 `imprint.yaml` 的 `roots`；`find`+query 时 BM25 文档并返回 `documents`、`links`；`get chunk` 返回 `referenced_rules`。 |
 | **判断**    | 新增 / 强化 / 替换 / 忽略 与是否写 **sources** 均由智能体负责。 |
 
 
@@ -100,7 +100,7 @@ go install github.com/SteamedBread2333/imprint/cmd/imprint-mcp@latest
 
 | 参数               | 作用                                                                 |
 | ---------------- | ------------------------------------------------------------------ |
-| `--project PATH` | 项目根（`.imprint/` 的父目录）。vault 默认 `.imprint/memory`；插件读 `.imprint/imprint.yaml`。**Cursor 多根工作区请用这个。** 别名 `--root`。 |
+| `--project PATH` | 项目根（`.imprint/` 的父目录）。vault 默认 `.imprint`；插件读 `imprint.yaml`。**Cursor 多根工作区请用这个。** 别名 `--root`。 |
 | `--vault PATH`   | vault 目录。配合 `--project` 时，相对路径挂在项目根下。                              |
 | `--global`       | 使用 `~/.imprint`（除非指定 `--vault`）。                                    |
 | `--version`      | 打印版本并退出。                                                           |
@@ -201,7 +201,7 @@ go install github.com/SteamedBread2333/imprint/cmd/imprint-mcp@latest
   "mcpServers": {
     "imprint": {
       "command": "go",
-      "args": ["run", "./cmd/imprint-mcp", "--vault", "./.imprint/memory"],
+      "args": ["run", "./cmd/imprint-mcp", "--vault", "./.imprint"],
       "cwd": "/absolute/path/to/imprint"
     }
   }

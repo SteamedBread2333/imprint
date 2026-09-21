@@ -33,7 +33,7 @@ flowchart LR
 
   subgraph persist [On write · vault only]
     A[add / supersede] --> S[sources path/heading]
-    S --> V[(.imprint/memory/)]
+    S --> V[(.imprint/vault.db)]
   end
 
   subgraph reverse [get chunk · no doc edits]
@@ -48,7 +48,7 @@ flowchart LR
 
 ## Configuration
 
-In `.imprint/imprint.yaml`:
+In `imprint.yaml`:
 
 ```yaml
 host:
@@ -60,14 +60,14 @@ shelves:
     roots:
       - docs
       - .cursor/rules
-    # stateDir: .imprint/.shelves/.cache   # optional
+    # stateDir: .imprint/state   # optional
 ```
 
 | Field | Meaning |
 | --- | --- |
 | `enabled` | When `true`, scan `roots` and serve search. When `false`, stop indexing; cache stays readable. |
 | `config.roots` | **Directories to index** (`.md`, `.mdc`, `.txt`), relative to repo root — what shelves **searches** |
-| `config.stateDir` | SQLite cache. Default: `.imprint/.shelves/.cache`. |
+| `config.stateDir` | SQLite cache directory. Default: `.imprint/state` (`shelves.db`). |
 
 ### Configuring `roots`
 

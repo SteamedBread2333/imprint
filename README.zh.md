@@ -14,7 +14,7 @@
 
 </div>
 
-日常对话里的长期偏好写入 `.imprint/memory/`。**你正常说话即可，vault 由智能体维护**——每轮分类，写代码前召回。
+日常对话里的长期偏好写入 `.imprint/vault.db`。**你正常说话即可，vault 由智能体维护**——每轮分类，写代码前召回。
 
 | | 何时 | 例子 |
 | --- | --- | --- |
@@ -41,7 +41,7 @@ cd your-project && imprint init
 
 | | 你 | imprint |
 | --- | --- | --- |
-| **1** | 安装 + `init` | 写入编辑器规则（Cursor、Claude Code、Codex、Trae、Workbuddy） |
+| **1** | 安装 + `init` | 写入 `imprint.yaml` 与编辑器规则（Cursor、Claude Code、Codex、Trae、Workbuddy） |
 | **2** | 正常说话 | 智能体 `find`（imprint + shelves）→ 分类 → `add`/`reinforce`/…（可选 `sources`） |
 | **3** | 浏览器审计（可选） | `imprint up` → `imprint desk open` |
 
@@ -59,8 +59,8 @@ flowchart TB
 
   subgraph Store["imprint 存储"]
     direction LR
-    Vault[(".imprint/memory/<br/>claim · evidence · sources")]
-    Shelves[(".shelves/.cache/<br/>roots 文档 BM25")]
+    Vault[(".imprint/vault.db<br/>claim · evidence · sources")]
+    Shelves[(".imprint/state/shelves.db<br/>roots 文档 BM25")]
   end
 
   subgraph FindOut["find 一次返回"]
@@ -123,14 +123,14 @@ CLI 直接读写 vault。
 
 | 命令 | 作用 |
 | --- | --- |
-| `imprint init` | 写入编辑器智能体规则 |
+| `imprint init` | 写入 `imprint.yaml`（若尚无）和编辑器智能体规则 |
 | `imprint find [--scope a,b] [--query TEXT]` | 召回 imprint（scope **AND**）；shelves 开且带 query → 含 documents、links |
 | `imprint add CLAIM --scope a,b --text ORIG` | 新建 imprint（MCP 可带 `sources` 关联文档） |
 | `imprint reinforce ID [--evidence TEXT]` | 加强规则（置信度 +0.1） |
 | `imprint supersede OLD --claim NEW --scope a,b` | 替换规则；旧规则标记 `superseded` |
 | `imprint forget ID` | 永久删除 |
 | `imprint list` · `show` · `get ID` | 浏览与查看 |
-| `imprint sweep` · `export` | 衰减陈旧规则 · 导出 JSON |
+| `imprint sweep` · `export` | 衰减陈旧规则 · 写入 `.imprint/export/vault.json` |
 
 ```bash
 imprint find --scope go,naming --query PascalCase
@@ -182,18 +182,23 @@ shelves 在 `imprint.yaml` 顶层 host 配置（`shelves:`）。见 [docs/shelve
 
 ## Vault 布局
 
-默认 `./.imprint/memory/`（向上找 `.imprint/`）。`--global` → `~/.imprint`。可用 `--vault` 或 `IMPRINT_VAULT` 覆盖。
+团队约定：把 `imprint.yaml` 提交进 git（roots、插件开关）。全部私有运行时在 gitignore 的 `.imprint/`。
+
+默认 vault 目录：`./.imprint/`（向上找 `imprint.yaml` 或 `.imprint/`）。`--global` → `~/.imprint`。可用 `--vault` 或 `IMPRINT_VAULT` 覆盖。
 
 ```
-.imprint/
-  imprint.yaml          # host + shelves.roots + plugins
-  memory/vault.db       # SQLite vault（规则、证据、边、sources）
-  .shelves/.cache/      # roots 下文档索引（SQLite，gitignore）
-docs/                   # 常见 roots 之一
-.cursor/rules/          # 常见 roots 之一
+imprint.yaml            # 进 git：host + shelves.roots + plugins
+.imprint/               # gitignore：私有运行时
+  vault.db              # SQLite vault（规则、证据、边、sources）
+  state/
+    shelves.db          # 可重建的文档索引
+    plugins/            # 插件派生状态
+  export/               # 可选 md/json 投影
+docs/                   # 常见 shelves root
+.cursor/rules/          # 常见 shelves root
 ```
 
-规则存于 `memory/vault.db`。ID：`r-YYYY-MM-DD-NNN`。状态：`active` | `dormant` | `superseded`。`supersede` 将旧规则标为 superseded；`sweep` 衰减至 dormant；`forget` 删除。交互式规则图：**`imprint desk open`**（host `GET /graph`）。
+规则存于 `vault.db`。ID：`r-YYYY-MM-DD-NNN`。状态：`active` | `dormant` | `superseded`。`supersede` 将旧规则标为 superseded；`sweep` 衰减至 dormant；`forget` 删除。交互式规则图：**`imprint desk open`**（host `GET /graph`）。
 
 ---
 
@@ -244,7 +249,7 @@ MCP 示例（需手动合并）：[cursor-mcp.json](docs/examples/cursor-mcp.jso
 ```go
 import "github.com/SteamedBread2333/imprint/pkg/imprint"
 
-v, _ := imprint.Open("./.imprint/memory")
+v, _ := imprint.Open("./.imprint")
 v.Add("Use gofmt", []string{"go"}, "gofmt", 0.6)
 v.Find([]string{"go"}, "", 5)
 ```

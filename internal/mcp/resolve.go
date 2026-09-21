@@ -27,6 +27,7 @@ func resolveVaultDir(cfg Config) (string, error) {
 		}
 		vault := strings.TrimSpace(cfg.Vault)
 		if vault == "" {
+			_ = imprint.MigrateLegacyLayout(root)
 			return imprint.DefaultVaultDir(root), nil
 		}
 		if filepath.IsAbs(vault) {
@@ -48,7 +49,7 @@ func resolvePluginConfigPathForRun(cfg Config, vaultDir string) string {
 		if err != nil {
 			return ""
 		}
-		path := imprint.ConfigPath(root)
+		path := imprint.ResolveConfigFile(root)
 		if st, err := os.Stat(path); err == nil && !st.IsDir() {
 			return path
 		}

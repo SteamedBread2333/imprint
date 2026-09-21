@@ -46,6 +46,10 @@ type Store struct {
 
 // DBPath returns the SQLite index file path.
 func DBPath(stateDir string) string {
+	return filepath.Join(stateDir, "shelves.db")
+}
+
+func legacyDBPath(stateDir string) string {
 	return filepath.Join(stateDir, "index.db")
 }
 
@@ -58,7 +62,13 @@ func openDB(stateDir string) (*sql.DB, error) {
 	if err := os.MkdirAll(stateDir, 0o755); err != nil {
 		return nil, err
 	}
-	db, err := sql.Open("sqlite", DBPath(stateDir))
+	dbFile := DBPath(stateDir)
+	if _, err := os.Stat(dbFile); os.IsNotExist(err) {
+		if _, err := os.Stat(legacyDBPath(stateDir)); err == nil {
+			dbFile = legacyDBPath(stateDir)
+		}
+	}
+	db, err := sql.Open("sqlite", dbFile)
 	if err != nil {
 		return nil, err
 	}
@@ -84,9 +94,13 @@ func metaSet(tx *sql.Tx, key, value string) error {
 	return err
 }
 
-// LoadStore reads index.db from stateDir.
+// LoadStore reads shelves.db from stateDir.
 func LoadStore(stateDir string) (*Store, error) {
-	if _, err := os.Stat(DBPath(stateDir)); os.IsNotExist(err) {
+	p := DBPath(stateDir)
+	if _, err := os.Stat(p); os.IsNotExist(err) {
+		p = legacyDBPath(stateDir)
+	}
+	if _, err := os.Stat(p); os.IsNotExist(err) {
 		return nil, err
 	}
 	db, err := openDB(stateDir)
@@ -139,7 +153,7 @@ func LoadStore(stateDir string) (*Store, error) {
 	return s, refRows.Err()
 }
 
-// SaveStore writes index.db atomically.
+// SaveStore writes shelves.db atomically.
 func SaveStore(stateDir string, s *Store) error {
 	db, err := openDB(stateDir)
 	if err != nil {

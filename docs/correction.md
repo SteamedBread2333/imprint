@@ -2,7 +2,7 @@
 
 > **Setup:** [README.md](../README.md#quick-start). **Reference:** write loop, classification table, and worked examples.
 
-Durable preferences from conversation land in `.imprint/memory/` and **recall on the next task** steers behaviour. The agent **`find`s → classifies → writes**; users speak normally and never maintain rule ids.
+Durable preferences from conversation land in `.imprint/vault.db` and **recall on the next task** steers behaviour. The agent **`find`s → classifies → writes**; users speak normally and never maintain rule ids.
 
 ## Who maintains the vault
 
@@ -96,7 +96,7 @@ On `add`, set `--confidence` / MCP `confidence`:
 
 ## Worked examples
 
-Vault **`./.imprint/memory`**. MCP and CLI are equivalent; one of each shown.
+Vault **`./.imprint`**. MCP and CLI are equivalent; one of each shown.
 
 ### 1. New preference — ADD
 
@@ -108,7 +108,7 @@ Vault **`./.imprint/memory`**. MCP and CLI are equivalent; one of each shown.
 2. **ADD**
 
 ```bash
-imprint --json --vault ./.imprint/memory add \
+imprint --json --vault ./.imprint add \
   "Go exported identifiers must use PascalCase" \
   --scope go,naming \
   --text "Go exported identifiers must be PascalCase, not snake_case exports"
@@ -128,7 +128,7 @@ MCP `add`: same `claim`, `scope`, `text`; omit `confidence` (0.6).
 2. **REINFORCE**
 
 ```bash
-imprint --json --vault ./.imprint/memory reinforce r-2026-09-14-001 \
+imprint --json --vault ./.imprint reinforce r-2026-09-14-001 \
   --evidence "user confirmed PascalCase for exports again"
 ```
 
@@ -144,7 +144,7 @@ imprint --json --vault ./.imprint/memory reinforce r-2026-09-14-001 \
 2. **SUPERSEDE**
 
 ```bash
-imprint --json --vault ./.imprint/memory supersede r-2026-09-14-001 \
+imprint --json --vault ./.imprint supersede r-2026-09-14-001 \
   --claim "Go identifiers exported across packages must use PascalCase; internal unexported names use camelCase" \
   --scope go,naming \
   --reason "narrowed to cross-package exports only" \
@@ -160,7 +160,7 @@ Old id → `superseded` status; new id is `active` and links back.
 **User:** Same for frontend TS — exported components/functions follow PascalCase, aligned with Go.
 
 ```bash
-imprint --json --vault ./.imprint/memory supersede r-2026-09-14-002 \
+imprint --json --vault ./.imprint supersede r-2026-09-14-002 \
   --claim "Exported Go and TypeScript symbols follow PascalCase (TS aligned with Go exports)" \
   --scope go,typescript,naming \
   --reason "extended naming rule to frontend TS" \
@@ -190,7 +190,7 @@ Task instruction, not a long-term preference → **IGNORE**. No `add`.
 **Prefer supersede:**
 
 ```bash
-imprint --json --vault ./.imprint/memory supersede r-2026-09-14-003 \
+imprint --json --vault ./.imprint supersede r-2026-09-14-003 \
   --claim "Follow STYLE.md for naming; imprint does not override the style guide" \
   --scope go,naming,docs \
   --reason "naming policy moved to STYLE.md" \
@@ -210,7 +210,7 @@ Reply in normal language — do not ask the user to confirm a rule id or pick a 
 **Agent (before editing)**
 
 ```bash
-imprint --json --vault ./.imprint/memory find --scope go,naming --query export
+imprint --json --vault ./.imprint find --scope go,naming --query export
 ```
 
 Hit `[r-2026-09-14-002]` → name the method `GetProfile`, not `get_profile`; cite `[r-…]` when it shapes the change.
@@ -232,10 +232,10 @@ Hit `[r-2026-09-14-002]` → name the method `GetProfile`, not `get_profile`; ci
 ## Quick reference
 
 ```bash
-imprint --json --vault ./.imprint/memory find --scope go,error-handling --query wrap
-imprint --json --vault ./.imprint/memory get r-2026-09-14-002
-imprint --json --vault ./.imprint/memory list --status active --scope go --min-confidence 0.85
-imprint --json --vault ./.imprint/memory show
+imprint --json --vault ./.imprint find --scope go,error-handling --query wrap
+imprint --json --vault ./.imprint get r-2026-09-14-002
+imprint --json --vault ./.imprint list --status active --scope go --min-confidence 0.85
+imprint --json --vault ./.imprint show
 imprint desk open
 ```
 

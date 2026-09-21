@@ -14,7 +14,7 @@ English · [中文](README.zh.md)
 
 </div>
 
-Durable preferences from normal conversation land in `.imprint/memory/`. **You talk normally; the agent maintains the vault** — classifies each turn, recalls before the next edit.
+Durable preferences from normal conversation land in `.imprint/vault.db`. **You talk normally; the agent maintains the vault** — classifies each turn, recalls before the next edit.
 
 | | When | Example |
 | --- | --- | --- |
@@ -41,7 +41,7 @@ Merge [docs/examples/cursor-mcp.json](docs/examples/cursor-mcp.json) into `.curs
 
 | | You | imprint |
 | --- | --- | --- |
-| **1** | Install + `init` | Writes editor rules (Cursor, Claude Code, Codex, Trae, Workbuddy) |
+| **1** | Install + `init` | Writes `imprint.yaml` and editor rules (Cursor, Claude Code, Codex, Trae, Workbuddy) |
 | **2** | Speak normally | Agent `find` (vault + shelves) → classify → `add`/`reinforce`/… (optional `sources`) |
 | **3** | Browser audit (optional) | `imprint up` → `imprint desk open` |
 
@@ -59,8 +59,8 @@ flowchart TB
 
   subgraph Store["imprint storage"]
     direction LR
-    Vault[(".imprint/memory/<br/>claim · evidence · sources")]
-    Shelves[(".shelves/.cache/<br/>roots doc BM25")]
+    Vault[(".imprint/vault.db<br/>claim · evidence · sources")]
+    Shelves[(".imprint/state/shelves.db<br/>roots doc BM25")]
   end
 
   subgraph FindOut["one find call"]
@@ -123,14 +123,14 @@ Read and write the vault directly from the CLI.
 
 | Command | What it does |
 | --- | --- |
-| `imprint init` | Write editor agent rules |
+| `imprint init` | Write `imprint.yaml` (if missing) and editor agent rules |
 | `imprint find [--scope a,b] [--query TEXT]` | Recall imprints (scope **AND**); with query + shelves → also `documents`, `links` |
 | `imprint add CLAIM --scope a,b --text ORIG` | Create an imprint (MCP may include `sources` linking docs) |
 | `imprint reinforce ID [--evidence TEXT]` | Strengthen a rule (+0.1 confidence) |
 | `imprint supersede OLD --claim NEW --scope a,b` | Replace a rule; old → `superseded` |
 | `imprint forget ID` | Delete permanently |
 | `imprint list` · `show` · `get ID` | Browse and inspect |
-| `imprint sweep` · `export` | Decay stale rules · dump JSON |
+| `imprint sweep` · `export` | Decay stale rules · write `.imprint/export/vault.json` |
 
 ```bash
 imprint find --scope go,naming --query PascalCase
@@ -182,18 +182,23 @@ Run `imprint --help` or `imprint help <cmd>` for full flags.
 
 ## Vault layout
 
-Default: `./.imprint/memory/` (walk up for `.imprint/`). `--global` → `~/.imprint`. Override with `--vault` or `IMPRINT_VAULT`.
+Team convention: commit `imprint.yaml` (roots, plugin switches). All private runtime is gitignored under `.imprint/`.
+
+Default vault directory: `./.imprint/` (walk up for `imprint.yaml` or `.imprint/`). `--global` → `~/.imprint`. Override with `--vault` or `IMPRINT_VAULT`.
 
 ```
-.imprint/
-  imprint.yaml          # host + shelves.roots + plugins
-  memory/vault.db       # SQLite vault (rules, evidence, edges, sources)
-  .shelves/.cache/      # doc index under roots (SQLite, gitignored)
-docs/                   # typical root
-.cursor/rules/          # typical root
+imprint.yaml            # git: host + shelves.roots + plugins
+.imprint/               # gitignore: private runtime
+  vault.db              # SQLite vault (rules, evidence, edges, sources)
+  state/
+    shelves.db          # rebuildable doc index
+    plugins/            # plugin derived state
+  export/               # optional md/json projections
+docs/                   # typical shelves root
+.cursor/rules/          # typical shelves root
 ```
 
-Rules live in `memory/vault.db`. IDs: `r-YYYY-MM-DD-NNN`. Status: `active` | `dormant` | `superseded`. `supersede` marks old rules superseded; `sweep` decays stale rules to dormant; `forget` deletes. Interactive rule graph: **`imprint desk open`** (host `GET /graph`).
+Rules live in `vault.db`. IDs: `r-YYYY-MM-DD-NNN`. Status: `active` | `dormant` | `superseded`. `supersede` marks old rules superseded; `sweep` decays stale rules to dormant; `forget` deletes. Interactive rule graph: **`imprint desk open`** (host `GET /graph`).
 
 ---
 
@@ -244,7 +249,7 @@ MCP examples (merge manually): [cursor-mcp.json](docs/examples/cursor-mcp.json) 
 ```go
 import "github.com/SteamedBread2333/imprint/pkg/imprint"
 
-v, _ := imprint.Open("./.imprint/memory")
+v, _ := imprint.Open("./.imprint")
 v.Add("Use gofmt", []string{"go"}, "gofmt", 0.6)
 v.Find([]string{"go"}, "", 5)
 ```

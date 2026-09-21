@@ -34,7 +34,7 @@ func TestLoadMigratesLegacyPluginsShelvesYAML(t *testing.T) {
 		t.Fatal(err)
 	}
 	cfgPath := filepath.Join(cfgDir, "imprint.yaml")
-	body := "vault: .imprint/memory\nplugins:\n  shelves:\n    enabled: true\n"
+	body := "vault: .imprint\nplugins:\n  shelves:\n    enabled: true\n"
 	if err := os.WriteFile(cfgPath, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +55,7 @@ func TestRegisterPluginToolsMissingPackage(t *testing.T) {
 		t.Fatal(err)
 	}
 	cfgPath := filepath.Join(cfgDir, "imprint.yaml")
-	body := `vault: .imprint/memory
+	body := `vault: .imprint
 plugins:
   desk:
     enabled: true
@@ -81,7 +81,7 @@ func TestRegisterPluginToolsDisabledPlugin(t *testing.T) {
 		t.Fatal(err)
 	}
 	cfgPath := filepath.Join(cfgDir, "imprint.yaml")
-	body := `vault: .imprint/memory
+	body := `vault: .imprint
 plugins:
   desk:
     enabled: false

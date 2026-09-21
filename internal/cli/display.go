@@ -54,7 +54,7 @@ func printShelvesBlock(c *console, st shelves.Status, roots []string, hostListen
 	case st.ChunkCount > 0:
 		c.Row("shelves", stateOff, "off",
 			fmt.Sprintf("%d chunks cached (read-only)", st.ChunkCount))
-		c.Action("turn shelves back on", "set shelves.enabled: true in .imprint/imprint.yaml, then imprint up")
+		c.Action("turn shelves back on", "set shelves.enabled: true in imprint.yaml, then imprint up")
 	default:
 		c.Row("shelves", stateOff, "off", "disabled in imprint.yaml")
 	}

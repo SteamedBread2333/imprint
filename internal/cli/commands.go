@@ -2,6 +2,8 @@ package cli
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -319,12 +321,12 @@ func (a *App) cmdList(g globals, args []string) int {
 		return a.fail(g.json, err)
 	}
 	items, err := v.ListFilter(imprint.ListFilter{
-		Status:            *status,
-		Scope:             splitCSV(*scope),
-		MinConfidence:     *minConf,
-		Query:             *query,
-		Since:             when,
-		Limit:             *limit,
+		Status:        *status,
+		Scope:         splitCSV(*scope),
+		MinConfidence: *minConf,
+		Query:         *query,
+		Since:         when,
+		Limit:         *limit,
 	})
 	if err != nil {
 		return a.fail(g.json, err)
@@ -491,9 +493,32 @@ func (a *App) cmdExport(g globals, args []string) int {
 	if err != nil {
 		return a.fail(g.json, err)
 	}
-	if err := v.ExportJSON(a.out()); err != nil {
+	exportDir := filepath.Join(v.Dir, imprint.ExportDirName)
+	if err := os.MkdirAll(exportDir, 0o755); err != nil {
 		return a.fail(g.json, err)
 	}
+	jsonPath := filepath.Join(exportDir, "vault.json")
+	f, err := os.Create(jsonPath)
+	if err != nil {
+		return a.fail(g.json, err)
+	}
+	if err := v.ExportJSON(f); err != nil {
+		_ = f.Close()
+		return a.fail(g.json, err)
+	}
+	if err := f.Close(); err != nil {
+		return a.fail(g.json, err)
+	}
+	if g.json {
+		if err := v.ExportJSON(a.out()); err != nil {
+			return a.fail(g.json, err)
+		}
+		return 0
+	}
+	c := a.console()
+	c.Heading("export")
+	c.Done("wrote %s", jsonPath)
+	c.blank()
 	return 0
 }
 

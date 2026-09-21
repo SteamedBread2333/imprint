@@ -13,6 +13,10 @@ func TestInitAllEditors(t *testing.T) {
 	if code := app.Run([]string{"--json", "init"}); code != 0 {
 		t.Fatalf("init exit %d stderr=%s", code, errw)
 	}
+	yamlPath := filepath.Join(dir, "imprint.yaml")
+	if _, err := os.Stat(yamlPath); err != nil {
+		t.Fatalf("missing imprint.yaml: %v", err)
+	}
 	want := []string{
 		filepath.Join(dir, ".cursor", "rules", "imprint-memory.mdc"),
 		filepath.Join(dir, ".claude", "rules", "imprint-memory.md"),

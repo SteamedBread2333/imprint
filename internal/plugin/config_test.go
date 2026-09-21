@@ -14,7 +14,7 @@ func TestResolveConfigPathWalkUpIgnoresIMPRINTWorkspace(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(cfgPath, []byte("vault: .imprint/memory\n"), 0o644); err != nil {
+	if err := os.WriteFile(cfgPath, []byte("vault: .imprint\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	sub := filepath.Join(dir, "pkg", "foo")
@@ -40,7 +40,7 @@ func TestResolveConfigPathForVault(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(cfgPath, []byte("vault: .imprint/memory\n"), 0o644); err != nil {
+	if err := os.WriteFile(cfgPath, []byte("vault: .imprint\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	got, ok := ResolveConfigPathForVault(imprint.DefaultVaultDir(dir))
@@ -70,7 +70,7 @@ func TestLoadMigratesPluginsShelves(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	body := `vault: .imprint/memory
+	body := `vault: .imprint
 plugins:
   shelves:
     enabled: true
@@ -103,7 +103,7 @@ func TestLoadTopLevelShelvesWinsOverLegacy(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	body := `vault: .imprint/memory
+	body := `vault: .imprint
 shelves:
   enabled: false
 plugins:
@@ -128,7 +128,7 @@ func TestLoadShelvesTopLevel(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	body := `vault: .imprint/memory
+	body := `vault: .imprint
 shelves:
   enabled: false
   config:

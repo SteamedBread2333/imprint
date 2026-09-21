@@ -61,8 +61,8 @@ flowchart LR
     MCP --> Shelves
   end
   subgraph disk [On disk]
-    Memory[".imprint/memory/"]
-    Cache[".shelves/.cache/"]
+    Memory[".imprint/vault.db"]
+    Cache[".imprint/state/shelves.db"]
     Roots["markdown under roots"]
   end
   Agent <-->|find · add · get| MCP
@@ -75,8 +75,8 @@ flowchart LR
 | --- | --- |
 | **Host** | Cursor, Claude Desktop, etc. spawns `imprint-mcp` and talks over stdin/stdout. |
 | **Tools** | One MCP tool per vault command (`find`, `add`, …). **MCP** enriches `find`/`get` when shelves is on; **CLI** `find`/`get` are vault-only. |
-| **Vault** | `.imprint/memory/vault.db` (SQLite); `find` / `get` / `add` read and write claim, evidence, **sources**. |
-| **Shelves** | Reads `roots` from `.imprint/imprint.yaml`; `find`+query adds BM25 **documents** and **links**; chunk `get` adds **referenced_rules**. |
+| **Vault** | `.imprint/vault.db` (SQLite); `find` / `get` / `add` read and write claim, evidence, **sources**. |
+| **Shelves** | Reads `roots` from `imprint.yaml`; `find`+query adds BM25 **documents** and **links**; chunk `get` adds **referenced_rules**. |
 | **Judgment** | ADD / REINFORCE / SUPERSEDE / IGNORE and whether to set **sources** stay on the agent. |
 
 Logging goes to **stderr** only so stdout stays clean for MCP framing.
@@ -95,9 +95,9 @@ Parsed before the process enters MCP mode (unknown flags are rejected):
 
 | Flag | Effect |
 | --- | --- |
-| `--project PATH` | Repo root (parent of `.imprint/`). Vault defaults to `.imprint/memory`; plugin config from `.imprint/imprint.yaml`. **Use this in Cursor multi-root workspaces.** Alias: `--root`. |
+| `--project PATH` | Repo root (parent of `.imprint/`). Vault defaults to `.imprint`; plugin config from `imprint.yaml`. **Use this in Cursor multi-root workspaces.** Alias: `--root`. |
 | `--vault PATH` | Vault directory. With `--project`, relative paths join under the project root. |
-| `--global` | Use `~/.imprint` (overrides walk-up / `./.imprint/memory` unless `--vault` is set). |
+| `--global` | Use `~/.imprint` (overrides walk-up / `./.imprint` unless `--vault` is set). |
 | `--version` | Print version and exit. |
 | `-h`, `--help` | Print usage and exit. |
 
@@ -186,7 +186,7 @@ See [docs/examples/cursor-mcp-global.json](examples/cursor-mcp-global.json).
   "mcpServers": {
     "imprint": {
       "command": "go",
-      "args": ["run", "./cmd/imprint-mcp", "--vault", "./.imprint/memory"],
+      "args": ["run", "./cmd/imprint-mcp", "--vault", "./.imprint"],
       "cwd": "/absolute/path/to/imprint"
     }
   }
