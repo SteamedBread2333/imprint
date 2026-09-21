@@ -169,11 +169,11 @@ func (a *App) pluginStop(g globals, mgr *plugin.Manager, args []string) int {
 	}
 	mgr.StopAll()
 	if g.json {
-		return boolExit(a.writeJSON(map[string]any{"stopped": enabledPluginIDs(mgr.Config())}))
+		return boolExit(a.writeJSON(map[string]any{"stopped": configuredPluginIDs(mgr.Config())}))
 	}
 	c := a.console()
 	c.Heading("plugin stop")
-	for _, id := range enabledPluginIDs(mgr.Config()) {
+	for _, id := range configuredPluginIDs(mgr.Config()) {
 		c.Row(id, stateOff, "stopped", "")
 	}
 	c.blank()

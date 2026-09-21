@@ -206,7 +206,8 @@ func deskStartArgs(id string, entry PluginEntry, cfg *Config) string {
 	return "--host-url " + hostURL
 }
 
-// StopAll stops enabled plugin processes by port.
+// StopAll frees listen ports for every configured plugin.
+// enabled is an up/start flag; down still stops a leftover process on that port.
 func (m *Manager) StopAll() {
 	m.mu.Lock()
 	for id, cmd := range m.procs {
@@ -216,10 +217,10 @@ func (m *Manager) StopAll() {
 		delete(m.procs, id)
 	}
 	m.mu.Unlock()
+	if m.cfg == nil {
+		return
+	}
 	for id, entry := range m.cfg.Plugins {
-		if !entry.Enabled {
-			continue
-		}
 		port := PluginPort(entry, imprint.DefaultPortForPlugin(id))
 		_ = freePort(port, 2*time.Second)
 	}

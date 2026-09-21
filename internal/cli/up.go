@@ -73,7 +73,7 @@ func (a *App) cmdDown(g globals, rest []string) int {
 		return a.fail(g.json, err)
 	}
 	mgr := plugin.NewManager(cfg)
-	stopped := enabledPluginIDs(cfg)
+	stopped := configuredPluginIDs(cfg)
 	mgr.StopAll()
 	listen, err := a.hostStop(g)
 	if err != nil {

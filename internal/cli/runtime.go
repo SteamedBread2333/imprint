@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -184,12 +185,14 @@ func shelvesEnabled(cfg *plugin.Config) bool {
 	return shelves.ConfigFrom(cfg).Enabled
 }
 
-func enabledPluginIDs(cfg *plugin.Config) []string {
-	var ids []string
-	for id, entry := range cfg.Plugins {
-		if entry.Enabled {
-			ids = append(ids, id)
-		}
+func configuredPluginIDs(cfg *plugin.Config) []string {
+	if cfg == nil {
+		return nil
 	}
+	var ids []string
+	for id := range cfg.Plugins {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
 	return ids
 }
