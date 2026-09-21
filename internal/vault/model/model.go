@@ -20,13 +20,15 @@ const (
 	EvidenceSupersede EvidenceKind = "supersede"
 )
 
+// Confidence and sweep defaults are convention tiers, not fitted parameters.
+// 0.85 is the add-correction tier (initialAddConfidence); 0.9 is reached only via reinforce.
 const (
-	DefaultConfidence    = 0.6
-	MaxConfidence        = 0.95
-	MinRecallConfidence  = 0.3
-	DefaultDecayDays     = 90
-	DefaultDecayAmount   = 0.05
-	DefaultDormantThresh = 0.3
+	DefaultConfidence    = 0.6  // first mention; add omits confidence
+	MaxConfidence        = 0.95 // reinforce cap; never 1.0
+	MinRecallConfidence  = 0.3  // find: drop active rules below this
+	DefaultDecayDays     = 90   // sweep: last_confirmed_at older than this
+	DefaultDecayAmount   = 0.05 // sweep: subtract from confidence
+	DefaultDormantThresh = 0.3  // sweep: below this → dormant (same cut as find)
 	DefaultTopK          = 5
 	IDPrefix             = "r-"
 )
