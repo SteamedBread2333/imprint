@@ -6,11 +6,6 @@ import (
 	"time"
 )
 
-func (v *Vault) touch(r *Record, now time.Time) {
-	r.UpdatedAt = now
-	r.LastTouchedAt = now
-}
-
 // Reinforce raises confidence by 0.1 (capped at 0.95) and increments reinforcement_count.
 func (v *Vault) Reinforce(id, evidence string) (*ReinforceResult, error) {
 	return v.ReinforceQueryLocal(id, evidence, "")
@@ -22,35 +17,26 @@ func (v *Vault) ReinforceQueryLocal(id, evidence, queryLocal string) (*Reinforce
 	if id == "" {
 		return nil, fmt.Errorf("id is required")
 	}
-	rec, err := v.load(id)
-	if err != nil {
+	if err := checkSensitiveText(
+		guardedText{field: "evidence", text: evidence},
+		guardedText{field: "query_local", text: queryLocal},
+	); err != nil {
 		return nil, err
 	}
-	if rec.Status == StatusSuperseded {
-		return nil, fmt.Errorf("record %s is superseded and cannot be reinforced", id)
-	}
 	now := v.instant()
-	rec.Confidence = clampConfidence(rec.Confidence + 0.1)
-	rec.ReinforcementCount++
-	v.touch(rec, now)
-	if rec.Status == StatusDormant {
-		rec.Status = StatusActive
-	}
-	if ql := MergeQueryLocalForStore(queryLocal, evidence); ql != "" {
-		rec.QueryLocal = ql
-	}
-	rec.EvidenceLog = append(rec.EvidenceLog, Evidence{
+	ql := MergeQueryLocalForStore(queryLocal, evidence)
+	confidence, count, err := v.store.ReinforceRecord(id, now, Evidence{
 		At:   now,
 		Kind: EvidenceReinforce,
 		Text: evidence,
-	})
-	if err := v.save(rec); err != nil {
+	}, ql, MaxConfidence)
+	if err != nil {
 		return nil, err
 	}
 	return &ReinforceResult{
-		ID:                 rec.ID,
-		Confidence:         rec.Confidence,
-		ReinforcementCount: rec.ReinforcementCount,
+		ID:                 id,
+		Confidence:         confidence,
+		ReinforcementCount: count,
 	}, nil
 }
 
@@ -73,10 +59,22 @@ func (v *Vault) SupersedeWithSources(oldID, newClaim string, newScope []string, 
 	if len(newScope) == 0 {
 		return nil, fmt.Errorf("new_scope is required")
 	}
+	if err := checkSensitiveText(
+		guardedText{field: "claim", text: newClaim},
+		guardedText{field: "reason", text: reason},
+		guardedText{field: "text", text: originalText},
+		guardedText{field: "query_local", text: queryLocal},
+	); err != nil {
+		return nil, err
+	}
+	if err := v.checkSourcePaths(sources); err != nil {
+		return nil, err
+	}
 	old, err := v.load(oldID)
 	if err != nil {
 		return nil, err
 	}
+	expectedUpdatedAt := old.UpdatedAt
 	now := v.instant()
 	text := originalText
 	if strings.TrimSpace(text) == "" {
@@ -125,7 +123,7 @@ func (v *Vault) SupersedeWithSources(oldID, newClaim string, newScope []string, 
 	old.EvidenceLog = append(old.EvidenceLog, Evidence{
 		At: now, Kind: EvidenceSupersede, Text: note,
 	})
-	if err := v.store.SupersedePair(old, newRec); err != nil {
+	if err := v.store.SupersedePair(old, newRec, expectedUpdatedAt); err != nil {
 		return nil, err
 	}
 	return &SupersedeResult{ID: newID, SupersededOldID: old.ID}, nil
@@ -142,41 +140,11 @@ func (v *Vault) Sweep(decayDays int, decayAmount, dormantThreshold float64) (*Sw
 	if dormantThreshold <= 0 {
 		dormantThreshold = DefaultDormantThresh
 	}
-	recs, err := v.store.AllRecords(false)
+	now := v.instant()
+	cutoff := now.Add(-time.Duration(decayDays) * 24 * time.Hour)
+	decayed, archived, err := v.store.SweepActive(cutoff, now, decayAmount, dormantThreshold)
 	if err != nil {
 		return nil, err
 	}
-	now := v.instant()
-	cutoff := now.Add(-time.Duration(decayDays) * 24 * time.Hour)
-	result := &SweepResult{}
-	for _, rec := range recs {
-		if rec.Status != StatusActive {
-			continue
-		}
-		changed := false
-		if !rec.LastTouchedAt.After(cutoff) {
-			rec.Confidence -= decayAmount
-			if rec.Confidence < 0 {
-				rec.Confidence = 0
-			}
-			rec.UpdatedAt = now
-			result.Decayed++
-			changed = true
-		}
-		if rec.Confidence < dormantThreshold {
-			rec.Status = StatusDormant
-			rec.UpdatedAt = now
-			if err := v.save(rec); err != nil {
-				return nil, err
-			}
-			result.Archived++
-			continue
-		}
-		if changed {
-			if err := v.save(rec); err != nil {
-				return nil, err
-			}
-		}
-	}
-	return result, nil
+	return &SweepResult{Decayed: decayed, Archived: archived}, nil
 }

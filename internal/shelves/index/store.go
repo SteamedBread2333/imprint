@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	_ "modernc.org/sqlite"
+	"github.com/SteamedBread2333/imprint/internal/sqliteutil"
 )
 
 const schemaSQL = `
@@ -68,12 +68,14 @@ func openDB(stateDir string) (*sql.DB, error) {
 			dbFile = legacyDBPath(stateDir)
 		}
 	}
-	db, err := sql.Open("sqlite", dbFile)
+	db, err := sqliteutil.Open(dbFile)
 	if err != nil {
 		return nil, err
 	}
-	db.SetMaxOpenConns(1)
-	if _, err := db.Exec(schemaSQL); err != nil {
+	if err := sqliteutil.Retry(func() error {
+		_, err := db.Exec(schemaSQL)
+		return err
+	}); err != nil {
 		_ = db.Close()
 		return nil, err
 	}
@@ -270,7 +272,7 @@ func (s *Store) SearchStore(query string, topK int) []SearchHit {
 			Path:    r.Chunk.Path,
 			Heading: r.Chunk.Heading,
 			Score:   r.Score,
-			Snippet: Snippet(r.Chunk.Text, 240),
+			Snippet: Snippet(r.Chunk.Text, 300),
 		})
 	}
 	return out

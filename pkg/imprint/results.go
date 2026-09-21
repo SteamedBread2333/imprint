@@ -1,6 +1,8 @@
 package imprint
 
 import (
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/SteamedBread2333/imprint/internal/vault/model"
@@ -15,12 +17,49 @@ type AddResult struct {
 
 // FindHit is one find match.
 type FindHit struct {
-	ID         string   `json:"id"`
-	Title      string   `json:"title"`
-	Scope      []string `json:"scope"`
-	Confidence float64  `json:"confidence"`
-	Score      float64  `json:"score"`
-	QueryLocal string   `json:"query_local,omitempty"`
+	ID            string   `json:"id"`
+	Title         string   `json:"title"`
+	Scope         []string `json:"scope"`
+	Confidence    float64  `json:"confidence"`
+	Score         float64  `json:"score"`
+	Status        string   `json:"status,omitempty"`
+	SourcesCount  int      `json:"sources_count,omitempty"`
+	EvidenceCount int      `json:"evidence_count,omitempty"`
+	WakeCandidate bool     `json:"wake_candidate,omitempty"`
+	QueryLocal    string   `json:"query_local,omitempty"`
+}
+
+// CompactFindHit is the default agent-facing recall shape.
+type CompactFindHit struct {
+	ID            string   `json:"id"`
+	Claim         string   `json:"claim"`
+	Scope         []string `json:"scope"`
+	Confidence    float64  `json:"confidence"`
+	Score         float64  `json:"score"`
+	Status        string   `json:"status,omitempty"`
+	SourcesCount  int      `json:"sources_count,omitempty"`
+	EvidenceCount int      `json:"evidence_count,omitempty"`
+	WakeCandidate bool     `json:"wake_candidate,omitempty"`
+}
+
+func (h FindHit) Compact() CompactFindHit {
+	return CompactFindHit{
+		ID:            h.ID,
+		Claim:         h.Title,
+		Scope:         h.Scope,
+		Confidence:    h.Confidence,
+		Score:         h.Score,
+		Status:        h.Status,
+		SourcesCount:  h.SourcesCount,
+		EvidenceCount: h.EvidenceCount,
+		WakeCandidate: h.WakeCandidate,
+	}
+}
+
+// ConflictSet is one explicit conflict edge among returned rules.
+type ConflictSet struct {
+	A string `json:"a"`
+	B string `json:"b"`
 }
 
 // ReinforceResult is the --json shape for reinforce.
@@ -71,4 +110,37 @@ type SweepResult struct {
 // ErrorBody is printed on stdout when --json commands fail.
 type ErrorBody struct {
 	Error string `json:"error"`
+}
+
+// DuplicateCandidate is an active rule that is too similar to a proposed add.
+type DuplicateCandidate struct {
+	ID    string  `json:"id"`
+	Score float64 `json:"score"`
+	Claim string  `json:"claim"`
+}
+
+// WriteGuardError is a structured privacy or duplicate rejection.
+type WriteGuardError struct {
+	Code       string               `json:"code"`
+	Message    string               `json:"error"`
+	Field      string               `json:"field,omitempty"`
+	Kind       string               `json:"kind,omitempty"`
+	Candidates []DuplicateCandidate `json:"candidates,omitempty"`
+	Hint       string               `json:"hint,omitempty"`
+}
+
+func (e *WriteGuardError) Error() string {
+	if e.Field != "" {
+		return fmt.Sprintf("%s (%s)", e.Message, e.Field)
+	}
+	return e.Message
+}
+
+// ErrorPayload preserves structured write-guard details across adapters.
+func ErrorPayload(err error) any {
+	var guarded *WriteGuardError
+	if errors.As(err, &guarded) {
+		return guarded
+	}
+	return ErrorBody{Error: err.Error()}
 }

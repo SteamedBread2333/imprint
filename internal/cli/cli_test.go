@@ -259,3 +259,30 @@ func TestCLIVersion(t *testing.T) {
 		t.Fatalf("version %q", got)
 	}
 }
+
+func TestCLIExportJSONL(t *testing.T) {
+	dir := t.TempDir()
+	app, out, errw := testApp(t, dir)
+	if code := app.Run([]string{"--vault", dir, "add", "Use gofmt", "--scope", "go", "--text", "team policy"}); code != 0 {
+		t.Fatalf("add exit %d: %s", code, errw)
+	}
+	out.Reset()
+	if code := app.Run([]string{"--vault", dir, "export", "--format", "jsonl"}); code != 0 {
+		t.Fatalf("export exit %d: %s", code, errw)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, imprint.ExportDirName, "vault.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	if len(lines) != 1 {
+		t.Fatalf("jsonl lines = %d: %s", len(lines), data)
+	}
+	var rec imprint.Record
+	if err := json.Unmarshal([]byte(lines[0]), &rec); err != nil {
+		t.Fatal(err)
+	}
+	if rec.Claim != "Use gofmt" {
+		t.Fatalf("record = %+v", rec)
+	}
+}

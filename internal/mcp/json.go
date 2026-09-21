@@ -25,7 +25,7 @@ func jsonOK(v any) (*sdkmcp.CallToolResult, any, error) {
 
 func toolErr(err error) *sdkmcp.CallToolResult {
 	var buf bytes.Buffer
-	_ = json.NewEncoder(&buf).Encode(imprint.ErrorBody{Error: err.Error()})
+	_ = json.NewEncoder(&buf).Encode(imprint.ErrorPayload(err))
 	return &sdkmcp.CallToolResult{
 		Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: buf.String()}},
 		IsError: true,

@@ -130,7 +130,7 @@ CLI 直接读写 vault。
 | `imprint supersede OLD --claim NEW --scope a,b` | 替换规则；旧规则标记 `superseded` |
 | `imprint forget ID` | 永久删除 |
 | `imprint list` · `show` · `get ID` | 浏览与查看 |
-| `imprint sweep` · `export` | 衰减陈旧规则 · 写入 `.imprint/export/vault.json` |
+| `imprint sweep` · `export` | 衰减陈旧规则 · 写入 `.imprint/export/vault.json`，或用 `--format jsonl` 写 `vault.jsonl` |
 
 ```bash
 imprint find --scope go,naming --query PascalCase
@@ -213,7 +213,11 @@ docs/                   # 常见 shelves root
 
 **`roots`** 指定哪些目录进入索引——召回范围可控、rebuild 更快。详见 [docs/shelves-builtin.zh.md](docs/shelves-builtin.zh.md)。
 
-**与 vault 关联：** vault 的 `sources` 指向文档 path 或 heading；`get r-…` 返回 `resolved_sources`。设计：[docs/imprint-shelves-linking.zh.md](docs/imprint-shelves-linking.zh.md)。
+**紧凑召回：** MCP `find` 默认只返回 claim、计数与有上限的文档 snippet；`get r-…` 默认折叠 evidence 和来源正文。仅审计时使用 `include_evidence` 或 `full`。dormant 规则最多以一条降权 `wake_candidate` 入场，只有明确 `reinforce` 才会唤醒。
+
+**写入安全：** `add`、`reinforce`、`supersede` 会拒绝疑似 secret 和个人信息。source 必须位于工作区内，且不能指向 credentials、`.env*`、`*.pem` 或 `*.key`；`add` 还会返回高相似 active 候选并拒绝重复写入。
+
+**与 vault 关联：** vault 的 `sources` 指向文档 path 或 heading；紧凑 `get r-…` 返回来源指针，`full:true` 才解析正文。设计：[docs/imprint-shelves-linking.zh.md](docs/imprint-shelves-linking.zh.md)。
 
 挂载 MCP（`imprint-mcp`）。shelves 开启且 `find` 带 query 时，响应含 `rules`、`documents`、`links`。
 

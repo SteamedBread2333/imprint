@@ -82,7 +82,7 @@ On `add`, set `--confidence` / MCP `confidence`:
 | --- | --- |
 | First mention, casual | **0.6** (default) |
 | Explicit correction ("no, use …") | **0.85** |
-| "From now on always …" | **0.9** |
+| "From now on always …" | **0.85** on add; tier 0.9 only through later `reinforce` |
 
 `reinforce` stacks on the current value. Policy changed → **supersede** with a high-confidence new claim.
 
@@ -90,7 +90,7 @@ On `add`, set `--confidence` / MCP `confidence`:
 
 - **`--text` / `text`**: user's words (evidence)
 - **`claim`**: imperative statement for the agent
-- No secrets; no inferred preferences
+- No secrets; no inferred preferences. Server-side privacy and duplicate gates reject unsafe or redundant writes.
 
 ---
 
@@ -225,7 +225,7 @@ Hit `[r-2026-09-14-002]` → name the method `GetProfile`, not `get_profile`; ci
 | **reinforce** | User repeats | Rule still **valid**, strengthen |
 | **sweep** | Ops / cron | Stale preferences **fade** (default 90d untouched −0.05; &lt; 0.3 → dormant) |
 
-`sweep` does not erase history; `dormant` rules stay in `vault.db` and `reinforce` can wake them.
+`sweep` does not erase history. A query may surface at most one dormant rule as a penalized `wake_candidate`; the hit itself changes nothing. Only an explicit user reconfirmation followed by `reinforce` wakes it.
 
 ---
 

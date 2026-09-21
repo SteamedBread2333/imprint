@@ -143,7 +143,7 @@ func (a *App) fail(asJSON bool, err error) int {
 		return 0
 	}
 	if asJSON {
-		_ = a.writeJSON(imprint.ErrorBody{Error: err.Error()})
+		_ = a.writeJSON(imprint.ErrorPayload(err))
 		return 1
 	}
 	c := newConsole(a.errw())
@@ -261,7 +261,7 @@ Everyday — vault (no local stack required):
   get         Full record by id
   show        User-facing listing
   sweep       Decay stale rules and mark low-confidence ones dormant
-  export      Write vault.json under .imprint/export/
+  export      Write JSON or JSONL under .imprint/export/
 
 Debug & advanced:
   host start | host stop | host serve   Split host control (prefer up/down)
@@ -309,7 +309,7 @@ Writes imprint.yaml (if missing) and imprint memory rules for AI editors (defaul
 See docs/editors.md.
 `
 	case "export":
-		return "Usage: imprint export\n\nWrites .imprint/export/vault.json (next to vault.db).\n"
+		return "Usage: imprint export [--format json|jsonl]\n\nWrites vault.json (default) or vault.jsonl under .imprint/export/.\n"
 	case "clear":
 		return "Usage: imprint clear --confirm --yes\n\nIrreversible. Both flags are required.\n"
 	case "up":

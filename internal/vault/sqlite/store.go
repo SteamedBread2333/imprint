@@ -9,12 +9,11 @@ import (
 	"time"
 
 	"github.com/SteamedBread2333/imprint/internal/heading"
+	"github.com/SteamedBread2333/imprint/internal/sqliteutil"
 	"github.com/SteamedBread2333/imprint/internal/vault/model"
-
-	_ "modernc.org/sqlite"
 )
 
-const schemaVersion = "2"
+const schemaVersion = "3"
 
 const rulesSelectCols = `id, claim, body, query_local, status, confidence, reinforcement_count, created_at, updated_at, last_touched_at`
 
@@ -67,6 +66,10 @@ CREATE TABLE IF NOT EXISTS rule_sources (
 );
 CREATE INDEX IF NOT EXISTS idx_sources_path ON rule_sources(path);
 CREATE INDEX IF NOT EXISTS idx_sources_chunk ON rule_sources(chunk);
+CREATE TABLE IF NOT EXISTS id_sequences (
+  day        TEXT PRIMARY KEY,
+  next_value INTEGER NOT NULL
+);
 `
 
 // Store persists vault rules in SQLite.
@@ -96,17 +99,19 @@ func Open(dir string, now func() time.Time) (*Store, error) {
 	if now == nil {
 		now = time.Now
 	}
-	db, err := sql.Open("sqlite", DBPath(abs))
+	db, err := sqliteutil.Open(DBPath(abs))
 	if err != nil {
 		return nil, err
 	}
-	db.SetMaxOpenConns(1)
-	if _, err := db.Exec(schemaSQL); err != nil {
+	if err := sqliteutil.Retry(func() error {
+		_, err := db.Exec(schemaSQL)
+		return err
+	}); err != nil {
 		_ = db.Close()
 		return nil, err
 	}
 	s := &Store{Dir: abs, db: db, now: now}
-	if err := s.ensureMeta(); err != nil {
+	if err := sqliteutil.Retry(s.ensureMeta); err != nil {
 		_ = db.Close()
 		return nil, err
 	}
@@ -125,18 +130,15 @@ func (s *Store) instant() time.Time {
 }
 
 func (s *Store) ensureMeta() error {
+	now := s.instant().Format(time.RFC3339)
+	if _, err := s.db.Exec(
+		`INSERT OR IGNORE INTO meta(key, value) VALUES('schema_version', ?), ('created_at', ?)`,
+		schemaVersion, now,
+	); err != nil {
+		return err
+	}
 	var v string
 	err := s.db.QueryRow(`SELECT value FROM meta WHERE key = 'schema_version'`).Scan(&v)
-	if err == sql.ErrNoRows {
-		now := s.instant().Format(time.RFC3339)
-		if _, err := s.db.Exec(
-			`INSERT INTO meta(key, value) VALUES('schema_version', ?), ('created_at', ?)`,
-			schemaVersion, now,
-		); err != nil {
-			return err
-		}
-		return nil
-	}
 	if err != nil {
 		return err
 	}
@@ -144,18 +146,30 @@ func (s *Store) ensureMeta() error {
 }
 
 func migrateSchema(db *sql.DB, current string) error {
-	if current == schemaVersion {
-		return nil
-	}
 	if current == "1" {
 		if _, err := db.Exec(`ALTER TABLE rules ADD COLUMN query_local TEXT NOT NULL DEFAULT ''`); err != nil {
 			if !strings.Contains(strings.ToLower(err.Error()), "duplicate column") {
 				return fmt.Errorf("migrate schema v1→v2: %w", err)
 			}
 		}
-		if _, err := db.Exec(`UPDATE meta SET value = ? WHERE key = 'schema_version'`, schemaVersion); err != nil {
+		if _, err := db.Exec(`UPDATE meta SET value = '2' WHERE key = 'schema_version'`); err != nil {
 			return err
 		}
+		current = "2"
+	}
+	if current == "2" {
+		if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS id_sequences (
+			day TEXT PRIMARY KEY,
+			next_value INTEGER NOT NULL
+		)`); err != nil {
+			return fmt.Errorf("migrate schema v2→v3: %w", err)
+		}
+		if _, err := db.Exec(`UPDATE meta SET value = '3' WHERE key = 'schema_version'`); err != nil {
+			return err
+		}
+		current = "3"
+	}
+	if current == schemaVersion {
 		return nil
 	}
 	return fmt.Errorf("unsupported vault schema version %q", current)
@@ -175,16 +189,40 @@ func parseTime(s string) time.Time {
 
 // NextID returns the next r-YYYY-MM-DD-NNN id for date t.
 func (s *Store) NextID(t time.Time) (string, error) {
+	var id string
+	err := s.withTx(func(tx *sql.Tx) error {
+		var err error
+		id, err = nextIDTx(tx, t)
+		return err
+	})
+	return id, err
+}
+
+func nextIDTx(tx *sql.Tx, t time.Time) (string, error) {
+	day := t.UTC().Format("2006-01-02")
+	var n int
+	err := tx.QueryRow(`
+UPDATE id_sequences
+SET next_value = next_value + 1
+WHERE day = ?
+RETURNING next_value - 1`, day).Scan(&n)
+	if err == nil {
+		return fmt.Sprintf("r-%s-%03d", day, n), nil
+	}
+	if err != sql.ErrNoRows {
+		return "", err
+	}
+
 	prefix := "r-" + t.UTC().Format("2006-01-02") + "-"
-	rows, err := s.db.Query(`SELECT id FROM rules WHERE id LIKE ?`, prefix+"%")
+	rows, err := tx.Query(`SELECT id FROM rules WHERE id LIKE ?`, prefix+"%")
 	if err != nil {
 		return "", err
 	}
-	defer rows.Close()
 	maxN := 0
 	for rows.Next() {
 		var id string
 		if err := rows.Scan(&id); err != nil {
+			_ = rows.Close()
 			return "", err
 		}
 		rest := strings.TrimPrefix(id, prefix)
@@ -193,7 +231,21 @@ func (s *Store) NextID(t time.Time) (string, error) {
 			maxN = n
 		}
 	}
-	return fmt.Sprintf("%s%03d", prefix, maxN+1), nil
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return "", err
+	}
+	if err := rows.Close(); err != nil {
+		return "", err
+	}
+	n = maxN + 1
+	if _, err := tx.Exec(
+		`INSERT INTO id_sequences(day, next_value) VALUES(?, ?)`,
+		day, n+1,
+	); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%s%03d", prefix, n), nil
 }
 
 func (s *Store) withTx(fn func(tx *sql.Tx) error) error {
@@ -320,9 +372,27 @@ func (s *Store) PutRecord(r *model.Record) error {
 	})
 }
 
-// SupersedePair inserts newRec and updates oldRec in one transaction.
-func (s *Store) SupersedePair(oldRec, newRec *model.Record) error {
+// SupersedePair inserts newRec and updates oldRec in one transaction. The
+// optimistic timestamp check prevents two writers from superseding the same
+// version of a rule.
+func (s *Store) SupersedePair(oldRec, newRec *model.Record, expectedUpdatedAt time.Time) error {
 	return s.withTx(func(tx *sql.Tx) error {
+		var status, updated string
+		if err := tx.QueryRow(
+			`SELECT status, updated_at FROM rules WHERE id = ?`,
+			oldRec.ID,
+		).Scan(&status, &updated); err != nil {
+			if err == sql.ErrNoRows {
+				return fmt.Errorf("record %s not found", oldRec.ID)
+			}
+			return err
+		}
+		if status == string(model.StatusSuperseded) {
+			return fmt.Errorf("record %s is already superseded", oldRec.ID)
+		}
+		if parseTime(updated) != expectedUpdatedAt {
+			return fmt.Errorf("record %s changed concurrently; retry supersede", oldRec.ID)
+		}
 		if err := putRecordTx(tx, newRec); err != nil {
 			return err
 		}
@@ -337,6 +407,119 @@ func (s *Store) AppendEvidence(ruleID string, e model.Evidence) error {
 		ruleID, formatTime(e.At), string(e.Kind), e.Text,
 	)
 	return err
+}
+
+// ReinforceRecord atomically increments confidence/count, wakes dormant rules,
+// updates query_local when supplied, and appends evidence.
+func (s *Store) ReinforceRecord(id string, now time.Time, e model.Evidence, queryLocal string, maxConfidence float64) (float64, int, error) {
+	var confidence float64
+	var count int
+	err := s.withTx(func(tx *sql.Tx) error {
+		var status string
+		if err := tx.QueryRow(`SELECT status FROM rules WHERE id = ?`, id).Scan(&status); err != nil {
+			if err == sql.ErrNoRows {
+				return fmt.Errorf("record %s not found", id)
+			}
+			return err
+		}
+		if status == string(model.StatusSuperseded) {
+			return fmt.Errorf("record %s is superseded and cannot be reinforced", id)
+		}
+		err := tx.QueryRow(`
+UPDATE rules
+SET confidence = CASE
+      WHEN confidence + 0.1 > ? THEN ?
+      ELSE confidence + 0.1
+    END,
+    reinforcement_count = reinforcement_count + 1,
+    status = CASE WHEN status = ? THEN ? ELSE status END,
+    query_local = CASE WHEN ? = '' THEN query_local ELSE ? END,
+    updated_at = ?,
+    last_touched_at = ?
+WHERE id = ?
+RETURNING confidence, reinforcement_count`,
+			maxConfidence, maxConfidence,
+			string(model.StatusDormant), string(model.StatusActive),
+			queryLocal, queryLocal,
+			formatTime(now), formatTime(now), id,
+		).Scan(&confidence, &count)
+		if err != nil {
+			return err
+		}
+		_, err = tx.Exec(
+			`INSERT INTO evidence_events(rule_id, at, kind, text) VALUES(?, ?, ?, ?)`,
+			id, formatTime(e.At), string(e.Kind), e.Text,
+		)
+		return err
+	})
+	return confidence, count, err
+}
+
+// SweepActive atomically decays stale active rules and marks active rules below
+// threshold dormant. It never rewrites child tables or evidence.
+func (s *Store) SweepActive(cutoff, now time.Time, decayAmount, dormantThreshold float64) (decayed, archived int, err error) {
+	err = s.withTx(func(tx *sql.Tx) error {
+		rows, err := tx.Query(`
+UPDATE rules
+SET confidence = MAX(0, confidence - ?),
+    status = CASE
+      WHEN MAX(0, confidence - ?) < ? THEN ?
+      ELSE status
+    END,
+    updated_at = ?
+WHERE status = ? AND last_touched_at <= ?
+RETURNING status`,
+			decayAmount, decayAmount, dormantThreshold, string(model.StatusDormant),
+			formatTime(now), string(model.StatusActive), formatTime(cutoff),
+		)
+		if err != nil {
+			return err
+		}
+		for rows.Next() {
+			var status string
+			if err := rows.Scan(&status); err != nil {
+				_ = rows.Close()
+				return err
+			}
+			decayed++
+			if status == string(model.StatusDormant) {
+				archived++
+			}
+		}
+		if err := rows.Err(); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		if err := rows.Close(); err != nil {
+			return err
+		}
+
+		rows, err = tx.Query(`
+UPDATE rules
+SET status = ?, updated_at = ?
+WHERE status = ? AND confidence < ?
+RETURNING id`,
+			string(model.StatusDormant), formatTime(now),
+			string(model.StatusActive), dormantThreshold,
+		)
+		if err != nil {
+			return err
+		}
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id); err != nil {
+				_ = rows.Close()
+				return err
+			}
+			archived++
+		}
+		if err := rows.Err(); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		return rows.Close()
+	})
+	return decayed, archived, err
 }
 
 // InsertRecord creates a new rule with all fields.
@@ -364,12 +547,6 @@ func (s *Store) DeleteRecord(id string) error {
 		}
 		return nil
 	})
-}
-
-// StripInboundEdges removes to_id references pointing at id.
-func (s *Store) StripInboundEdges(id string) error {
-	_, err := s.db.Exec(`DELETE FROM rule_edges WHERE to_id = ?`, id)
-	return err
 }
 
 func (s *Store) loadScopes(ruleIDs []string) (map[string][]string, error) {
@@ -627,12 +804,47 @@ ORDER BY r.id`, scopeArgs(minConfidence, scope)...)
 	return s.assembleRecords(rows)
 }
 
+// DormantCandidates returns dormant rules matching scope AND. They are used
+// only as a low-weight fallback when active recall under-fills a query.
+func (s *Store) DormantCandidates(scope []string) ([]*model.Record, error) {
+	if len(scope) == 0 {
+		rows, err := s.db.Query(`
+SELECT ` + rulesSelectCols + `
+FROM rules WHERE status = 'dormant' ORDER BY id`)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+		return s.assembleRecords(rows)
+	}
+	rows, err := s.db.Query(`
+SELECT r.id, r.claim, r.body, r.query_local, r.status, r.confidence, r.reinforcement_count, r.created_at, r.updated_at, r.last_touched_at
+FROM rules r
+WHERE r.status = 'dormant'
+AND (SELECT COUNT(DISTINCT LOWER(rs.tag)) FROM rule_scopes rs
+     WHERE rs.rule_id = r.id AND LOWER(rs.tag) IN (`+scopePlaceholders(scope)+`)) = ?
+ORDER BY r.id`, scopeArgsWithoutConfidence(scope)...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return s.assembleRecords(rows)
+}
+
 func scopePlaceholders(scope []string) string {
 	parts := make([]string, len(scope))
 	for i := range scope {
 		parts[i] = "?"
 	}
 	return strings.Join(parts, ",")
+}
+
+func scopeArgsWithoutConfidence(scope []string) []any {
+	args := make([]any, 0, len(scope)+1)
+	for _, tag := range scope {
+		args = append(args, strings.ToLower(strings.TrimSpace(tag)))
+	}
+	return append(args, len(scope))
 }
 
 func scopeArgs(minConf float64, scope []string) []any {
@@ -642,6 +854,42 @@ func scopeArgs(minConf float64, scope []string) []any {
 	}
 	args = append(args, len(scope))
 	return args
+}
+
+// ConflictPairs returns directed conflicts_with edges whose endpoints are both
+// present in ids.
+func (s *Store) ConflictPairs(ids []string) ([][2]string, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(ids)), ",")
+	args := make([]any, 0, len(ids)*2)
+	for _, id := range ids {
+		args = append(args, id)
+	}
+	for _, id := range ids {
+		args = append(args, id)
+	}
+	rows, err := s.db.Query(`
+SELECT from_id, to_id
+FROM rule_edges
+WHERE kind = 'conflicts_with'
+  AND from_id IN (`+placeholders+`)
+  AND to_id IN (`+placeholders+`)
+ORDER BY from_id, to_id`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out [][2]string
+	for rows.Next() {
+		var pair [2]string
+		if err := rows.Scan(&pair[0], &pair[1]); err != nil {
+			return nil, err
+		}
+		out = append(out, pair)
+	}
+	return out, rows.Err()
 }
 
 // Backlinks returns inbound edge references to id.

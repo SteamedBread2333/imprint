@@ -235,7 +235,7 @@ imprint add "..." --scope python,naming --text "..." \
 
 ### 7.2 `get` — enriched responses
 
-**Rule:** adds `resolved_sources` (snippets from shelves index).
+**Rule:** compact MCP `get` returns resolved source pointers without text. `full:true` adds `resolved_sources` snippets from the shelves index for audit.
 
 **Chunk:** adds `referenced_rules` (vault `sources` pointing here) and `cited_rules` (from `rule_refs`).
 
@@ -305,7 +305,7 @@ See the Chinese doc §8 for full scenarios (user points at `STYLE.md`, CONTRIBUT
 
 | Case | Assert |
 | --- | --- |
-| add with sources | get rule returns resolved_sources |
+| add with sources | compact get returns pointers; full get returns resolved_sources snippets |
 | markdown with `[[r-…]]` | rebuild → get chunk.cited_rules |
 | stale chunk id | stale_chunk=true, path fallback |
 | heading `协议层…query_local` vs indexed `5.2 … \`query_local\`` | resolved chunk is that section, not H1 |

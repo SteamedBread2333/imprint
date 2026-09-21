@@ -10,7 +10,7 @@ Mount **imprint MCP** for full shelves (document BM25 + rule↔doc links). CLI `
 | --- | --- | --- |
 | Write rules + link docs | `add` / `supersede` + `sources` | same (vault write) |
 | Pre-coding recall | `find(scope, query[, query_local])` → rules + **documents** + **links** | `find` → vault rules only (`--query-local` dual merge) |
-| Rule provenance | `get r-…` → **resolved_sources** | `get r-…` → vault only |
+| Rule provenance | compact `get r-…` → source pointers; `full:true` → excerpts | `get r-…` → vault only |
 | Doc inbound refs | `get <chunk-id>` → **referenced_rules** + **cited_rules** | chunk `get` not supported |
 | Rule graph | desk `/` | host `GET /graph` |
 | Human review rule↔doc | `imprint desk open` → `/unified` | — |
@@ -65,13 +65,15 @@ Default path: user speaks → MCP **`find(scope, query[, query_local])`** → do
 - **`sources`**: only when a document **excerpt substantively supports** the rule—not topical overlap (same section title without matching content).
 - `add` after ADD only: `claim`, `scope`, `text` required; optional **`sources`** / **`query_local`** as above.
 - `reinforce` +0.1 (cap 0.95); optional **`query_local`** update; `supersede` inherits **`sources`** and **`query_local`** unless overridden; `forget` strips inbound links.
+- Server-side guards reject likely secrets/personal data, denied source paths, and high-similarity active duplicates.
 - `list`: `--scope`, `--query`, `--min-confidence`, `--since`.
 
 ## Retrieval (maintainers)
 
-- **Tokenization:** vault and shelves share `internal/textseg` (go-ego/gse `CutSearch`, zh+en); do not reintroduce CJK bigram or duplicate tokenizers. Optional `imprint.yaml` → `glossary.path` for domain terms.
+- **Tokenization:** vault and shelves share `internal/textseg` (go-ego/gse `CutSearch`, zh+en) plus camel/Pascal/snake/kebab identifier terms. Do not duplicate tokenizers.
 - **Storage:** SQLite `vault.db` only; no `migrate-shards` / `imprint-*.md` shard import.
 - `resolved_sources` headings: markdown inline to plain text; a miss is `heading_unresolved` (never another section’s excerpt).
+- MCP `find`/rule `get` are compact by default. A query may return one penalized dormant `wake_candidate`; only explicit user confirmation followed by `reinforce` wakes it.
 
 ```bash
 # CLI — vault read/write; find/get see CLI column above
@@ -84,6 +86,7 @@ imprint --json --vault ./.imprint forget ID
 imprint --json --vault ./.imprint list --status active --scope go --min-confidence 0.85
 imprint --json --vault ./.imprint show
 imprint --json --vault ./.imprint sweep
+imprint --vault ./.imprint export --format jsonl
 ```
 
 ## Recall model (async, reference-only)
@@ -100,7 +103,7 @@ imprint --json --vault ./.imprint sweep
 4. **Same-turn write:** durable preference → classify from the **single find above** → **write in this turn**. Document hit → pass **`sources`** on `add` / `supersede`; distilled local search terms → **`query_local`** on `add` / `supersede` / `reinforce`.
 5. **IGNORE** one-off tasks and session-only steps. **ADD / REINFORCE / SUPERSEDE** only for cross-session policy in the user's words.
 6. Analyse the requirement before modifying code. **Implementation requests:** code/docs on the critical path; imprint find is optional核对 unless policy is unclear.
-7. Before every write, classify again from existing find results; no duplicates. Confidence: default 0.6; corrections 0.85; "always" 0.9.
+7. Before every write, classify again from existing find results; no duplicates. Add confidence: default 0.6, corrections 0.85, never 0.9.
 8. User negates in plain speech → use the **one** find (or `list` if no find yet) then `forget` or `supersede`.
 9. User asks what's recorded → `show` or **`imprint desk open`** (`/`, `/docs`, `/unified`).
 10. After imprint feature work here → update README, docs, **vault rules** (same turn), **`internal/cli/templates/body.md`** (`imprint init` embed source) and **`.cursor/rules/imprint-memory.mdc`**, and self-test.

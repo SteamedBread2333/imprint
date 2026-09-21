@@ -91,8 +91,9 @@ func sortScored(h []scored) {
 // Snippet truncates text for search previews.
 func Snippet(text string, max int) string {
 	text = strings.TrimSpace(text)
-	if len(text) <= max {
+	runes := []rune(text)
+	if len(runes) <= max {
 		return text
 	}
-	return text[:max] + "…"
+	return string(runes[:max]) + "…"
 }

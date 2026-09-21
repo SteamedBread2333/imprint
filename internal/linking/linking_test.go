@@ -64,3 +64,32 @@ func TestEnrichFindDualQuery(t *testing.T) {
 		t.Fatalf("documents = %+v", out.Documents)
 	}
 }
+
+func TestCompactFindIncludesExplicitConflicts(t *testing.T) {
+	dir := t.TempDir()
+	v, err := imprint.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, err := v.AddRecord("Use npm workspaces", []string{"js"}, "first", 0.6, nil, nil, nil, nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := v.AddRecord("Use pnpm workspaces", []string{"js"}, "second", 0.6, nil, nil, []string{a.ID}, nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	full := &linking.FindResult{
+		Rules: []imprint.EnrichedFindHit{
+			{FindHit: imprint.FindHit{ID: a.ID, Title: "Use npm workspaces"}},
+			{FindHit: imprint.FindHit{ID: b.ID, Title: "Use pnpm workspaces"}},
+		},
+	}
+	compact, err := linking.CompactFind(v, full)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(compact.Conflicts) != 1 || compact.Conflicts[0].A != b.ID || compact.Conflicts[0].B != a.ID {
+		t.Fatalf("conflicts = %+v", compact.Conflicts)
+	}
+}

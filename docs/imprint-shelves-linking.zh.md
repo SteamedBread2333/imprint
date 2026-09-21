@@ -241,7 +241,9 @@ imprint add "..." --scope python,naming --text "..." \
 # 或 --source-json '[{"path":"docs/style.md"}]'
 ```
 
-### 7.2 `get` —  enriched 响应
+### 7.2 `get` — 紧凑与 enriched 响应
+
+规则默认只返回 source 指针，不内联 snippet。以下正文形状仅在 `full:true` 审计读取时返回；chunk get 不变。
 
 **规则：**
 
@@ -425,7 +427,7 @@ rebuild 后 `get <chunk>` 的 `cited_rules` 包含该规则；desk 统一图显�
 
 | 场景 | 断言 |
 | --- | --- |
-| add 带 sources | get rule 返回 resolved_sources snippet |
+| add 带 sources | 紧凑 get 返回指针；full get 返回 resolved_sources snippet |
 | markdown 含 `[[r-…]]` | rebuild 后 get chunk.cited_rules 含该 id |
 | chunk id stale | resolved_sources.stale_chunk=true，path 降级 |
 | heading `协议层…query_local` vs 索引 `5.2 … \`query_local\`` | 解析到该节，不是文首 |

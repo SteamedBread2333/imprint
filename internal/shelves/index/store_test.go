@@ -1,8 +1,10 @@
 package index
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 )
@@ -57,5 +59,48 @@ func TestMigrateLegacyJSON(t *testing.T) {
 	}
 	if _, err := os.Stat(DBPath(dir)); err != nil {
 		t.Fatal("sqlite not created after migrate")
+	}
+}
+
+func TestConcurrentSaveStoreProducesCompleteSnapshot(t *testing.T) {
+	dir := t.TempDir()
+	const writers = 8
+	start := make(chan struct{})
+	errs := make(chan error, writers)
+	var wg sync.WaitGroup
+	for i := range writers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			id := fmt.Sprintf("c%d", i)
+			errs <- SaveStore(dir, &Store{
+				Fingerprint: fmt.Sprintf("fp-%d", i),
+				BuiltAt:     time.Date(2026, 9, 21, 12, 0, i, 0, time.UTC),
+				FileCount:   1,
+				Chunks: []Chunk{{
+					ID: id, Path: fmt.Sprintf("docs/%d.md", i), Heading: "H",
+					Text: "complete snapshot", LineStart: 1, LineEnd: 1,
+				}},
+			})
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Errorf("concurrent SaveStore: %v", err)
+		}
+	}
+	if t.Failed() {
+		return
+	}
+	got, err := LoadStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.FileCount != 1 || len(got.Chunks) != 1 || got.Chunks[0].Text != "complete snapshot" {
+		t.Fatalf("incomplete final snapshot: %+v", got)
 	}
 }

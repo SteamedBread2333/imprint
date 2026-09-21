@@ -82,7 +82,7 @@ sequenceDiagram
 | --- | --- |
 | 随口一提、首次偏好 | **0.6**（默认） |
 | 明确纠正（「不对，应该…」） | **0.85** |
-| 「从现在起永远…」 | **0.9** |
+| 「从现在起永远…」 | add 时 **0.85**；后续 `reinforce` 才进入 0.9 档 |
 
 `reinforce` 在现有值上累加，不替代「纠正应 supersede + 高 confidence 新规则」。
 
@@ -91,7 +91,7 @@ sequenceDiagram
 - **`--text` / `text`**：用户原话（evidence）
 - **`claim`**：**英文**可执行陈述句（给智能体读）
 - **`query_local`（可选）**：LLM 从用户输入提炼的**本地语言检索词**，与 `claim`/`query` 分离；同轮 `add`/`supersede`/`reinforce` 落库，供后续 `find` 双路 BM25；**不是**把 evidence 复制一遍
-- 不要存密钥；不要推断用户没说的偏好
+- 不要存密钥；不要推断用户没说的偏好。服务端隐私与去重门禁会拒绝不安全或重复写入。
 
 ---
 
@@ -265,7 +265,7 @@ imprint --json --vault ./.imprint find --scope go,naming --query export
 | **reinforce** | 用户重复确认 | 规则**仍对**，加强信心 |
 | **sweep** | 运维 / 定期任务 | 长期未引用偏好**淡出**（默认 90 天未 touch −0.05；&lt; 0.3 → dormant） |
 
-`sweep` 不会删规则内容；`dormant` 仍在 `vault.db`，`reinforce` 可唤醒。
+`sweep` 不会删规则内容。查询最多会把一条 dormant 规则作为降权 `wake_candidate` 返回；命中本身不改状态。只有用户明确再次确认并调用 `reinforce` 才会唤醒。
 
 ---
 

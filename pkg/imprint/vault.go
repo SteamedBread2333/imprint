@@ -43,6 +43,14 @@ func OpenWithNow(dir string, now func() time.Time) (*Vault, error) {
 	return &Vault{Dir: abs, store: st, now: now}, nil
 }
 
+// Close releases the underlying SQLite connection.
+func (v *Vault) Close() error {
+	if v == nil || v.store == nil {
+		return nil
+	}
+	return v.store.Close()
+}
+
 func (v *Vault) instant() time.Time {
 	if v.now == nil {
 		return time.Now().UTC()
@@ -125,6 +133,28 @@ func (v *Vault) AddRecord(claim string, scope []string, text string, confidence 
 	scope = cleanScope(scope)
 	if len(scope) == 0 {
 		return nil, fmt.Errorf("scope is required")
+	}
+	if err := checkSensitiveText(
+		guardedText{field: "claim", text: claim},
+		guardedText{field: "text", text: text},
+		guardedText{field: "query_local", text: queryLocal},
+	); err != nil {
+		return nil, err
+	}
+	if err := v.checkSourcePaths(sources); err != nil {
+		return nil, err
+	}
+	duplicates, err := v.duplicateCandidates(claim, scope)
+	if err != nil {
+		return nil, err
+	}
+	if len(duplicates) > 0 {
+		return nil, &WriteGuardError{
+			Code:       "duplicate",
+			Message:    "similar active rule already exists",
+			Candidates: duplicates,
+			Hint:       "reinforce or supersede the matching rule",
+		}
 	}
 	now := v.instant()
 	id, err := v.store.NextID(now)
@@ -213,6 +243,19 @@ func (v *Vault) SourcesForIDs(ids []string) (map[string][]DocRef, error) {
 		filtered = append(filtered, id)
 	}
 	return v.store.SourcesForIDs(filtered)
+}
+
+// ConflictsAmong returns explicit conflicts_with edges among ids.
+func (v *Vault) ConflictsAmong(ids []string) ([]ConflictSet, error) {
+	pairs, err := v.store.ConflictPairs(ids)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]ConflictSet, 0, len(pairs))
+	for _, pair := range pairs {
+		out = append(out, ConflictSet{A: pair[0], B: pair[1]})
+	}
+	return out, nil
 }
 
 // List returns summaries, optionally filtered by status.
@@ -308,17 +351,10 @@ func (v *Vault) Forget(id string) (*ForgetResult, error) {
 	if _, err := v.load(id); err != nil {
 		return nil, err
 	}
-	if err := v.store.StripInboundEdges(id); err != nil {
-		return nil, err
-	}
 	if err := v.store.DeleteRecord(id); err != nil {
 		return nil, err
 	}
 	return &ForgetResult{Success: true}, nil
-}
-
-func (v *Vault) stripInbound(id string) error {
-	return v.store.StripInboundEdges(id)
 }
 
 // ExportJSON writes every record as a JSON array.
@@ -331,6 +367,22 @@ func (v *Vault) ExportJSON(w io.Writer) error {
 	enc.SetIndent("", "  ")
 	enc.SetEscapeHTML(true)
 	return enc.Encode(recs)
+}
+
+// ExportJSONL writes one complete record per line for diffable audit exports.
+func (v *Vault) ExportJSONL(w io.Writer) error {
+	recs, err := v.loadAll()
+	if err != nil {
+		return err
+	}
+	enc := json.NewEncoder(w)
+	enc.SetEscapeHTML(true)
+	for _, rec := range recs {
+		if err := enc.Encode(rec); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Clear permanently deletes every rule in the vault.

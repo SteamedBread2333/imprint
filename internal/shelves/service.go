@@ -2,8 +2,10 @@ package shelves
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 
+	"github.com/SteamedBread2333/imprint/internal/privacy"
 	"github.com/SteamedBread2333/imprint/internal/shelves/index"
 )
 
@@ -22,6 +24,11 @@ func New(cfg Config) (*Service, error) {
 	cfg.StateDir = cfg.ResolveStateDir()
 	s := &Service{cfg: cfg}
 	if cfg.Enabled {
+		for _, root := range cfg.Roots {
+			if finding := privacy.CheckSourcePath(cfg.Workspace, root); finding != nil {
+				return nil, fmt.Errorf("shelves root %q is not allowed (%s)", root, finding.Kind)
+			}
+		}
 		st, _, err := index.Rebuild(cfg.Workspace, cfg.Roots, cfg.StateDir)
 		if err != nil {
 			return nil, err

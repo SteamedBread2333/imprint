@@ -11,7 +11,7 @@
 | --- | --- | --- |
 | Write rules + `sources` | `add` / `supersede` | same |
 | Pre-coding recall | `find(scope, query[, query_local])` → rules + **documents** + **links** | `find` → **vault rules only** |
-| Rule doc basis | `get r-…` → **resolved_sources** | `get r-…` → vault only |
+| Rule doc basis | `get r-…` → compact source pointers; `full:true` → excerpts | `get r-…` → vault only |
 | Chunk → rules | `get <chunk-id>` → **referenced_rules** + **cited_rules** | not supported |
 | Rule graph | desk `/` | host `GET /graph` |
 
@@ -105,16 +105,16 @@ Environment: **`IMPRINT_PROJECT`** (same as `--project`), **`IMPRINT_VAULT`** (C
 
 ## Tools
 
-Every tool returns **pretty-printed JSON** in the tool result text. On failure, `isError` is true and the body is `{"error":"…"}` (same as CLI `--json` errors).
+Every tool returns **pretty-printed JSON** in the tool result text. On failure, `isError` is true. Privacy and duplicate rejections include a structured `code`, candidate IDs when applicable, and a remediation `hint`.
 
 | Tool | CLI equivalent | Notes |
 | --- | --- | --- |
-| `find` | `imprint find` | `scope`, optional `query`, optional `query_local` (dual merge on vault; + shelves when MCP), optional `top_k`. CLI: `--query-local`, rules only. MCP+shelves → `{ rules, documents, links }`. |
-| `add` | `imprint add` | `claim`, `scope`, `text` required; optional `confidence`, `query_local`, `sources`. |
+| `find` | `imprint find` | Compact by default: rule claims/counts plus `{rules,documents,links,conflict_set}`. Optional `query`, `query_local`, `top_k`; `full:true` is audit-only. A query may return at most one penalized dormant `wake_candidate`; only explicit `reinforce` wakes it. |
+| `add` | `imprint add` | `claim`, `scope`, `text` required; optional `confidence`, `query_local`, `sources`. Rejects sensitive data, denied source paths, and high-similarity active duplicates. |
 | `reinforce` | `imprint reinforce` | `id`, optional `evidence`, optional `query_local` (updates stored field). |
 | `supersede` | `imprint supersede` | `old_id`, `claim`, `scope`; optional `reason`, `text`, `query_local` (omit to inherit), `sources` (omit to inherit). |
 | `forget` | `imprint forget` | `id`. |
-| `get` | `imprint get` | `r-…` → vault + `resolved_sources`; chunk id → chunk + `referenced_rules` (vault reverse) + optional `cited_rules`. |
+| `get` | `imprint get` | Rule get folds evidence and source text by default. `include_evidence:true` uses `evidence_limit` (default 3); `full:true` is audit-only. Chunk get is unchanged. |
 | `list` | `imprint list` | Optional `status`, `scope`, `query`, `min_confidence`, `since`, `limit`. |
 | `show` | `imprint show` | Optional `limit`. |
 | `sweep` | `imprint sweep` | Optional `decay_days`, `decay_amount`, `dormant_threshold`. |
@@ -126,7 +126,7 @@ Every tool returns **pretty-printed JSON** in the tool result text. On failure, 
 2. Before coding or style answers → **`find`** with narrow `scope` + **`query`**; when local-language terms differ from `query`, also pass **`query_local`** (both run BM25; same-turn **`add`/`supersede`/`reinforce`** may persist `query_local`).
 3. Analyse; classify **ADD / REINFORCE / SUPERSEDE / IGNORE**.
 4. On **ADD** when a document hit matches → same-turn **`add`** with **`sources`** (vault only — no markdown edits).
-5. Never duplicate an imprint; record only what the user **said**.
+5. Never duplicate an imprint; record only what the user **said**. The vault independently rejects duplicate or sensitive writes.
 6. User says forget / don't record → **`forget`** or skip.
 7. User asks what is stored → **`show`** or desk (`/`, `/docs`, `/unified`).
 

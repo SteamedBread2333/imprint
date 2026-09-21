@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"io"
 	"os/exec"
-	"strings"
 	"testing"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -50,11 +49,8 @@ func TestFindToolSchemaIncludesQueryLocal(t *testing.T) {
 			t.Fatal(err)
 		}
 		props, _ := m["properties"].(map[string]any)
-		if props["query_local"] == nil {
-			t.Fatalf("find schema missing query_local: %s", string(raw))
-		}
-		if tool.Description == "" || !strings.Contains(tool.Description, "query_local") {
-			t.Fatalf("find description missing query_local prompt: %q", tool.Description)
+		if props["query_local"] == nil || props["full"] == nil {
+			t.Fatalf("find schema missing query_local or full: %s", string(raw))
 		}
 		return
 	}
@@ -146,8 +142,22 @@ func TestWriteAndGetToolSchemaPrompts(t *testing.T) {
 		}
 	}
 	get := byName["get"]
-	if get == nil || !strings.Contains(get.Description, "heading_unresolved") {
-		t.Fatalf("get description missing heading_unresolved: %+v", get)
+	if get == nil {
+		t.Fatal("missing get tool")
+	}
+	raw, err := json.Marshal(get.InputSchema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var schema map[string]any
+	if err := json.Unmarshal(raw, &schema); err != nil {
+		t.Fatal(err)
+	}
+	props, _ := schema["properties"].(map[string]any)
+	for _, field := range []string{"include_evidence", "evidence_limit", "full"} {
+		if props[field] == nil {
+			t.Fatalf("get schema missing %s: %s", field, raw)
+		}
 	}
 }
 

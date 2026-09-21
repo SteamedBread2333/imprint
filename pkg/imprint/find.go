@@ -15,6 +15,8 @@ const (
 	weightScope    = 2.0
 	weightEvidence = 1.5
 	weightBody     = 1.0
+	dormantPenalty = 0.35
+	maxDormantHits = 1
 )
 
 func tokenize(s string) []string {
@@ -233,10 +235,29 @@ func (v *Vault) FindMerged(scope []string, query, queryLocal string, topK int) (
 		return nil, err
 	}
 	merged := mergeFindHits(h1, h2)
+	merged = limitDormantFindHits(merged, maxDormantHits)
 	if len(merged) > topK {
 		merged = merged[:topK]
 	}
 	return merged, nil
+}
+
+func limitDormantFindHits(hits []FindHit, limit int) []FindHit {
+	if limit < 0 {
+		return hits
+	}
+	out := make([]FindHit, 0, len(hits))
+	dormant := 0
+	for _, hit := range hits {
+		if hit.Status == string(StatusDormant) {
+			if dormant >= limit {
+				continue
+			}
+			dormant++
+		}
+		out = append(out, hit)
+	}
+	return out
 }
 
 func mergeFindHits(a, b []FindHit) []FindHit {
@@ -270,44 +291,68 @@ func (v *Vault) findRanked(scope []string, query string, topK int) ([]FindHit, e
 		topK = DefaultTopK
 	}
 	scope = cleanScope(scope)
-	corpus, err := v.store.ActiveCandidates(scope, MinRecallConfidence)
+	active, err := v.store.ActiveCandidates(scope, MinRecallConfidence)
 	if err != nil {
 		return nil, err
 	}
+	var dormant []*Record
+	if strings.TrimSpace(query) != "" {
+		dormant, err = v.store.DormantCandidates(scope)
+		if err != nil {
+			return nil, err
+		}
+	}
+	corpus := append(append([]*Record(nil), active...), dormant...)
 	idx := buildIndex(corpus)
 	type scored struct {
 		rec   *Record
 		score float64
 	}
-	var hits []scored
-	for _, r := range corpus {
-		s, ok := rankScore(r, scope, query, idx)
-		if !ok {
-			continue
+	scoreRecords := func(records []*Record, penalty float64) []scored {
+		var hits []scored
+		for _, r := range records {
+			s, ok := rankScore(r, scope, query, idx)
+			if !ok {
+				continue
+			}
+			s = math.Round(s*penalty*10000) / 10000
+			hits = append(hits, scored{rec: r, score: s})
 		}
-		hits = append(hits, scored{rec: r, score: s})
+		sort.SliceStable(hits, func(i, j int) bool {
+			if hits[i].score != hits[j].score {
+				return hits[i].score > hits[j].score
+			}
+			if hits[i].rec.Confidence != hits[j].rec.Confidence {
+				return hits[i].rec.Confidence > hits[j].rec.Confidence
+			}
+			return hits[i].rec.LastTouchedAt.After(hits[j].rec.LastTouchedAt)
+		})
+		return hits
 	}
-	sort.SliceStable(hits, func(i, j int) bool {
-		if hits[i].score != hits[j].score {
-			return hits[i].score > hits[j].score
-		}
-		if hits[i].rec.Confidence != hits[j].rec.Confidence {
-			return hits[i].rec.Confidence > hits[j].rec.Confidence
-		}
-		return hits[i].rec.LastTouchedAt.After(hits[j].rec.LastTouchedAt)
-	})
+	hits := scoreRecords(active, 1)
 	if len(hits) > topK {
 		hits = hits[:topK]
+	}
+	if len(hits) < topK && len(dormant) > 0 {
+		fallback := scoreRecords(dormant, dormantPenalty)
+		if len(fallback) > maxDormantHits {
+			fallback = fallback[:maxDormantHits]
+		}
+		hits = append(hits, fallback...)
 	}
 	out := make([]FindHit, 0, len(hits))
 	for _, h := range hits {
 		out = append(out, FindHit{
-			ID:         h.rec.ID,
-			Title:      h.rec.Title(),
-			Scope:      h.rec.Scope,
-			Confidence: h.rec.Confidence,
-			Score:      h.score,
-			QueryLocal: h.rec.QueryLocal,
+			ID:            h.rec.ID,
+			Title:         h.rec.Title(),
+			Scope:         h.rec.Scope,
+			Confidence:    h.rec.Confidence,
+			Score:         h.score,
+			Status:        string(h.rec.Status),
+			SourcesCount:  len(h.rec.Sources),
+			EvidenceCount: len(h.rec.EvidenceLog),
+			WakeCandidate: h.rec.Status == StatusDormant,
+			QueryLocal:    h.rec.QueryLocal,
 		})
 	}
 	return out, nil

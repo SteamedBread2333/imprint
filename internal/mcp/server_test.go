@@ -105,7 +105,7 @@ func TestToolFindAddGet(t *testing.T) {
 		t.Fatalf("missing id: %s", added)
 	}
 
-	got := callTool(t, cs, "get", map[string]any{"id": addRes.ID})
+	got := callTool(t, cs, "get", map[string]any{"id": addRes.ID, "full": true})
 	if !strings.Contains(got, "Use tabs in Go") {
 		t.Fatalf("get: %s", got)
 	}
@@ -129,9 +129,44 @@ func TestToolAddQueryLocal(t *testing.T) {
 	if err := json.Unmarshal([]byte(added), &addRes); err != nil {
 		t.Fatal(err)
 	}
-	got := callTool(t, cs, "get", map[string]any{"id": addRes.ID})
+	got := callTool(t, cs, "get", map[string]any{"id": addRes.ID, "full": true})
 	if !strings.Contains(got, "否定式堆砌 文档写作") {
 		t.Fatalf("get missing query_local: %s", got)
+	}
+}
+
+func TestToolGetFoldsAndBoundsEvidence(t *testing.T) {
+	dir := t.TempDir()
+	cs := startTestServer(t, dir)
+	added := callTool(t, cs, "add", map[string]any{
+		"claim": "Keep evidence folded",
+		"scope": "mcp",
+		"text":  "initial private wording",
+	})
+	var addRes imprint.AddResult
+	if err := json.Unmarshal([]byte(added), &addRes); err != nil {
+		t.Fatal(err)
+	}
+	for _, evidence := range []string{"repeat one", "repeat two", "repeat three"} {
+		callTool(t, cs, "reinforce", map[string]any{"id": addRes.ID, "evidence": evidence})
+	}
+
+	compact := callTool(t, cs, "get", map[string]any{"id": addRes.ID})
+	if strings.Contains(compact, "initial private wording") || strings.Contains(compact, "repeat three") {
+		t.Fatalf("default get leaked evidence: %s", compact)
+	}
+	if !strings.Contains(compact, `"evidence_count": 4`) {
+		t.Fatalf("default get missing count: %s", compact)
+	}
+
+	withEvidence := callTool(t, cs, "get", map[string]any{
+		"id": addRes.ID, "include_evidence": true, "evidence_limit": 2,
+	})
+	if !strings.Contains(withEvidence, "repeat three") || !strings.Contains(withEvidence, "repeat two") {
+		t.Fatalf("bounded evidence missing newest entries: %s", withEvidence)
+	}
+	if strings.Contains(withEvidence, "repeat one") || strings.Contains(withEvidence, "initial private wording") {
+		t.Fatalf("bounded evidence returned too many entries: %s", withEvidence)
 	}
 }
 

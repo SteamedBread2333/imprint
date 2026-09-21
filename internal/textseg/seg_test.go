@@ -28,3 +28,48 @@ func TestTokenizeDedup(t *testing.T) {
 		t.Fatalf("expected deduped token, got %v", toks)
 	}
 }
+
+func TestTokenizeIdentifierVariants(t *testing.T) {
+	tests := []struct {
+		input string
+		want  []string
+	}{
+		{"camelCase", []string{"camelcase", "camel", "case"}},
+		{"CamelCase", []string{"camelcase", "camel", "case"}},
+		{"HTTPServer", []string{"httpserver", "http", "server"}},
+		{"snake_case", []string{"snakecase", "snake", "case"}},
+		{"kebab-case", []string{"kebabcase", "kebab", "case"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := Tokenize(tt.input)
+			for _, want := range tt.want {
+				if !slices.Contains(got, want) {
+					t.Errorf("Tokenize(%q) = %v, missing %q", tt.input, got, want)
+				}
+			}
+		})
+	}
+}
+
+func TestTokenizeIdentifierFormsShareTerms(t *testing.T) {
+	pairs := [][2]string{
+		{"camelCase", "Camel Case"},
+		{"HTTPServer", "HTTP Server"},
+		{"snake_case", "snake case"},
+		{"kebab-case", "kebab case"},
+	}
+	for _, pair := range pairs {
+		left, right := Tokenize(pair[0]), Tokenize(pair[1])
+		shared := false
+		for _, token := range left {
+			if slices.Contains(right, token) {
+				shared = true
+				break
+			}
+		}
+		if !shared {
+			t.Errorf("%q tokens %v do not overlap %q tokens %v", pair[0], left, pair[1], right)
+		}
+	}
+}

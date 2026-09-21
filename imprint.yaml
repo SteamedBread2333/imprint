@@ -1,4 +1,5 @@
 # Team convention — commit this file.
+# Paths are relative to the repo root unless absolute.
 # Private runtime lives in gitignored .imprint/ (vault.db, state/, export/).
 
 host:
@@ -9,12 +10,13 @@ shelves:
   config:
     roots:
       - docs
-      - .cursor/rules
+      - .cursor/rules   # agent/editor rules — add dirs agents should recall
+      # - .cursor/skills
 
 plugins:
   desk:
-    enabled: true
+    enabled: false   # opt-in: clone imprint-desk-plugin, set enabled: true
     package: ../imprint-desk-plugin
     config:
-      hostUrl: http://127.0.0.1:9470
       port: 4173
+      hostUrl: http://127.0.0.1:9470

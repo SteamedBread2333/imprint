@@ -130,7 +130,7 @@ Read and write the vault directly from the CLI.
 | `imprint supersede OLD --claim NEW --scope a,b` | Replace a rule; old → `superseded` |
 | `imprint forget ID` | Delete permanently |
 | `imprint list` · `show` · `get ID` | Browse and inspect |
-| `imprint sweep` · `export` | Decay stale rules · write `.imprint/export/vault.json` |
+| `imprint sweep` · `export` | Decay stale rules · write `.imprint/export/vault.json` or `vault.jsonl` (`--format jsonl`) |
 
 ```bash
 imprint find --scope go,naming --query PascalCase
@@ -213,7 +213,11 @@ Rules live in `vault.db`. IDs: `r-YYYY-MM-DD-NNN`. Status: `active` | `dormant` 
 
 **`roots`** lists which directories enter the index — scoped recall and fast rebuilds. See [docs/shelves-builtin.md](docs/shelves-builtin.md).
 
-**Linking:** Vault `sources` point rules at doc paths or headings; `get r-…` returns `resolved_sources`. Design: [docs/imprint-shelves-linking.md](docs/imprint-shelves-linking.md).
+**Compact recall:** MCP `find` returns claim/count metadata and bounded document snippets by default; `get r-…` folds evidence and source text. Use `include_evidence` or `full` only for audit. Dormant rules can contribute at most one penalized `wake_candidate`; only an explicit `reinforce` wakes one.
+
+**Write safety:** `add`, `reinforce`, and `supersede` reject likely secrets and personal data. Source paths must remain inside the workspace and may not target credentials, `.env*`, `*.pem`, or `*.key`. `add` also rejects high-similarity active duplicates with candidate IDs.
+
+**Linking:** Vault `sources` point rules at doc paths or headings; compact `get r-…` returns source pointers, while `full:true` resolves excerpts. Design: [docs/imprint-shelves-linking.md](docs/imprint-shelves-linking.md).
 
 One MCP mount (`imprint-mcp`). With shelves on and `find` + query, the response includes `rules`, `documents`, and `links`.
 

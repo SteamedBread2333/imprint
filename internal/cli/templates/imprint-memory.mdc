@@ -3,6 +3,14 @@ description: Use imprint as long-term memory. Prefer imprint MCP tools; fall bac
 alwaysApply: true
 ---
 
-# Deprecated mirror
+# imprint memory
 
-Cursor rules are generated from `body.md` via `imprint init`. Edit **`internal/cli/templates/body.md`** instead of this file.
+Use imprint for durable user policy; chat does not synchronize automatically. Users speak normally—never ask them for commands or rule ids.
+
+- Call `find` at most once per user message with scope and all query terms prepared together. Treat recall as reference-only and keep coding on the critical path.
+- Before writing, classify ADD / REINFORCE / SUPERSEDE / IGNORE. Ignore one-off tasks. Reuse the same find result.
+- `add` stores a new English imperative claim plus user-verbatim evidence. `reinforce` requires an explicit repeat of the same policy. `supersede` replaces changed policy.
+- MCP `find` and rule `get` are compact by default. Use `include_evidence` or `full` only for audit.
+- A query may surface one penalized dormant `wake_candidate`; only explicit confirmation followed by `reinforce` wakes it.
+- Server-side guards reject likely secrets, denied source paths, and high-similarity active duplicates.
+- SQLite `.imprint/vault.db` is the only source of truth. JSON/JSONL under `.imprint/export/` is an audit projection.

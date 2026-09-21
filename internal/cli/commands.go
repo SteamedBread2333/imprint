@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -481,6 +482,7 @@ func (a *App) cmdShow(g globals, args []string) int {
 
 func (a *App) cmdExport(g globals, args []string) int {
 	fs := newFlags()
+	format := fs.String("format", "json")
 	_, err := fs.parse(args)
 	if err != nil {
 		if err == errHelp {
@@ -497,12 +499,24 @@ func (a *App) cmdExport(g globals, args []string) int {
 	if err := os.MkdirAll(exportDir, 0o755); err != nil {
 		return a.fail(g.json, err)
 	}
-	jsonPath := filepath.Join(exportDir, "vault.json")
-	f, err := os.Create(jsonPath)
+	var (
+		name     string
+		exportFn func(io.Writer) error
+	)
+	switch strings.ToLower(strings.TrimSpace(*format)) {
+	case "json":
+		name, exportFn = "vault.json", v.ExportJSON
+	case "jsonl":
+		name, exportFn = "vault.jsonl", v.ExportJSONL
+	default:
+		return a.fail(g.json, fmt.Errorf("invalid export format %q (use json or jsonl)", *format))
+	}
+	exportPath := filepath.Join(exportDir, name)
+	f, err := os.Create(exportPath)
 	if err != nil {
 		return a.fail(g.json, err)
 	}
-	if err := v.ExportJSON(f); err != nil {
+	if err := exportFn(f); err != nil {
 		_ = f.Close()
 		return a.fail(g.json, err)
 	}
@@ -510,14 +524,14 @@ func (a *App) cmdExport(g globals, args []string) int {
 		return a.fail(g.json, err)
 	}
 	if g.json {
-		if err := v.ExportJSON(a.out()); err != nil {
+		if err := exportFn(a.out()); err != nil {
 			return a.fail(g.json, err)
 		}
 		return 0
 	}
 	c := a.console()
 	c.Heading("export")
-	c.Done("wrote %s", jsonPath)
+	c.Done("wrote %s", exportPath)
 	c.blank()
 	return 0
 }

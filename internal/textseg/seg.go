@@ -34,6 +34,7 @@ func Tokenize(s string) []string {
 		return nil
 	}
 	raw := segmenter().CutSearch(s, true)
+	raw = append(raw, identifierTerms(s)...)
 	out := make([]string, 0, len(raw))
 	seen := map[string]struct{}{}
 	for _, tok := range raw {
@@ -48,6 +49,76 @@ func Tokenize(s string) []string {
 		out = append(out, tok)
 	}
 	return out
+}
+
+func identifierTerms(s string) []string {
+	words := strings.FieldsFunc(s, func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '_' && r != '-'
+	})
+	var out []string
+	for _, word := range words {
+		parts, split := splitIdentifier(word)
+		if !split {
+			continue
+		}
+		full := strings.Map(func(r rune) rune {
+			if r == '_' || r == '-' {
+				return -1
+			}
+			return unicode.ToLower(r)
+		}, word)
+		if full != "" {
+			out = append(out, full)
+		}
+		for _, part := range parts {
+			if part = strings.ToLower(strings.TrimSpace(part)); part != "" {
+				out = append(out, part)
+			}
+		}
+	}
+	return out
+}
+
+func splitIdentifier(s string) ([]string, bool) {
+	runes := []rune(s)
+	if len(runes) == 0 {
+		return nil, false
+	}
+	var parts []string
+	start := 0
+	split := false
+	flush := func(end int) {
+		if end > start {
+			parts = append(parts, string(runes[start:end]))
+		}
+	}
+	for i, r := range runes {
+		if r == '_' || r == '-' {
+			flush(i)
+			start = i + 1
+			split = true
+			continue
+		}
+		if i <= start {
+			continue
+		}
+		prev := runes[i-1]
+		var next rune
+		if i+1 < len(runes) {
+			next = runes[i+1]
+		}
+		lowerToUpper := (unicode.IsLower(prev) || unicode.IsDigit(prev)) && unicode.IsUpper(r)
+		acronymBoundary := unicode.IsUpper(prev) && unicode.IsUpper(r) && next != 0 && unicode.IsLower(next)
+		letterDigitBoundary := unicode.IsLetter(prev) != unicode.IsLetter(r) &&
+			(unicode.IsDigit(prev) || unicode.IsDigit(r))
+		if lowerToUpper || acronymBoundary || letterDigitBoundary {
+			flush(i)
+			start = i
+			split = true
+		}
+	}
+	flush(len(runes))
+	return parts, split
 }
 
 // LoadGlossary loads optional domain terms (word or word<TAB>freq per line) into gse.
