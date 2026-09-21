@@ -10,7 +10,7 @@ telemetry:
   retention_days: 30
 
 supersede:
-  inheritance_alpha: 0.20   # 0=完全不衰减（当前行为），1=直接跌到基线
+  inheritance_alpha: 0.20   # 0=copy old (no decay), 1=drop to 0.6 baseline
 
 shelves:
   enabled: true
@@ -22,7 +22,7 @@ shelves:
 
 plugins:
   desk:
-    enabled: true   # opt-in: clone imprint-desk-plugin, set enabled: true
+    enabled: false   # opt-in: clone imprint-desk-plugin, set enabled: true
     package: ../imprint-desk-plugin
     config:
       port: 4173
