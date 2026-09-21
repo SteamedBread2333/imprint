@@ -4,7 +4,7 @@
 
 # imprint
 
-**Portable vault memory for AI agents**
+**A vault of project policy for AI agents**
 
 English · [中文](README.zh.md)
 
@@ -14,7 +14,7 @@ English · [中文](README.zh.md)
 
 </div>
 
-Durable preferences from normal conversation land in `.imprint/vault.db`. **You talk normally; the agent maintains the vault** — classifies each turn, recalls before the next edit.
+Conversation becomes durable rules. The agent classifies each turn, links rules to project docs, and recalls before the next edit. **You talk normally; you do not maintain the vault.**
 
 | | When | Example |
 | --- | --- | --- |
