@@ -16,6 +16,8 @@ English · [中文](README.zh.md)
 
 Conversation becomes durable rules. The agent classifies each turn, links rules to project docs, and recalls before the next edit. **You talk normally; you do not maintain the vault.**
 
+## How it works
+
 | | When | Example |
 | --- | --- | --- |
 | **ADD** | New long-term preference | Naming rule, workflow, architecture boundary |
@@ -23,11 +25,9 @@ Conversation becomes durable rules. The agent classifies each turn, links rules 
 | **SUPERSEDE** | Policy changed | Narrow scope, widen scope, replace claim |
 | **IGNORE** | Task-only turn | One-off refactor, chit-chat, secrets |
 
-When the user rejects a stored rule (“don’t record that”), the agent `find`s and calls `forget` — not one of the four classifications above. See [Memory writes](docs/correction.md).
+When the user rejects a stored rule (“don’t record that”), the agent `find`s and calls `forget`. Write loop: [Memory writes](docs/correction.md).
 
-Vault stores claim, evidence, and optional doc pointers (`sources`). Shelves indexes markdown under `roots` for BM25 recall alongside rules.
-
----
+Vault holds claim, evidence, and optional doc pointers (`sources`). Shelves indexes markdown under `roots` so one `find` returns rules, snippets, and links.
 
 ## Quick start
 
@@ -37,13 +37,16 @@ go install github.com/SteamedBread2333/imprint/cmd/imprint-mcp@latest
 cd your-project && imprint init
 ```
 
-Merge [docs/examples/cursor-mcp.json](docs/examples/cursor-mcp.json) into `.cursor/mcp.json` and restart the editor. CLI fallback: `imprint --json`.
+Mount imprint MCP in your editor ([docs/mcp.md](docs/mcp.md)). CLI fallback: `imprint --json`.
 
 | | You | imprint |
 | --- | --- | --- |
 | **1** | Install + `init` | Writes `imprint.yaml` and editor rules (Cursor, Claude Code, Codex, Trae, Workbuddy) |
-| **2** | Speak normally | Agent `find` (vault + shelves) → classify → `add`/`reinforce`/… (optional `sources`) |
+| **2** | Speak normally | Agent `find` (vault + shelves) → classify → `add` / `reinforce` / … (optional `sources`) |
 | **3** | Browser audit (optional) | `imprint up` → `imprint desk open` |
+
+<details>
+<summary>Agent loop (flowchart)</summary>
 
 ```mermaid
 flowchart TB
@@ -91,6 +94,8 @@ flowchart TB
   Desk --> Shelves
 ```
 
+</details>
+
 <details>
 <summary>Before coding (sequence)</summary>
 
@@ -111,15 +116,38 @@ sequenceDiagram
 
 </details>
 
----
+## Storage
+
+Commit `imprint.yaml` (roots, plugin switches, tunables). Private runtime is gitignored under `.imprint/`.
+
+Default vault directory: `./.imprint/` (walk up for `imprint.yaml` or `.imprint/`). `--global` → `~/.imprint`. Override with `--vault` or `IMPRINT_VAULT`.
+
+```
+imprint.yaml            # git: host + shelves.roots + plugins + supersede.inheritance_alpha
+.imprint/               # gitignore: private runtime
+  vault.db              # SQLite vault (rules, evidence, edges, sources)
+  state/
+    shelves.db          # rebuildable doc index
+    plugins/            # plugin derived state
+  export/               # optional md/json projections
+docs/                   # typical shelves root
+.cursor/rules/          # typical shelves root
+```
+
+Rules live in `vault.db`. IDs: `r-YYYY-MM-DD-NNN`. Status: `active` | `dormant` | `superseded`. `supersede` marks old rules superseded; `sweep` decays stale rules to dormant; `forget` deletes. Interactive graph: **`imprint desk open`** (host `GET /graph`).
+
+| | Where it runs | Config |
+| --- | --- | --- |
+| **Shelves** | **host** | `shelves.enabled`, `config.roots` in [imprint.yaml](docs/examples/imprint.yaml) |
+| **Desk** | External plugin | `plugins.desk` + [imprint-desk-plugin](https://github.com/SteamedBread2333/imprint-desk-plugin) |
+
+Shelves indexes markdown under `roots` (e.g. `docs/`, `.cursor/rules/`). One MCP mount (`imprint-mcp`); with shelves on, `find` + query returns `rules`, `documents`, and `links`. See [docs/shelves-builtin.md](docs/shelves-builtin.md).
 
 ## CLI
 
 Global flags: `--vault PATH` · `--global` · `--json` (machine-readable stdout for agents)
 
-### Everyday — vault
-
-Read and write the vault directly from the CLI.
+### Vault
 
 | Command | What it does |
 | --- | --- |
@@ -156,86 +184,29 @@ imprint down
 After editing `imprint.yaml`: run `down` then `up`.
 
 <details>
-<summary>Advanced: split host / plugin control (debug)</summary>
+<summary>Debug: host, plugins, irreversible clear</summary>
 
 | Command | What it does |
 | --- | --- |
 | `imprint host start` / `host stop` | Host only (includes shelves) |
 | `imprint plugin start` / `plugin stop` | External plugins only |
 | `plugin list` · `enable` · `disable` | Toggle plugins in yaml |
-
-</details>
-
-Shelves is top-level host config (`shelves:` in `imprint.yaml`). See [docs/shelves-builtin.md](docs/shelves-builtin.md).
-
-### Debug & advanced
-
-| Command | What it does |
-| --- | --- |
 | `imprint host serve [--listen ADDR]` | Foreground host (Ctrl+C) |
 | `imprint clear --confirm --yes` | Delete every rule — irreversible |
 | `imprint version` | Print version |
 
+</details>
+
 Run `imprint --help` or `imprint help <cmd>` for full flags.
 
----
+## Writes & recall
 
-## Vault layout
-
-Team convention: commit `imprint.yaml` (roots, plugin switches). All private runtime is gitignored under `.imprint/`.
-
-Default vault directory: `./.imprint/` (walk up for `imprint.yaml` or `.imprint/`). `--global` → `~/.imprint`. Override with `--vault` or `IMPRINT_VAULT`.
-
-```
-imprint.yaml            # git: host + shelves.roots + plugins + supersede.inheritance_alpha
-.imprint/               # gitignore: private runtime
-  vault.db              # SQLite vault (rules, evidence, edges, sources)
-  state/
-    shelves.db          # rebuildable doc index
-    plugins/            # plugin derived state
-  export/               # optional md/json projections
-docs/                   # typical shelves root
-.cursor/rules/          # typical shelves root
-```
-
-Rules live in `vault.db`. IDs: `r-YYYY-MM-DD-NNN`. Status: `active` | `dormant` | `superseded`. `supersede` marks old rules superseded; `sweep` decays stale rules to dormant; `forget` deletes. Interactive rule graph: **`imprint desk open`** (host `GET /graph`).
-
----
-
-## Shelves & desk
-
-| | Where it runs | Config |
-| --- | --- | --- |
-| **Shelves** | **host** | `shelves.enabled`, `config.roots` in [imprint.yaml](docs/examples/imprint.yaml) |
-| **Desk** | External plugin | `plugins.desk` + [imprint-desk-plugin](https://github.com/SteamedBread2333/imprint-desk-plugin) |
-
-**Shelves** indexes markdown under `roots` in `imprint.yaml` (e.g. `docs/`, `.cursor/rules/`). Before coding, `find(scope, query)` returns vault rules, document snippets, and `links` in one call. Local BM25 index.
-
-**`roots`** lists which directories enter the index — scoped recall and fast rebuilds. See [docs/shelves-builtin.md](docs/shelves-builtin.md).
-
-**Compact recall:** MCP `find` returns claim/count metadata and bounded document snippets by default; `get r-…` folds evidence and source text. Use `include_evidence` or `full` only for audit. Dormant rules can contribute at most one penalized `wake_candidate`; only an explicit `reinforce` wakes one.
-
-**Write safety:** `add`, `reinforce`, and `supersede` reject likely secrets and personal data. Source paths must remain inside the workspace and may not target credentials, `.env*`, `*.pem`, or `*.key`. `add` also rejects high-similarity active duplicates with candidate IDs. `reinforce` requires non-empty evidence and uses diminishing confidence gain; find hits only update recall stats. `supersede` decays successor confidence by `supersede.inheritance_alpha` of the gap above 0.6 (default 0.20 in `imprint.yaml`; 0 copies old, 1 drops to baseline). Language scope tags (`ts`, `tsx`, `golang`) are canonicalized with GitHub Linguist via go-enry; non-language tags pass through.
-
-**Audit:** `imprint report --days 30` summarizes lifecycle events, duplicates, conflicts, zero-recall rules, and telemetry latency. Telemetry is a daily JSONL under `.imprint/state/telemetry/` and never stores query, claim, evidence, or path text.
-
-**Linking:** Vault `sources` point rules at doc paths or headings; compact `get r-…` returns source pointers, while `full:true` resolves excerpts. Design: [docs/imprint-shelves-linking.md](docs/imprint-shelves-linking.md).
-
-One MCP mount (`imprint-mcp`). With shelves on and `find` + query, the response includes `rules`, `documents`, and `links`.
-
----
-
-## Install & release
-
-```bash
-docker pull ghcr.io/steamedbread2333/imprint:latest   # or GitHub Releases binaries
-make install          # from clone
-make publish V=X.Y.Z  # tag + CI → Release + GHCR
-```
-
-Local builds without a tag print `devel`.
-
----
+- **Compact recall:** MCP `find` returns claim/count metadata and bounded document snippets by default; `get r-…` folds evidence and source text. Use `include_evidence` or `full` only for audit. Dormant rules can contribute at most one penalized `wake_candidate`; only an explicit `reinforce` wakes one.
+- **Write safety:** `add`, `reinforce`, and `supersede` reject likely secrets and personal data. Source paths must remain inside the workspace and may not target credentials, `.env*`, `*.pem`, or `*.key`. `add` also rejects high-similarity active duplicates. `reinforce` requires non-empty evidence and uses diminishing confidence gain; find hits only update recall stats.
+- **Supersede confidence:** successor decays the gap above 0.6 by `supersede.inheritance_alpha` in `imprint.yaml` (default 0.20; 0 copies old, 1 drops to baseline).
+- **Scopes:** language tags (`ts`, `tsx`, `golang`) canonicalize via GitHub Linguist (go-enry); non-language tags pass through.
+- **Audit:** `imprint report --days 30` summarizes lifecycle events, duplicates, conflicts, zero-recall rules, and telemetry latency. Telemetry is a daily JSONL under `.imprint/state/telemetry/` and never stores query, claim, evidence, or path text.
+- **Linking:** vault `sources` point rules at doc paths or headings; compact `get r-…` returns pointers, `full:true` resolves excerpts. Design: [docs/imprint-shelves-linking.md](docs/imprint-shelves-linking.md).
 
 ## Documentation
 
@@ -247,11 +218,17 @@ Local builds without a tag print `devel`.
 | Write loop & scenarios | [docs/correction.md](docs/correction.md) | [docs/correction.zh.md](docs/correction.zh.md) |
 | Testing & acceptance | [docs/testing.md](docs/testing.md) | [docs/testing.zh.md](docs/testing.zh.md) |
 
-MCP examples (merge manually): [cursor-mcp.json](docs/examples/cursor-mcp.json) · [cursor-mcp-global.json](docs/examples/cursor-mcp-global.json)
+MCP mount examples: [docs/mcp.md](docs/mcp.md) · [docs/mcp.zh.md](docs/mcp.zh.md)
 
----
+## Install & library
 
-## Go module
+```bash
+docker pull ghcr.io/steamedbread2333/imprint:latest   # or GitHub Releases binaries
+make install          # from clone
+make publish V=X.Y.Z  # tag + CI → Release + GHCR
+```
+
+Local builds without a tag print `devel`.
 
 ```go
 import "github.com/SteamedBread2333/imprint/pkg/imprint"
