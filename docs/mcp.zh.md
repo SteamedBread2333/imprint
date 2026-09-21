@@ -119,7 +119,7 @@ go install github.com/SteamedBread2333/imprint/cmd/imprint-mcp@latest
 | `find`      | `imprint find`      | 默认紧凑返回规则 claim/计数和 `{rules,documents,links,conflict_set}`；可选 `query`、`query_local`、`top_k`，仅审计时用 `full:true`。查询最多补一条降权 dormant `wake_candidate`；明确 `reinforce` 才唤醒。 |
 | `add`       | `imprint add`       | 必填 `claim`、`scope`、`text`；可选 `confidence`、`query_local`、`sources`。疑似敏感数据、禁用 source 路径和高相似 active 重复会被拒绝。 |
 | `reinforce` | `imprint reinforce` | `id` 与必填非空 `evidence`；可选 `query_local`。find 命中永不加分。 |
-| `supersede` | `imprint supersede` | `old_id`、`claim`、`scope`；可选 `reason`、`text`、`query_local`（省略则继承）、`sources`（省略则继承）。 |
+| `supersede` | `imprint supersede` | `old_id`、`claim`、`scope`；可选 `reason`、`text`、`query_local`（省略则继承）、`sources`（省略则继承）。新规则 **confidence 继承**旧规则。 |
 | `forget`    | `imprint forget`    | `id`。 |
 | `get`       | `imprint get`       | 规则默认折叠 evidence 与来源正文；`include_evidence:true` 搭配 `evidence_limit`（默认 3），`full:true` 仅用于审计。chunk get 不变。 |
 | `list`      | `imprint list`      | 可选 `status`、`scope`、`query`、`min_confidence`、`since`、`limit`。   |
