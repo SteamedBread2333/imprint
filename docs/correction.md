@@ -41,7 +41,7 @@ sequenceDiagram
     A->>V: reinforce
   else wording or scope changed / old imprint wrong
     A->>A: SUPERSEDE
-    A->>V: supersede (inherits sources)
+    A->>V: supersede (inherit sources; trust-gap confidence)
   else user says don't record / one-off
     A->>A: IGNORE or forget
   end

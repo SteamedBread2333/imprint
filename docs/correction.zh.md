@@ -41,7 +41,7 @@ sequenceDiagram
     A->>V: reinforce
   else 说法变了 / 范围变了 / 旧 imprint 错了
     A->>A: 替换
-    A->>V: supersede（继承 sources）
+    A->>V: supersede（继承 sources；confidence trust-gap）
   else 用户说别记 / 一次性的
     A->>A: 忽略 或 删除
   end
