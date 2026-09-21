@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/SteamedBread2333/imprint/internal/plugin"
+	"github.com/SteamedBread2333/imprint/pkg/imprint"
 )
 
 func repoRoot(t *testing.T) string {
@@ -28,6 +29,9 @@ func TestDocsContractYAMLAndHelp(t *testing.T) {
 		}
 		if !cfg.Telemetry.Enabled || cfg.Telemetry.RetentionDays != 30 {
 			t.Fatalf("%s telemetry = %+v", rel, cfg.Telemetry)
+		}
+		if cfg.Supersede.Alpha() != imprint.DefaultInheritanceAlpha {
+			t.Fatalf("%s inheritance_alpha = %v", rel, cfg.Supersede.Alpha())
 		}
 	}
 	help := commandHelp("report")

@@ -14,10 +14,11 @@ import (
 
 // Vault is a SQLite-backed imprint store at Dir/vault.db.
 type Vault struct {
-	Dir       string
-	store     *sqlite.Store
-	now       func() time.Time
-	telemetry EventSink
+	Dir          string
+	store        *sqlite.Store
+	now          func() time.Time
+	telemetry    EventSink
+	inheritAlpha float64
 }
 
 // OpenOptions configures a vault. Construction is immutable after Open.
@@ -25,6 +26,9 @@ type OpenOptions struct {
 	Dir       string
 	Now       func() time.Time
 	Telemetry EventSink
+	// InheritanceAlpha is supersede trust-gap decay (0=copy old, 1=baseline).
+	// nil uses DefaultInheritanceAlpha (0.20).
+	InheritanceAlpha *float64
 }
 
 // TelemetryEvent contains content-free operational measurements.
@@ -57,11 +61,15 @@ func Open(opts OpenOptions) (*Vault, error) {
 	if opts.Now == nil {
 		opts.Now = time.Now
 	}
+	alpha := DefaultInheritanceAlpha
+	if opts.InheritanceAlpha != nil {
+		alpha = ClampInheritanceAlpha(*opts.InheritanceAlpha)
+	}
 	st, err := sqlite.Open(abs, opts.Now)
 	if err != nil {
 		return nil, err
 	}
-	return &Vault{Dir: abs, store: st, now: opts.Now, telemetry: opts.Telemetry}, nil
+	return &Vault{Dir: abs, store: st, now: opts.Now, telemetry: opts.Telemetry, inheritAlpha: alpha}, nil
 }
 
 // Close releases the underlying SQLite connection.
@@ -121,6 +129,32 @@ func initialAddConfidence(c float64) float64 {
 		return DefaultConfidence
 	}
 	return c
+}
+
+// ClampInheritanceAlpha keeps supersede inheritance_alpha in [0, 1].
+func ClampInheritanceAlpha(alpha float64) float64 {
+	if alpha < 0 {
+		return 0
+	}
+	if alpha > 1 {
+		return 1
+	}
+	return alpha
+}
+
+// inheritConfidence pulls new-rule confidence toward baseline by alpha of the gap.
+// alpha 0 copies old; alpha 1 returns baseline. old at or below baseline stays at baseline.
+func inheritConfidence(old, baseline, alpha float64) float64 {
+	alpha = ClampInheritanceAlpha(alpha)
+	gap := old - baseline
+	if gap <= 0 {
+		return baseline
+	}
+	inherited := old - gap*alpha
+	if inherited < baseline {
+		return baseline
+	}
+	return inherited
 }
 
 func cleanStrings(values []string) []string {

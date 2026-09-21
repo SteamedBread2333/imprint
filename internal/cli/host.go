@@ -71,6 +71,7 @@ func (a *App) cmdHostServe(g globals, rest []string) int {
 			pcfg.Telemetry.RetentionDays, a.now, a.errw(),
 		)
 	}
+	pcfg.ApplyToOpenOptions(&opts)
 	v, err := imprint.Open(opts)
 	if err != nil {
 		return a.fail(g.json, err)

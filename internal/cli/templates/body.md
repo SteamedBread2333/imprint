@@ -64,7 +64,7 @@ Default path: user speaks → MCP **`find(scope, query[, query_local])`** → do
 - **`confidence` on add**: omit → **0.6**; **0.85** when user corrects; **never 0.9 on add** (tier 0.9 via `reinforce` over time).
 - **`sources`**: only when a document **excerpt substantively supports** the rule—not topical overlap (same section title without matching content).
 - `add` after ADD only: `claim`, `scope`, `text` required; optional **`sources`** / **`query_local`** as above.
-- `reinforce` requires non-empty user reaffirmation evidence; confidence uses diminishing gain `min(0.95, old + (0.95-old)*0.25)`. Find hits never change confidence. `supersede` inherits **confidence**, **`sources`**, and **`query_local`** unless sources/query_local are overridden; `forget` strips inbound links and keeps a lifecycle event.
+- `reinforce` requires non-empty user reaffirmation evidence; confidence uses diminishing gain `min(0.95, old + (0.95-old)*0.25)`. Find hits never change confidence. `supersede` decays successor confidence by `supersede.inheritance_alpha` of the gap above 0.6 (default 0.20; 0 copies old, 1 drops to baseline) and inherits **`sources`** / **`query_local`** unless overridden; `forget` strips inbound links and keeps a lifecycle event.
 - Server-side guards reject likely secrets/personal data, denied source paths, and high-similarity active duplicates.
 - `list`: `--scope`, `--query`, `--min-confidence`, `--since`.
 - Language scope tags are canonicalized via GitHub Linguist aliases (go-enry) on add/find/list/supersede; unknown tags pass through. Telemetry writes privacy-safe daily JSONL under `.imprint/state/telemetry/` when enabled. `imprint report --days 30` is CLI audit-only.

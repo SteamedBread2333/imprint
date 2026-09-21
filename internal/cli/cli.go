@@ -173,6 +173,7 @@ func (a *App) openVault(g globals) (*imprint.Vault, error) {
 				cfg.Telemetry.RetentionDays, a.now, a.errw(),
 			)
 		}
+		cfg.ApplyToOpenOptions(&opts)
 	}
 	return imprint.Open(opts)
 }

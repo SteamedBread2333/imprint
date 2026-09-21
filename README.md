@@ -187,7 +187,7 @@ Team convention: commit `imprint.yaml` (roots, plugin switches). All private run
 Default vault directory: `./.imprint/` (walk up for `imprint.yaml` or `.imprint/`). `--global` → `~/.imprint`. Override with `--vault` or `IMPRINT_VAULT`.
 
 ```
-imprint.yaml            # git: host + shelves.roots + plugins
+imprint.yaml            # git: host + shelves.roots + plugins + supersede.inheritance_alpha
 .imprint/               # gitignore: private runtime
   vault.db              # SQLite vault (rules, evidence, edges, sources)
   state/
@@ -215,7 +215,7 @@ Rules live in `vault.db`. IDs: `r-YYYY-MM-DD-NNN`. Status: `active` | `dormant` 
 
 **Compact recall:** MCP `find` returns claim/count metadata and bounded document snippets by default; `get r-…` folds evidence and source text. Use `include_evidence` or `full` only for audit. Dormant rules can contribute at most one penalized `wake_candidate`; only an explicit `reinforce` wakes one.
 
-**Write safety:** `add`, `reinforce`, and `supersede` reject likely secrets and personal data. Source paths must remain inside the workspace and may not target credentials, `.env*`, `*.pem`, or `*.key`. `add` also rejects high-similarity active duplicates with candidate IDs. `reinforce` requires non-empty evidence and uses diminishing confidence gain; find hits only update recall stats. Language scope tags (`ts`, `tsx`, `golang`) are canonicalized with GitHub Linguist via go-enry; non-language tags pass through.
+**Write safety:** `add`, `reinforce`, and `supersede` reject likely secrets and personal data. Source paths must remain inside the workspace and may not target credentials, `.env*`, `*.pem`, or `*.key`. `add` also rejects high-similarity active duplicates with candidate IDs. `reinforce` requires non-empty evidence and uses diminishing confidence gain; find hits only update recall stats. `supersede` decays successor confidence by `supersede.inheritance_alpha` of the gap above 0.6 (default 0.20 in `imprint.yaml`; 0 copies old, 1 drops to baseline). Language scope tags (`ts`, `tsx`, `golang`) are canonicalized with GitHub Linguist via go-enry; non-language tags pass through.
 
 **Audit:** `imprint report --days 30` summarizes lifecycle events, duplicates, conflicts, zero-recall rules, and telemetry latency. Telemetry is a daily JSONL under `.imprint/state/telemetry/` and never stores query, claim, evidence, or path text.
 

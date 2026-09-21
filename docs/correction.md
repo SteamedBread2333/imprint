@@ -64,7 +64,7 @@ Prefer **MCP tools**; fall back to **`imprint --json`** ([mcp.md](mcp.md)).
 | --- | --- | --- | --- |
 | **ADD** | `find` empty; **new** preference (optional `sources` when document hit) | `add` | New `active` imprint, default confidence **0.6** |
 | **REINFORCE** | Rule exists; user **confirms again** with non-empty evidence | `reinforce` | diminishing gain `min(0.95, old + (0.95-old)*0.25)`, `reinforcement_count++`, may wake `dormant` |
-| **SUPERSEDE** | Preference **changed**, scope **widened/narrowed**, old claim **invalid** | `supersede` | Old → `superseded`; new `active` with `supersedes: [old_id]`; **inherits** old confidence |
+| **SUPERSEDE** | Preference **changed**, scope **widened/narrowed**, old claim **invalid** | `supersede` | Old → `superseded`; new `active` with `supersedes: [old_id]`; confidence uses trust-gap decay |
 | **IGNORE** | One-off task, chit-chat, agent-**inferred** preference | (no write) | — |
 
 Also:
@@ -86,7 +86,15 @@ On `add`, set `--confidence` / MCP `confidence`:
 | Explicit correction ("no, use …") | **0.85** |
 | "From now on always …" | **0.85** on add; tier 0.9 only through later `reinforce` |
 
-`reinforce` stacks on the current value. Policy changed → **supersede**; the new rule **inherits** the old confidence. `0.85` applies to `add` corrections only.
+`reinforce` stacks on the current value. Policy changed → **supersede**; `0.85` applies to `add` corrections only.
+
+#### Supersede confidence (trust-gap)
+
+Successor confidence is not copied verbatim and is not reset to 0.85. It decays the gap above the 0.6 add baseline:
+
+`new = old − (old − 0.6) × inheritance_alpha`
+
+`inheritance_alpha` is `supersede.inheritance_alpha` in `imprint.yaml` (default **0.20**; **0** = copy old; **1** = drop to 0.6). If old confidence is already at or below 0.6, the successor is 0.6. Example: 0.6875 with alpha 0.20 → 0.67. `sources` / `query_local` still inherit unless overridden.
 
 ### Record only what the user said
 
@@ -153,7 +161,7 @@ imprint --json --vault ./.imprint supersede r-2026-09-14-001 \
   --text "internal packages can use unexported camelCase; only cross-package exports need PascalCase"
 ```
 
-Old id → `superseded` status; new id is `active`, inherits the old confidence, and links back. `sources` / `query_local` inherit unless overridden.
+Old id → `superseded` status; new id is `active`, confidence decays toward 0.6 by `inheritance_alpha`, and links back. `sources` / `query_local` inherit unless overridden.
 
 ---
 

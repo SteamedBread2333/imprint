@@ -26,6 +26,19 @@ type TelemetryConfig struct {
 	RetentionDays int  `yaml:"retention_days"`
 }
 
+// SupersedeConfig tunes how the successor rule's confidence is derived.
+type SupersedeConfig struct {
+	InheritanceAlpha *float64 `yaml:"inheritance_alpha,omitempty"`
+}
+
+// Alpha is supersede inheritance_alpha in [0, 1]; nil uses DefaultInheritanceAlpha.
+func (s SupersedeConfig) Alpha() float64 {
+	if s.InheritanceAlpha == nil {
+		return imprint.DefaultInheritanceAlpha
+	}
+	return imprint.ClampInheritanceAlpha(*s.InheritanceAlpha)
+}
+
 // ShelvesConfig is workspace doc indexing (host + MCP).
 type ShelvesConfig struct {
 	Enabled bool           `yaml:"enabled"`
@@ -63,6 +76,7 @@ type Config struct {
 	Shelves   ShelvesConfig          `yaml:"shelves"`
 	Glossary  GlossaryConfig         `yaml:"glossary"`
 	Telemetry TelemetryConfig        `yaml:"telemetry"`
+	Supersede SupersedeConfig        `yaml:"supersede"`
 	Plugins   map[string]PluginEntry `yaml:"plugins"`
 	filePath  string
 	workspace string
@@ -250,6 +264,15 @@ func (c *Config) HostURL() string {
 		return listen
 	}
 	return "http://" + listen
+}
+
+// ApplyToOpenOptions copies yaml vault tunables onto Open.
+func (c *Config) ApplyToOpenOptions(opts *imprint.OpenOptions) {
+	if c == nil || opts == nil {
+		return
+	}
+	a := c.Supersede.Alpha()
+	opts.InheritanceAlpha = &a
 }
 
 // PluginPort returns the configured port for a plugin id.

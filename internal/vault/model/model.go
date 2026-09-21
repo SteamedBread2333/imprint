@@ -28,9 +28,10 @@ const (
 	MinRecallConfidence  = 0.3  // find: drop active rules below this
 	DefaultDecayDays     = 90   // sweep: last_confirmed_at older than this
 	DefaultDecayAmount   = 0.05 // sweep: subtract from confidence
-	DefaultDormantThresh = 0.3  // sweep: below this → dormant (same cut as find)
-	DefaultTopK          = 5
-	IDPrefix             = "r-"
+	DefaultDormantThresh     = 0.3  // sweep: below this → dormant (same cut as find)
+	DefaultInheritanceAlpha  = 0.20 // supersede: fraction of (old-baseline) to drop; 0=copy old, 1=baseline
+	DefaultTopK              = 5
+	IDPrefix                 = "r-"
 )
 
 // Evidence is one timestamped citation backing a rule.

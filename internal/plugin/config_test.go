@@ -153,6 +153,47 @@ shelves:
 	}
 }
 
+func TestSupersedeInheritanceAlpha(t *testing.T) {
+	dir := t.TempDir()
+	path := imprint.ConfigPath(dir)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.WriteFile(path, []byte("vault: .imprint\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Supersede.InheritanceAlpha != nil {
+		t.Fatalf("omit should leave pointer nil, got %v", *cfg.Supersede.InheritanceAlpha)
+	}
+	if cfg.Supersede.Alpha() != imprint.DefaultInheritanceAlpha {
+		t.Fatalf("default Alpha = %v", cfg.Supersede.Alpha())
+	}
+
+	if err := os.WriteFile(path, []byte("vault: .imprint\nsupersede:\n  inheritance_alpha: 0\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err = Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Supersede.InheritanceAlpha == nil || *cfg.Supersede.InheritanceAlpha != 0 {
+		t.Fatalf("explicit 0 = %#v", cfg.Supersede.InheritanceAlpha)
+	}
+	if cfg.Supersede.Alpha() != 0 {
+		t.Fatalf("explicit 0 Alpha = %v", cfg.Supersede.Alpha())
+	}
+	opts := imprint.OpenOptions{}
+	cfg.ApplyToOpenOptions(&opts)
+	if opts.InheritanceAlpha == nil || *opts.InheritanceAlpha != 0 {
+		t.Fatalf("ApplyToOpenOptions 0 = %#v", opts.InheritanceAlpha)
+	}
+}
+
 func TestPluginPort(t *testing.T) {
 	if got := PluginPort(PluginEntry{}, imprint.DefaultDeskPort); got != imprint.DefaultDeskPort {
 		t.Fatalf("empty config port = %d", got)

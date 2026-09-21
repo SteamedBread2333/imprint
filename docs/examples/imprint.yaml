@@ -9,6 +9,9 @@ telemetry:
   enabled: true
   retention_days: 30
 
+supersede:
+  inheritance_alpha: 0.20   # 0=copy old (no decay), 1=drop to 0.6 baseline
+
 shelves:
   enabled: true
   config:

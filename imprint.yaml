@@ -9,6 +9,9 @@ telemetry:
   enabled: true
   retention_days: 30
 
+supersede:
+  inheritance_alpha: 0.20   # 0=完全不衰减（当前行为），1=直接跌到基线
+
 shelves:
   enabled: true
   config:

@@ -18,12 +18,13 @@ const (
 	EvidenceReinforce = model.EvidenceReinforce
 	EvidenceSupersede = model.EvidenceSupersede
 
-	DefaultConfidence    = model.DefaultConfidence
-	MaxConfidence        = model.MaxConfidence
-	MinRecallConfidence  = model.MinRecallConfidence
-	DefaultDecayDays     = model.DefaultDecayDays
-	DefaultDecayAmount   = model.DefaultDecayAmount
-	DefaultDormantThresh = model.DefaultDormantThresh
-	DefaultTopK          = model.DefaultTopK
-	IDPrefix             = model.IDPrefix
+	DefaultConfidence       = model.DefaultConfidence
+	MaxConfidence           = model.MaxConfidence
+	MinRecallConfidence     = model.MinRecallConfidence
+	DefaultDecayDays        = model.DefaultDecayDays
+	DefaultDecayAmount      = model.DefaultDecayAmount
+	DefaultDormantThresh    = model.DefaultDormantThresh
+	DefaultInheritanceAlpha = model.DefaultInheritanceAlpha
+	DefaultTopK             = model.DefaultTopK
+	IDPrefix                = model.IDPrefix
 )

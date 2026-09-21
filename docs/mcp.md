@@ -112,7 +112,7 @@ Every tool returns **pretty-printed JSON** in the tool result text. On failure, 
 | `find` | `imprint find` | Compact by default: rule claims/counts plus `{rules,documents,links,conflict_set}`. Optional `query`, `query_local`, `top_k`; `full:true` is audit-only. A query may return at most one penalized dormant `wake_candidate`; only explicit `reinforce` wakes it. |
 | `add` | `imprint add` | `claim`, `scope`, `text` required; optional `confidence`, `query_local`, `sources`. Rejects sensitive data, denied source paths, and high-similarity active duplicates. |
 | `reinforce` | `imprint reinforce` | `id` and required non-empty `evidence`; optional `query_local`. Find hits never raise confidence. |
-| `supersede` | `imprint supersede` | `old_id`, `claim`, `scope`; optional `reason`, `text`, `query_local` (omit to inherit), `sources` (omit to inherit). New-rule **confidence is inherited** from the old rule. |
+| `supersede` | `imprint supersede` | `old_id`, `claim`, `scope`; optional `reason`, `text`, `query_local` (omit to inherit), `sources` (omit to inherit). New-rule **confidence** decays the gap above 0.6 by `supersede.inheritance_alpha` in `imprint.yaml` (default 0.20). |
 | `forget` | `imprint forget` | `id`. |
 | `get` | `imprint get` | Rule get folds evidence and source text by default. `include_evidence:true` uses `evidence_limit` (default 3); `full:true` is audit-only. Chunk get is unchanged. |
 | `list` | `imprint list` | Optional `status`, `scope`, `query`, `min_confidence`, `since`, `limit`. |

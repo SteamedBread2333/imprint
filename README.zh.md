@@ -187,7 +187,7 @@ shelves 在 `imprint.yaml` 顶层 host 配置（`shelves:`）。见 [docs/shelve
 默认 vault 目录：`./.imprint/`（向上找 `imprint.yaml` 或 `.imprint/`）。`--global` → `~/.imprint`。可用 `--vault` 或 `IMPRINT_VAULT` 覆盖。
 
 ```
-imprint.yaml            # 进 git：host + shelves.roots + plugins
+imprint.yaml            # 进 git：host + shelves.roots + plugins + supersede.inheritance_alpha
 .imprint/               # gitignore：私有运行时
   vault.db              # SQLite vault（规则、证据、边、sources）
   state/
@@ -215,7 +215,7 @@ docs/                   # 常见 shelves root
 
 **紧凑召回：** MCP `find` 默认只返回 claim、计数与有上限的文档 snippet；`get r-…` 默认折叠 evidence 和来源正文。仅审计时使用 `include_evidence` 或 `full`。dormant 规则最多以一条降权 `wake_candidate` 入场，只有明确 `reinforce` 才会唤醒。
 
-**写入安全：** `add`、`reinforce`、`supersede` 会拒绝疑似 secret 和个人信息。source 必须位于工作区内，且不能指向 credentials、`.env*`、`*.pem` 或 `*.key`；`add` 还会返回高相似 active 候选并拒绝重复写入。`reinforce` 必须带非空 evidence，confidence 用递减增益；find 命中只更新召回统计。语言类 scope（`ts`、`tsx`、`golang`）由 GitHub Linguist（go-enry）归一；非语言标签原样保留。
+**写入安全：** `add`、`reinforce`、`supersede` 会拒绝疑似 secret 和个人信息。source 必须位于工作区内，且不能指向 credentials、`.env*`、`*.pem` 或 `*.key`；`add` 还会返回高相似 active 候选并拒绝重复写入。`reinforce` 必须带非空 evidence，confidence 用递减增益；find 命中只更新召回统计。`supersede` 按 `imprint.yaml` 的 `supersede.inheritance_alpha` 对高出 0.6 的缺口衰减新规则 confidence（默认 0.20；0=完全不衰减，1=跌到基线）。语言类 scope（`ts`、`tsx`、`golang`）由 GitHub Linguist（go-enry）归一；非语言标签原样保留。
 
 **审计：** `imprint report --days 30` 汇总生命周期事件、重复、冲突、零召回规则和 telemetry 延迟。telemetry 按日写入 `.imprint/state/telemetry/`，不存 query、claim、evidence 或 path 正文。
 

@@ -64,7 +64,7 @@ sequenceDiagram
 | --- | --- | --- | --- |
 | **新增** | `find` 无匹配；用户**新**偏好（document 命中时可带 `sources`；已提炼本地检索词时同轮 `query_local` 落库） | `add` | 新 `active` imprint，默认 confidence **0.6** |
 | **强化** | 已有规则；用户**再次确认**同一偏好并给出非空 evidence | `reinforce` | 递减增益 `min(0.95, old + (0.95-old)*0.25)`，`reinforcement_count++`，可唤醒 `dormant` |
-| **替换** | 偏好**改了**、范围**扩大/缩小**、旧 claim **不再成立** | `supersede` | 旧规则 → `superseded`；新规则 `active`，链上 `supersedes: [old_id]`，**继承**旧 confidence |
+| **替换** | 偏好**改了**、范围**扩大/缩小**、旧 claim **不再成立** | `supersede` | 旧规则 → `superseded`；新规则 `active`，链上 `supersedes: [old_id]`；confidence 按 trust-gap 衰减 |
 | **忽略** | 一次性指令、闲聊、智能体**推断**出的偏好 | （不写） | 无 |
 
 额外：
@@ -86,7 +86,15 @@ sequenceDiagram
 | 明确纠正（「不对，应该…」） | **0.85** |
 | 「从现在起永远…」 | add 时 **0.85**；后续 `reinforce` 才进入 0.9 档 |
 
-`reinforce` 在现有值上累加。政策变了走 **supersede**，新规则**继承**旧 confidence。**0.85** 只用于 `add` 纠正，不用于替换。
+`reinforce` 在现有值上累加。政策变了走 **supersede**。**0.85** 只用于 `add` 纠正，不用于替换。
+
+#### 替换时的置信度（trust-gap）
+
+新规则不原样复制旧 confidence，也不重置为 0.85。它按高出 0.6 基线的缺口衰减：
+
+`new = old − (old − 0.6) × inheritance_alpha`
+
+`inheritance_alpha` 来自 `imprint.yaml` 的 `supersede.inheritance_alpha`（默认 **0.20**；**0** = 完全不衰减；**1** = 直接跌到 0.6）。旧值已 ≤ 0.6 时，新规则为 0.6。例：0.6875、alpha 0.20 → 0.67。`sources` / `query_local` 仍默认继承。
 
 ### 只记用户原话
 
@@ -168,7 +176,7 @@ imprint --json --vault ./.imprint supersede r-2026-09-14-001 \
 
 MCP `supersede`：`old_id`, `claim`, `scope`, `reason`, `text`。
 
-**结果**：旧 id → `superseded` 状态；新 id `active`，继承旧 confidence 并链到旧规则。`imprint desk open` 上可看 **supersedes** 边。
+**结果**：旧 id → `superseded` 状态；新 id `active`，confidence 按 `inheritance_alpha` 向 0.6 衰减，并链到旧规则。`imprint desk open` 上可看 **supersedes** 边。
 
 ---
 
