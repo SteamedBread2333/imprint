@@ -10,8 +10,11 @@ import (
 	"time"
 )
 
+// pidsOnPort returns processes listening on port.
+// Connected clients are omitted. Cursor's network helper dials the host port
+// and shares the app process group; killing that group closes every window.
 func pidsOnPort(port int) ([]int, error) {
-	out, err := exec.Command("lsof", "-ti", fmt.Sprintf(":%d", port)).Output()
+	out, err := exec.Command("lsof", "-nP", "-sTCP:LISTEN", "-iTCP:"+strconv.Itoa(port), "-t").Output()
 	if err != nil {
 		if exit, ok := err.(*exec.ExitError); ok && exit.ExitCode() == 1 {
 			return nil, nil
@@ -34,7 +37,7 @@ func pidsOnPort(port int) ([]int, error) {
 	return pids, nil
 }
 
-// FreeListenPort kills processes bound to host:port (e.g. 127.0.0.1:9470).
+// FreeListenPort kills the process listening on host:port (e.g. 127.0.0.1:9470).
 func FreeListenPort(listen string, wait time.Duration) error {
 	port := ParseListenPort(listen)
 	if port <= 0 {
