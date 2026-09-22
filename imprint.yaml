@@ -23,7 +23,7 @@ shelves:
 
 plugins:
   desk:
-    enabled: false   # opt-in: clone imprint-desk-plugin, set enabled: true
+    enabled: true   # opt-in: clone imprint-desk-plugin, set enabled: true
     package: ../imprint-desk-plugin
     config:
       port: 4173
