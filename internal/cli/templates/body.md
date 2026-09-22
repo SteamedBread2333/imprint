@@ -74,7 +74,7 @@ Default path: user speaks → MCP **`find(scope, query[, query_local])`** → do
 - **Tokenization:** vault and shelves share `internal/textseg` (go-ego/gse `CutSearch`, zh+en) plus camel/Pascal/snake/kebab identifier terms. Do not duplicate tokenizers.
 - **Storage:** SQLite `vault.db` only; no `migrate-shards` / `imprint-*.md` shard import.
 - `resolved_sources` headings: markdown inline to plain text; a miss is `heading_unresolved` (never another section’s excerpt).
-- MCP `find`/rule `get` are compact by default. A query may return one penalized dormant `wake_candidate`; only explicit user confirmation followed by `reinforce` wakes it.
+- MCP `find`/rule `get` are compact by default. Document hits use `shelves.config.find_top_k` (default 2, one chunk per path), not rule `top_k`; snippets are a query-window of `snippet_runes` (default 80). A query may return one penalized dormant `wake_candidate`; only explicit user confirmation followed by `reinforce` wakes it.
 
 ```bash
 # CLI — vault read/write; find/get see CLI column above

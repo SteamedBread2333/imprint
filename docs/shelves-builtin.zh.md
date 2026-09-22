@@ -63,9 +63,9 @@ shelves:
   config:
     roots:
       - docs
-      - .cursor/rules
-      # - .cursor/skills
-    # stateDir: .imprint/state   # 可选
+    # find_top_k: 2         # 文档条数，与 find.top_k 无关
+    # snippet_runes: 80     # 查询窗口 snippet 上限
+    # max_chunk_lines: 12   # 同 section 分块；改后需 rebuild
 ```
 
 
@@ -74,6 +74,9 @@ shelves:
 | `enabled`         | `true` 时扫描 `roots` 并提供搜索；`false` 时停止索引与搜索，缓存只读保留            |
 | `config.roots`    | **要纳入索引的目录**（`.md`、`.mdc`、`.txt`），路径相对仓库根 — **shelves 搜什么** |
 | `config.stateDir` | SQLite 缓存目录。默认 `.imprint/state`（`shelves.db`）                   |
+| `config.find_top_k` | `find` 文档条数上限（默认 **2**），与规则 `top_k` 无关；每 path 一条 |
+| `config.snippet_runes` | snippet 字数上限（默认 **80**），对准查询词 |
+| `config.max_chunk_lines` | 同 section 分块行数（默认 **12**）。改后需 `imprint up` 重建 |
 
 
 
@@ -84,7 +87,7 @@ shelves:
 - **未列入的路径**：不进 shelves 召回（Agent 仍可用读文件工具单独打开）。
 - **用途**：控制索引范围、加快 rebuild、明确写代码前对照哪些文档（如 `docs/`、`.cursor/rules/`）。
 
-改 `roots` 或 `enabled` 后执行 `imprint up`（或重启 `host serve`）。
+改 `roots`、`enabled` 或 `max_chunk_lines` 后执行 `imprint up`（或重启 `host serve`）。`find_top_k` 与 `snippet_runes` 下次 `find` 即生效，不必重建。
 
 ---
 
@@ -183,7 +186,7 @@ Handler 默认 **30 秒**超时（`503` + `{"error":"timeout"}`），请求不�
 }
 ```
 
-- 默认 MCP `find` 为紧凑形状：规则只返回 claim/计数，不内联 evidence；文档 snippet 约 300 字。`full:true` 仅审计，才可能带 source 正文。
+- 默认 MCP `find` 为紧凑形状：规则只返回 claim/计数，不内联 evidence；文档用 `find_top_k`（默认 2）、每 path 一条、查询窗口 snippet（`snippet_runes` 默认 80）。`full:true` 仅审计，才可能带 source 正文。
 - **无 query** 或 shelves 禁用：仅紧凑 **rules**。
 - `get`：规则默认折叠 evidence 与来源正文，只给指针和 `evidence_count`。`include_evidence:true` 展开最近证据（`evidence_limit` 默认 3）；`full:true` 仅审计。chunk id → 文档 chunk + `referenced_rules`（+ `cited_rules` 若正文含 `[[r-…]]`）。
 

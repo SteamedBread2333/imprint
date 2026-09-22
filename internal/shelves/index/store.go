@@ -264,6 +264,14 @@ type SearchHit struct {
 
 // SearchStore runs BM25 and maps to API hits.
 func (s *Store) SearchStore(query string, topK int) []SearchHit {
+	return s.SearchStoreSized(query, topK, DefaultSnippetRunes)
+}
+
+// SearchStoreSized runs BM25 with a query-window snippet cap.
+func (s *Store) SearchStoreSized(query string, topK, snippetRunes int) []SearchHit {
+	if snippetRunes <= 0 {
+		snippetRunes = DefaultSnippetRunes
+	}
 	raw := Search(s.Chunks, query, topK)
 	out := make([]SearchHit, 0, len(raw))
 	for _, r := range raw {
@@ -272,7 +280,7 @@ func (s *Store) SearchStore(query string, topK int) []SearchHit {
 			Path:    r.Chunk.Path,
 			Heading: r.Chunk.Heading,
 			Score:   r.Score,
-			Snippet: Snippet(r.Chunk.Text, 300),
+			Snippet: QuerySnippet(r.Chunk.Text, query, snippetRunes),
 		})
 	}
 	return out
@@ -280,28 +288,74 @@ func (s *Store) SearchStore(query string, topK int) []SearchHit {
 
 // SearchStoreMerged runs BM25 for query and queryLocal, deduping chunk ids by max score.
 func SearchStoreMerged(st *Store, query, queryLocal string, topK int) []SearchHit {
+	return SearchStoreMergedSized(st, query, queryLocal, topK, DefaultSnippetRunes)
+}
+
+// SearchStoreMergedSized merges dual-query hits, keeps one chunk per path, then caps at topK.
+func SearchStoreMergedSized(st *Store, query, queryLocal string, topK, snippetRunes int) []SearchHit {
 	if st == nil {
 		return nil
 	}
 	if topK <= 0 {
-		topK = 5
+		topK = DefaultFindTopK
+	}
+	if snippetRunes <= 0 {
+		snippetRunes = DefaultSnippetRunes
 	}
 	q := strings.TrimSpace(query)
 	localQ := strings.TrimSpace(queryLocal)
 	if q == "" && localQ == "" {
 		return nil
 	}
+	pool := topK * 3
+	if pool < 6 {
+		pool = 6
+	}
+	combined := strings.TrimSpace(q + " " + localQ)
 	var merged []SearchHit
 	if q != "" {
-		merged = mergeSearchHits(merged, st.SearchStore(q, topK*3))
+		merged = mergeSearchHits(merged, st.SearchStoreSized(q, pool, snippetRunes))
 	}
 	if localQ != "" && localQ != q {
-		merged = mergeSearchHits(merged, st.SearchStore(localQ, topK*3))
+		merged = mergeSearchHits(merged, st.SearchStoreSized(localQ, pool, snippetRunes))
 	}
+	for i := range merged {
+		merged[i].Snippet = QuerySnippet(chunkText(st, merged[i].ID, merged[i].Snippet), combined, snippetRunes)
+	}
+	merged = DedupSearchHitsByPath(merged)
 	if len(merged) > topK {
 		merged = merged[:topK]
 	}
 	return merged
+}
+
+func chunkText(st *Store, id, fallback string) string {
+	if c, ok := st.ChunkByID(id); ok {
+		return c.Text
+	}
+	return fallback
+}
+
+// DedupSearchHitsByPath keeps the highest-scoring hit per path (input must be score-sorted).
+func DedupSearchHitsByPath(hits []SearchHit) []SearchHit {
+	if len(hits) == 0 {
+		return hits
+	}
+	sortSearchHits(hits)
+	seen := map[string]struct{}{}
+	out := make([]SearchHit, 0, len(hits))
+	for _, h := range hits {
+		key := h.Path
+		if key == "" {
+			key = h.ID
+		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, h)
+	}
+	return out
 }
 
 func mergeSearchHits(a, b []SearchHit) []SearchHit {

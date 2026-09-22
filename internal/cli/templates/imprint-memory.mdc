@@ -10,7 +10,7 @@ Use imprint for durable user policy; chat does not synchronize automatically. Us
 - Call `find` at most once per user message with scope and all query terms prepared together. Treat recall as reference-only and keep coding on the critical path.
 - Before writing, classify ADD / REINFORCE / SUPERSEDE / IGNORE. Ignore one-off tasks. Reuse the same find result.
 - `add` stores a new English imperative claim plus user-verbatim evidence. `reinforce` requires an explicit repeat of the same policy. `supersede` replaces changed policy.
-- MCP `find` and rule `get` are compact by default. Use `include_evidence` or `full` only for audit.
+- MCP `find` and rule `get` are compact by default. Document hits use `find_top_k` (default 2, one chunk per path) and query-window snippets (`snippet_runes` default 80), not rule `top_k`. Use `include_evidence` or `full` only for audit.
 - A query may surface one penalized dormant `wake_candidate`; only explicit confirmation followed by `reinforce` wakes it.
 - Server-side guards reject likely secrets, denied source paths, and high-similarity active duplicates.
 - SQLite `.imprint/vault.db` is the only source of truth. JSON/JSONL under `.imprint/export/` is an audit projection.

@@ -2,18 +2,23 @@ package shelves
 
 import (
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/SteamedBread2333/imprint/internal/plugin"
+	"github.com/SteamedBread2333/imprint/internal/shelves/index"
 	"github.com/SteamedBread2333/imprint/pkg/imprint"
 )
 
 // Config controls built-in workspace document indexing.
 type Config struct {
-	Enabled   bool
-	Roots     []string
-	StateDir  string
-	Workspace string
+	Enabled       bool
+	Roots         []string
+	StateDir      string
+	Workspace     string
+	FindTopK      int
+	SnippetRunes  int
+	MaxChunkLines int
 }
 
 // DefaultRoots are indexed when shelves is enabled and roots are omitted.
@@ -22,8 +27,11 @@ var DefaultRoots = []string{"docs"}
 // ConfigFrom reads top-level shelves: from imprint.yaml.
 func ConfigFrom(cfg *plugin.Config) Config {
 	out := Config{
-		Enabled:   false,
-		Roots:     append([]string(nil), DefaultRoots...),
+		Enabled:       false,
+		Roots:         append([]string(nil), DefaultRoots...),
+		FindTopK:      index.DefaultFindTopK,
+		SnippetRunes:  index.DefaultSnippetRunes,
+		MaxChunkLines: index.DefaultMaxChunkLines,
 	}
 	if cfg == nil {
 		return out
@@ -41,8 +49,42 @@ func ConfigFrom(cfg *plugin.Config) Config {
 				out.StateDir = filepath.Join(out.Workspace, filepath.FromSlash(out.StateDir))
 			}
 		}
+		out.FindTopK = parsePositiveInt(cfg.Shelves.Config, "find_top_k", index.DefaultFindTopK)
+		out.SnippetRunes = parsePositiveInt(cfg.Shelves.Config, "snippet_runes", index.DefaultSnippetRunes)
+		out.MaxChunkLines = parsePositiveInt(cfg.Shelves.Config, "max_chunk_lines", index.DefaultMaxChunkLines)
 	}
 	return out
+}
+
+func parsePositiveInt(config map[string]any, key string, def int) int {
+	if config == nil {
+		return def
+	}
+	raw, ok := config[key]
+	if !ok {
+		return def
+	}
+	n := 0
+	switch t := raw.(type) {
+	case int:
+		n = t
+	case int64:
+		n = int(t)
+	case float64:
+		n = int(t)
+	case string:
+		v, err := strconv.Atoi(strings.TrimSpace(t))
+		if err != nil {
+			return def
+		}
+		n = v
+	default:
+		return def
+	}
+	if n <= 0 {
+		return def
+	}
+	return n
 }
 
 func parseRoots(config map[string]any) []string {

@@ -123,9 +123,21 @@ func EnrichChunkGet(v *imprint.Vault, st *index.Store, c index.Chunk) (ChunkGet,
 	}, nil
 }
 
+// FindDocs is the shelves document cap and snippet size for find.
+// Zero fields use index defaults (2 hits, 80 runes).
+type FindDocs struct {
+	TopK         int
+	SnippetRunes int
+}
+
 // EnrichFind builds agent-oriented find results with sources, excerpts, and links.
 func EnrichFind(v *imprint.Vault, st *index.Store, scope []string, query, queryLocal string, topK int) (*FindResult, []imprint.FindHit, error) {
-	hits, err := v.FindMerged(scope, query, queryLocal, topK)
+	return EnrichFindDocs(v, st, scope, query, queryLocal, topK, FindDocs{})
+}
+
+// EnrichFindDocs is EnrichFind with an explicit document budget.
+func EnrichFindDocs(v *imprint.Vault, st *index.Store, scope []string, query, queryLocal string, ruleTopK int, docs FindDocs) (*FindResult, []imprint.FindHit, error) {
+	hits, err := v.FindMerged(scope, query, queryLocal, ruleTopK)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -142,12 +154,20 @@ func EnrichFind(v *imprint.Vault, st *index.Store, scope []string, query, queryL
 	}
 	enriched := shelves.EnrichFindHits(st, hits, sourcesByID)
 	localQ := imprint.EffectiveQueryLocal(query, queryLocal)
-	docs := index.SearchStoreMerged(st, query, localQ, topK)
-	docs = shelves.FilterFindDocuments(docs, shelves.FindDocMinRelativeScore)
-	links := shelves.BuildFindLinks(v, st, enriched, docs)
+	docTopK := docs.TopK
+	if docTopK <= 0 {
+		docTopK = index.DefaultFindTopK
+	}
+	snippetRunes := docs.SnippetRunes
+	if snippetRunes <= 0 {
+		snippetRunes = index.DefaultSnippetRunes
+	}
+	found := index.SearchStoreMergedSized(st, query, localQ, docTopK, snippetRunes)
+	found = shelves.FilterFindDocuments(found, shelves.FindDocMinRelativeScore)
+	links := shelves.BuildFindLinks(v, st, enriched, found)
 	return &FindResult{
 		Rules:     enriched,
-		Documents: docs,
+		Documents: found,
 		Links:     links,
 	}, hits, nil
 }

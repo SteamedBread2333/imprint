@@ -59,8 +59,9 @@ shelves:
   config:
     roots:
       - docs
-      - .cursor/rules
-    # stateDir: .imprint/state   # optional
+    # find_top_k: 2         # document hits; independent of find.top_k
+    # snippet_runes: 80     # query-window snippet cap
+    # max_chunk_lines: 12   # same-section flush; rebuild after change
 ```
 
 | Field | Meaning |
@@ -68,6 +69,9 @@ shelves:
 | `enabled` | When `true`, scan `roots` and serve search. When `false`, stop indexing; cache stays readable. |
 | `config.roots` | **Directories to index** (`.md`, `.mdc`, `.txt`), relative to repo root — what shelves **searches** |
 | `config.stateDir` | SQLite cache directory. Default: `.imprint/state` (`shelves.db`). |
+| `config.find_top_k` | Max document hits on `find` (default **2**). Independent of rule `top_k`. One chunk per path. |
+| `config.snippet_runes` | Snippet rune cap (default **80**), centered on the query term. |
+| `config.max_chunk_lines` | Same-section chunk flush (default **12**). Changing it requires `imprint up` to rebuild. |
 
 ### Configuring `roots`
 
@@ -75,7 +79,7 @@ shelves:
 - Unlisted paths: outside shelves recall (agents can still open files directly).
 - **Purpose**: scope the corpus, faster rebuilds, declare which docs to recall before coding.
 
-After changing `roots` or `enabled`, run `imprint up` (or restart `host serve`).
+After changing `roots`, `enabled`, or `max_chunk_lines`, run `imprint up` (or restart `host serve`). `find_top_k` and `snippet_runes` apply on the next `find` without a rebuild.
 
 ---
 
@@ -138,7 +142,7 @@ Mount **imprint-mcp** only. With shelves enabled and **`find` + query**:
 }
 ```
 
-Default MCP `find` is compact: rule claims and counts, no evidence text. Document snippets are bounded (~300 chars). `full:true` is audit-only and may include source excerpts.
+Default MCP `find` is compact: rule claims and counts, no evidence text. Documents use `find_top_k` (default 2), one chunk per path, and a query-window snippet (`snippet_runes`, default 80). `full:true` is audit-only and may include source excerpts.
 
 Without query, or shelves off: compact **rules** only.
 

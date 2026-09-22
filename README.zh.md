@@ -205,7 +205,7 @@ imprint down
 
 ## 写入与召回
 
-- **紧凑召回：** MCP `find` 默认只返回 claim、计数与有上限的文档 snippet；`get r-…` 默认折叠 evidence 和来源正文。仅审计时使用 `include_evidence` 或 `full`。dormant 规则最多以一条降权 `wake_candidate` 入场，只有明确 `reinforce` 才会唤醒。
+- **紧凑召回：** MCP `find` 默认只返回 claim、计数与有上限的文档 snippet。文档条数由 `shelves.config.find_top_k` 约束（默认 2，每 path 一条），与规则 `top_k` 无关；snippet 是对准查询词的窗口（`snippet_runes` 默认 80）。`get r-…` 默认折叠 evidence 和来源正文。仅审计时使用 `include_evidence` 或 `full`。dormant 规则最多以一条降权 `wake_candidate` 入场，只有明确 `reinforce` 才会唤醒。
 - **写入安全：** `add`、`reinforce`、`supersede` 会拒绝疑似 secret 和个人信息。source 必须位于工作区内，且不能指向 credentials、`.env*`、`*.pem` 或 `*.key`。`add` 还会拒绝高相似 active 重复。`reinforce` 必须带非空 evidence，confidence 用递减增益；find 命中只更新召回统计。
 - **替换置信度：** 新规则按 `imprint.yaml` 的 `supersede.inheritance_alpha` 对高出 0.6 的缺口衰减（默认 0.20；0=完全不衰减，1=跌到基线）。
 - **Scope：** 语言类标签（`ts`、`tsx`、`golang`）由 GitHub Linguist（go-enry）归一；非语言标签原样保留。

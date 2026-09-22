@@ -205,7 +205,7 @@ Run `imprint --help` or `imprint help <cmd>` for full flags.
 
 ## Writes & recall
 
-- **Compact recall:** MCP `find` returns claim/count metadata and bounded document snippets by default; `get r-…` folds evidence and source text. Use `include_evidence` or `full` only for audit. Dormant rules can contribute at most one penalized `wake_candidate`; only an explicit `reinforce` wakes one.
+- **Compact recall:** MCP `find` returns claim/count metadata and bounded document snippets by default. Document hits use `shelves.config.find_top_k` (default 2, one chunk per path), not rule `top_k`; snippets are a query-window of `snippet_runes` (default 80). `get r-…` folds evidence and source text. Use `include_evidence` or `full` only for audit. Dormant rules can contribute at most one penalized `wake_candidate`; only an explicit `reinforce` wakes one.
 - **Write safety:** `add`, `reinforce`, and `supersede` reject likely secrets and personal data. Source paths must remain inside the workspace and may not target credentials, `.env*`, `*.pem`, or `*.key`. `add` also rejects high-similarity active duplicates. `reinforce` requires non-empty evidence and uses diminishing confidence gain; find hits only update recall stats.
 - **Supersede confidence:** successor decays the gap above 0.6 by `supersede.inheritance_alpha` in `imprint.yaml` (default 0.20; 0 copies old, 1 drops to baseline).
 - **Scopes:** language tags (`ts`, `tsx`, `golang`) canonicalize via GitHub Linguist (go-enry); non-language tags pass through.

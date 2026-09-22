@@ -20,7 +20,10 @@ type Chunk struct {
 }
 
 // ChunkFiles splits markdown files under roots into chunks.
-func ChunkFiles(workspace string, roots []string) ([]Chunk, int, error) {
+func ChunkFiles(workspace string, roots []string, maxChunkLines int) ([]Chunk, int, error) {
+	if maxChunkLines <= 0 {
+		maxChunkLines = DefaultMaxChunkLines
+	}
 	var chunks []Chunk
 	fileCount := 0
 	for _, root := range roots {
@@ -47,7 +50,7 @@ func ChunkFiles(workspace string, roots []string) ([]Chunk, int, error) {
 			if err != nil {
 				return nil
 			}
-			chunks = append(chunks, chunkMarkdown(rel, string(data))...)
+			chunks = append(chunks, chunkMarkdown(rel, string(data), maxChunkLines)...)
 			return nil
 		})
 		if err != nil {
@@ -57,7 +60,10 @@ func ChunkFiles(workspace string, roots []string) ([]Chunk, int, error) {
 	return chunks, fileCount, nil
 }
 
-func chunkMarkdown(relPath, content string) []Chunk {
+func chunkMarkdown(relPath, content string, maxChunkLines int) []Chunk {
+	if maxChunkLines <= 0 {
+		maxChunkLines = DefaultMaxChunkLines
+	}
 	lines := strings.Split(content, "\n")
 	var chunks []Chunk
 	heading := filepath.Base(relPath)
@@ -92,7 +98,7 @@ func chunkMarkdown(relPath, content string) []Chunk {
 			continue
 		}
 		buf = append(buf, line)
-		if len(buf) >= 40 {
+		if len(buf) >= maxChunkLines {
 			flush(ln)
 			start = ln + 1
 		}

@@ -11,15 +11,18 @@ import (
 )
 
 // Rebuild scans workspace roots and writes a fresh index if fingerprint changed.
-func Rebuild(workspace string, roots []string, stateDir string) (*Store, bool, error) {
-	fp, err := Fingerprint(workspace, roots)
+func Rebuild(workspace string, roots []string, stateDir string, maxChunkLines int) (*Store, bool, error) {
+	if maxChunkLines <= 0 {
+		maxChunkLines = DefaultMaxChunkLines
+	}
+	fp, err := Fingerprint(workspace, roots, maxChunkLines)
 	if err != nil {
 		return nil, false, err
 	}
 	if old, err := LoadStore(stateDir); err == nil && old.Fingerprint == fp && len(old.Chunks) > 0 {
 		return old, false, nil
 	}
-	chunks, fileCount, err := ChunkFiles(workspace, roots)
+	chunks, fileCount, err := ChunkFiles(workspace, roots, maxChunkLines)
 	if err != nil {
 		return nil, false, err
 	}
@@ -37,8 +40,12 @@ func Rebuild(workspace string, roots []string, stateDir string) (*Store, bool, e
 }
 
 // Fingerprint hashes file paths with size and modtime under roots.
-func Fingerprint(workspace string, roots []string) (string, error) {
+func Fingerprint(workspace string, roots []string, maxChunkLines int) (string, error) {
+	if maxChunkLines <= 0 {
+		maxChunkLines = DefaultMaxChunkLines
+	}
 	h := sha256.New()
+	fmt.Fprintf(h, "max_chunk_lines:%d\n", maxChunkLines)
 	for _, root := range roots {
 		base := filepath.Join(workspace, root)
 		err := filepath.WalkDir(base, func(path string, d os.DirEntry, err error) error {

@@ -65,6 +65,40 @@ func TestEnrichFindDualQuery(t *testing.T) {
 	}
 }
 
+func TestEnrichFindDocTopKIgnoresRuleTopK(t *testing.T) {
+	dir := t.TempDir()
+	v, err := imprint.Open(imprint.OpenOptions{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	st := &index.Store{
+		Chunks: []index.Chunk{
+			{ID: "c1", Path: "docs/a.md", Heading: "A", Text: "alpha token in a"},
+			{ID: "c2", Path: "docs/b.md", Heading: "B", Text: "alpha token in b"},
+			{ID: "c3", Path: "docs/c.md", Heading: "C", Text: "alpha token in c"},
+		},
+	}
+	out, _, err := linking.EnrichFindDocs(v, st, []string{"docs"}, "alpha", "", 5, linking.FindDocs{TopK: 2, SnippetRunes: 80})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Documents) > 2 {
+		t.Fatalf("documents = %+v", out.Documents)
+	}
+	if len(out.Documents) >= 2 && out.Documents[0].Path == out.Documents[1].Path {
+		t.Fatalf("same path: %+v", out.Documents)
+	}
+	for _, d := range out.Documents {
+		n := 0
+		for range d.Snippet {
+			n++
+		}
+		if n > 82 {
+			t.Fatalf("snippet too long: %q", d.Snippet)
+		}
+	}
+}
+
 func TestCompactFindIncludesExplicitConflicts(t *testing.T) {
 	dir := t.TempDir()
 	v, err := imprint.Open(imprint.OpenOptions{Dir: dir})

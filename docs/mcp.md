@@ -76,7 +76,7 @@ flowchart LR
 | **Host** | Cursor, Claude Desktop, etc. spawns `imprint-mcp` and talks over stdin/stdout. |
 | **Tools** | One MCP tool per vault command (`find`, `add`, …). **MCP** enriches `find`/`get` when shelves is on; **CLI** `find`/`get` are vault-only. |
 | **Vault** | `.imprint/vault.db` (SQLite); `find` / `get` / `add` read and write claim, evidence, **sources**. |
-| **Shelves** | Reads `roots` from `imprint.yaml`; `find`+query adds BM25 **documents** and **links**; chunk `get` adds **referenced_rules**. |
+| **Shelves** | Reads `roots` from `imprint.yaml`; `find`+query adds BM25 **documents** (capped by `find_top_k`, query-window snippets) and **links**; chunk `get` adds **referenced_rules**. |
 | **Judgment** | ADD / REINFORCE / SUPERSEDE / IGNORE and whether to set **sources** stay on the agent. |
 
 Logging goes to **stderr** only so stdout stays clean for MCP framing.
@@ -109,7 +109,7 @@ Every tool returns **pretty-printed JSON** in the tool result text. On failure, 
 
 | Tool | CLI equivalent | Notes |
 | --- | --- | --- |
-| `find` | `imprint find` | Compact by default: rule claims/counts plus `{rules,documents,links,conflict_set}`. Optional `query`, `query_local`, `top_k`; `full:true` is audit-only. A query may return at most one penalized dormant `wake_candidate`; only explicit `reinforce` wakes it. |
+| `find` | `imprint find` | Compact by default: rule claims/counts plus `{rules,documents,links,conflict_set}`. Optional `query`, `query_local`, `top_k` (rules). Document hits use `shelves.config.find_top_k` (default 2) and query-window snippets (`snippet_runes`, default 80). `full:true` is audit-only. A query may return at most one penalized dormant `wake_candidate`; only explicit `reinforce` wakes it. |
 | `add` | `imprint add` | `claim`, `scope`, `text` required; optional `confidence`, `query_local`, `sources`. Rejects sensitive data, denied source paths, and high-similarity active duplicates. |
 | `reinforce` | `imprint reinforce` | `id` and required non-empty `evidence`; optional `query_local`. Find hits never raise confidence. |
 | `supersede` | `imprint supersede` | `old_id`, `claim`, `scope`; optional `reason`, `text`, `query_local` (omit to inherit), `sources` (omit to inherit). New-rule **confidence** decays the gap above 0.6 by `supersede.inheritance_alpha` in `imprint.yaml` (default 0.20). |

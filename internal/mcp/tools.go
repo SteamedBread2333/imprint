@@ -60,7 +60,7 @@ type findArgs struct {
 	Scope      string `json:"scope" jsonschema:"comma-separated scope tags (AND); prepare with query and query_local before the single find"`
 	Query      string `json:"query,omitempty" jsonschema:"BM25 for vault and shelves (policy/English terms); pass together with query_local when local terms differ"`
 	QueryLocal string `json:"query_local,omitempty" jsonschema:"LLM-distilled local-language search terms, not user verbatim; extra BM25 pass, merge by id max score"`
-	TopK       int    `json:"top_k,omitempty" jsonschema:"max hits (default 5)"`
+	TopK       int    `json:"top_k,omitempty" jsonschema:"max rule hits (default 5); documents use shelves.config.find_top_k"`
 	Full       bool   `json:"full,omitempty" jsonschema:"include source excerpts and query_local for audit; default false"`
 }
 
@@ -74,7 +74,10 @@ func (s *vaultTools) find(_ context.Context, _ *sdkmcp.CallToolRequest, args fin
 	queryLocal := args.QueryLocal
 
 	if s.shelves != nil && shelves.MatchFindQuery(s.shelves.Config(), query, queryLocal) {
-		enriched, _, err := linking.EnrichFind(s.v, s.shelves.IndexStore(), scope, query, queryLocal, topK)
+		cfg := s.shelves.Config()
+		enriched, _, err := linking.EnrichFindDocs(s.v, s.shelves.IndexStore(), scope, query, queryLocal, topK, linking.FindDocs{
+			TopK: cfg.FindTopK, SnippetRunes: cfg.SnippetRunes,
+		})
 		if err != nil {
 			return toolErr(err), nil, nil
 		}

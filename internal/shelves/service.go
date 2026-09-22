@@ -29,7 +29,7 @@ func New(cfg Config) (*Service, error) {
 				return nil, fmt.Errorf("shelves root %q is not allowed (%s)", root, finding.Kind)
 			}
 		}
-		st, _, err := index.Rebuild(cfg.Workspace, cfg.Roots, cfg.StateDir)
+		st, _, err := index.Rebuild(cfg.Workspace, cfg.Roots, cfg.StateDir, cfg.MaxChunkLines)
 		if err != nil {
 			return nil, err
 		}
@@ -72,9 +72,12 @@ func (s *Service) Search(query string, topK int) ([]index.SearchHit, error) {
 		return nil, nil
 	}
 	if topK <= 0 {
-		topK = 5
+		topK = s.cfg.FindTopK
 	}
-	return st.SearchStore(query, topK), nil
+	if topK <= 0 {
+		topK = index.DefaultFindTopK
+	}
+	return st.SearchStoreSized(query, topK, s.cfg.SnippetRunes), nil
 }
 
 // ChunkByID returns one chunk from cache (works when disabled).
@@ -115,7 +118,7 @@ func (s *Service) Rebuild() (*index.Store, error) {
 	if !s.cfg.Enabled {
 		return nil, ErrDisabled
 	}
-	st, _, err := index.Rebuild(s.cfg.Workspace, s.cfg.Roots, s.cfg.StateDir)
+	st, _, err := index.Rebuild(s.cfg.Workspace, s.cfg.Roots, s.cfg.StateDir, s.cfg.MaxChunkLines)
 	if err != nil {
 		return nil, err
 	}

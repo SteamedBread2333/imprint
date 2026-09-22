@@ -79,7 +79,7 @@ flowchart LR
 | **宿主**    | Cursor、Claude Desktop 等启动 `imprint-mcp`，经 stdin/stdout 通信。                    |
 | **工具**    | vault 命令对应 MCP 工具（`find`、`add` …）。**MCP** 在 shelves 开时 enrich `find`/`get`；**CLI** `find`/`get` 仅 vault。 |
 | **Vault** | `.imprint/vault.db`（SQLite）；`find`/`get`/`add` 读写 claim、evidence、**sources**。 |
-| **Shelves** | 读 `imprint.yaml` 的 `roots`；`find`+query 时 BM25 文档并返回 `documents`、`links`；`get chunk` 返回 `referenced_rules`。 |
+| **Shelves** | 读 `imprint.yaml` 的 `roots`；`find`+query 时 BM25 文档（`find_top_k` 截断、查询窗口 snippet）并返回 `documents`、`links`；`get chunk` 返回 `referenced_rules`。 |
 | **判断**    | 新增 / 强化 / 替换 / 忽略 与是否写 **sources** 均由智能体负责。 |
 
 
@@ -116,7 +116,7 @@ go install github.com/SteamedBread2333/imprint/cmd/imprint-mcp@latest
 
 | 工具          | 对应 CLI              | 说明                                                                                    |
 | ----------- | ------------------- | ------------------------------------------------------------------------------------- |
-| `find`      | `imprint find`      | 默认紧凑返回规则 claim/计数和 `{rules,documents,links,conflict_set}`；可选 `query`、`query_local`、`top_k`，仅审计时用 `full:true`。查询最多补一条降权 dormant `wake_candidate`；明确 `reinforce` 才唤醒。 |
+| `find`      | `imprint find`      | 默认紧凑返回规则 claim/计数和 `{rules,documents,links,conflict_set}`；可选 `query`、`query_local`、`top_k`（规则）。文档条数用 `shelves.config.find_top_k`（默认 2），snippet 为查询窗口（`snippet_runes` 默认 80）。仅审计时用 `full:true`。查询最多补一条降权 dormant `wake_candidate`；明确 `reinforce` 才唤醒。 |
 | `add`       | `imprint add`       | 必填 `claim`、`scope`、`text`；可选 `confidence`、`query_local`、`sources`。疑似敏感数据、禁用 source 路径和高相似 active 重复会被拒绝。 |
 | `reinforce` | `imprint reinforce` | `id` 与必填非空 `evidence`；可选 `query_local`。find 命中永不加分。 |
 | `supersede` | `imprint supersede` | `old_id`、`claim`、`scope`；可选 `reason`、`text`、`query_local`（省略则继承）、`sources`（省略则继承）。新规则 **confidence** 按 `imprint.yaml` 的 `supersede.inheritance_alpha` 对高出 0.6 的缺口衰减（默认 0.20）。 |

@@ -17,8 +17,9 @@ shelves:
   config:
     roots:
       - docs
-      - .cursor/rules   # agent/editor rules — add dirs agents should recall
-      # - .cursor/skills
+    # find_top_k: 2         # document hits; independent of find.top_k
+    # snippet_runes: 80     # query-window snippet cap
+    # max_chunk_lines: 12   # same-section flush; rebuild after change
 
 plugins:
   desk:
