@@ -126,13 +126,17 @@ sequenceDiagram
 imprint.yaml            # 进 git：host + shelves.roots + plugins + supersede.inheritance_alpha
 .imprint/               # gitignore：私有运行时
   vault.db              # SQLite vault（规则、证据、边、sources）
+  vault.db-wal          # WAL 日志；有进程打开 vault 时出现
+  vault.db-shm          # WAL 共享内存索引（同期出现）
   state/
-    shelves.db          # 可重建的文档索引
+    shelves.db          # 可重建的文档索引（同样走 WAL，也可能有 -wal/-shm）
     plugins/            # 插件派生状态
   export/               # 可选 md/json 投影
 docs/                   # 常见 shelves root
 .cursor/rules/          # 常见 shelves root
 ```
+
+Vault 和 shelves 都以 WAL 模式打开 SQLite，方便 CLI、MCP、host 跨进程读写。`*.db` 旁边的 `-wal` / `-shm` 是正常现象，都在 gitignore 的 `.imprint/` 里。不要提交；imprint 还在跑时也不要手删。
 
 规则存于 `vault.db`。ID：`r-YYYY-MM-DD-NNN`。状态：`active` | `dormant` | `superseded`。`supersede` 将旧规则标为 superseded；`sweep` 衰减至 dormant；`forget` 删除。交互式规则图：**`imprint desk open`**（host `GET /graph`）。
 

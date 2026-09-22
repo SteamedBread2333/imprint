@@ -126,13 +126,17 @@ Default vault directory: `./.imprint/` (walk up for `imprint.yaml` or `.imprint/
 imprint.yaml            # git: host + shelves.roots + plugins + supersede.inheritance_alpha
 .imprint/               # gitignore: private runtime
   vault.db              # SQLite vault (rules, evidence, edges, sources)
+  vault.db-wal          # WAL journal; created while a process has the vault open
+  vault.db-shm          # WAL shared-memory index (same lifetime)
   state/
-    shelves.db          # rebuildable doc index
+    shelves.db          # rebuildable doc index (also uses WAL; may show -wal/-shm)
     plugins/            # plugin derived state
   export/               # optional md/json projections
 docs/                   # typical shelves root
 .cursor/rules/          # typical shelves root
 ```
+
+Vault and shelves open SQLite in WAL mode so CLI, MCP, and host can read and write across processes. `-wal` / `-shm` next to a `*.db` are normal; they stay under `.imprint/` (gitignored). Do not commit them, and do not delete them while imprint is running.
 
 Rules live in `vault.db`. IDs: `r-YYYY-MM-DD-NNN`. Status: `active` | `dormant` | `superseded`. `supersede` marks old rules superseded; `sweep` decays stale rules to dormant; `forget` deletes. Interactive graph: **`imprint desk open`** (host `GET /graph`).
 
