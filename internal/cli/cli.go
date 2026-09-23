@@ -241,6 +241,8 @@ func (a *App) Run(args []string) int {
 		return a.cmdPlugin(g, rest)
 	case "desk":
 		return a.cmdDesk(g, rest)
+	case "embed":
+		return a.cmdEmbed(g, rest)
 	case "version":
 		fmt.Fprintln(a.out(), "imprint", imprint.Version)
 		return 0
@@ -290,6 +292,7 @@ Debug & advanced:
   host start | host stop | host serve   Split host control (prefer up/down)
   plugin list | enable | disable | start | stop   Split plugin control (prefer up/down)
   host serve  Foreground vault + shelves API (Ctrl+C)
+  embed backfill   Encode rules that pre-date embed enablement
   clear       Delete every rule (requires --confirm --yes)
   version     Print version
 
@@ -351,6 +354,8 @@ See docs/editors.md.
 		return pluginUsage
 	case "desk":
 		return "Usage: imprint desk open\n\nOpens the desk UI in your browser. Requires imprint up first.\n"
+	case "embed":
+		return embedUsage
 	default:
 		return rootHelp
 	}

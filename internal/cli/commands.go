@@ -153,6 +153,13 @@ func (a *App) cmdAdd(g globals, args []string) int {
 	c.Heading("add")
 	c.Done("added %s  ·  confidence %.2f", res.ID, res.Confidence)
 	c.KV("path", res.Path)
+	if len(res.Similar) > 0 {
+		items := make([]similarItem, len(res.Similar))
+		for i, s := range res.Similar {
+			items[i] = similarItem{ID: s.ID, Score: s.Score, Claim: s.Claim}
+		}
+		c.SimilarAdvisory(items)
+	}
 	c.blank()
 	return 0
 }
@@ -657,6 +664,70 @@ func (a *App) cmdClear(g globals, args []string) int {
 	c := a.console()
 	c.Heading("clear")
 	c.Done("vault cleared")
+	c.blank()
+	return 0
+}
+
+func (a *App) cmdEmbed(g globals, rest []string) int {
+	if len(rest) == 0 {
+		fmt.Fprint(a.out(), embedUsage)
+		return 2
+	}
+	sub := rest[0]
+	switch sub {
+	case "backfill":
+		return a.cmdEmbedBackfill(g, rest[1:])
+	default:
+		fmt.Fprintf(a.errw(), "imprint embed: unknown subcommand %q\n", sub)
+		fmt.Fprint(a.errw(), embedUsage)
+		return 2
+	}
+}
+
+const embedUsage = `Usage:
+  imprint embed backfill [--limit N] [--force] [--dry-run]
+
+Encodes every active+dormant rule whose claim has no vector for the embed
+plugin's model. Use after enabling embed, after importing a vault, or after a
+sidecar cold-restart that lost cache. --force re-encodes rules that already
+have a vector (e.g. after a model upgrade). --dry-run reports the scan
+without writing. The sidecar must be running; writes degrade silently if it
+is not (open vault and enable the embed plugin in imprint.yaml).
+`
+
+func (a *App) cmdEmbedBackfill(g globals, args []string) int {
+	fs := newFlags()
+	limit := fs.Int("limit", 0)
+	force := fs.Bool("force", false)
+	dryRun := fs.Bool("dry-run", false)
+	if _, err := fs.parse(args); err != nil {
+		if err == errHelp {
+			fmt.Fprint(a.out(), embedUsage)
+			return 0
+		}
+		return a.fail(g.json, err)
+	}
+	v, err := a.openVault(g)
+	if err != nil {
+		return a.fail(g.json, err)
+	}
+	defer v.Close()
+	res := v.BackfillEmbeddings(*limit, *force, *dryRun, 0)
+	if g.json {
+		return a.fail(false, a.writeJSON(res))
+	}
+	c := a.console()
+	c.Heading("embed backfill")
+	if *dryRun {
+		c.Done("dry run: %d rules would be encoded", res.Scanned)
+		c.blank()
+		return 0
+	}
+	c.Done("scanned %d  ·  encoded %d  ·  failed %d", res.Scanned, res.Encoded, res.Failed)
+	if len(res.FailedIDs) > 0 {
+		c.Action("some rules failed; check the sidecar and re-run", "imprint embed backfill --limit "+strconv.Itoa(*limit))
+		c.Note("failed ids: %s", strings.Join(res.FailedIDs, ", "))
+	}
 	c.blank()
 	return 0
 }

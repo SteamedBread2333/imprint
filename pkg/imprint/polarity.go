@@ -19,9 +19,16 @@ import (
 // Cosine measures topic relatedness, and antonyms are maximally topically
 // related. The guard is therefore the second signal: high cosine plus a
 // polarity asymmetry means "same topic, likely opposite policy", which must
-// not be hard-rejected — the LLM decides. It favours precision (only explicit
-// markers fire) because a missed polarity signal costs a false rejection,
-// which is worse than a missed duplicate.
+// not be hard-rejected — the LLM decides.
+//
+// Calibration principle: bias wide on the antonym table and rely on
+// advisory (not reject) for the consequences. A false positive only costs
+// the user one extra click to confirm "no, this is actually different" — a
+// missed polarity signal costs a hard rejection that wedges two opposite
+// policies into the user's vault. The current add/write vs skip/remove pair
+// is intentionally broad: in normal English those tokens rarely co-occur
+// outside rule-style sentences, but in imprint's corpus they always mean
+// opposite intent.
 //
 // Keep this in sync with imprint-embed-sidecar/polarity.py.
 
@@ -76,8 +83,13 @@ func hasNegation(text string) bool {
 }
 
 // hasAntonymPair reports whether the two claims sit on opposite sides of a
-// known antonym pair, or are the same words in swapped order (an inversion
-// that cosine scores as identical).
+// known antonym pair (tabs vs spaces, wrap vs bare, ...).
+//
+// Word-reordering with identical token sets ("Use pnpm workspaces always"
+// vs "Always use pnpm workspaces") is intentionally NOT treated as a
+// polarity conflict: the rules express the same intent and Jaccard's hard
+// reject is the correct behaviour. Treating such pairs as advisory would
+// silently let duplicates slip past the lexical gate.
 func hasAntonymPair(a, b string) bool {
 	ta, tb := polarityTokens(a), polarityTokens(b)
 	for _, pair := range antonymPairs {
@@ -86,18 +98,6 @@ func hasAntonymPair(a, b string) bool {
 			return true
 		}
 		if intersects(tb, left) && intersects(ta, right) {
-			return true
-		}
-	}
-	if len(ta) > 0 && len(ta) == len(tb) && !strings.EqualFold(a, b) {
-		same := true
-		for w := range ta {
-			if _, ok := tb[w]; !ok {
-				same = false
-				break
-			}
-		}
-		if same {
 			return true
 		}
 	}

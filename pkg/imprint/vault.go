@@ -25,6 +25,7 @@ type Vault struct {
 	embed        Embedder
 	embedTimeout time.Duration
 	embedThresh  float64
+	embedCrossScope string
 }
 
 // OpenOptions configures a vault. Construction is immutable after Open.
@@ -43,6 +44,12 @@ type OpenOptions struct {
 	EmbedDuplicateThreshold float64
 	// EmbedTimeout bounds each embedding call. <= 0 uses DefaultEmbedTimeoutSeconds.
 	EmbedTimeout time.Duration
+	// EmbedCrossScopePolicy is "advisory_only" (default) or "strict".
+	// advisory_only: the semantic gate scans every active+dormant rule and
+	//   surfaces cross-scope hits as advisory only (lower confidence).
+	// strict: the gate only considers rules whose scope overlaps the
+	//   candidate's scope; cross-scope hits are invisible.
+	EmbedCrossScopePolicy string
 }
 
 // TelemetryEvent contains content-free operational measurements.
@@ -90,19 +97,27 @@ func Open(opts OpenOptions) (*Vault, error) {
 	if timeout <= 0 {
 		timeout = DefaultEmbedTimeoutSeconds * time.Second
 	}
+	crossScope := opts.EmbedCrossScopePolicy
+	if crossScope == "" {
+		crossScope = EmbedCrossScopeAdvisoryOnly
+	}
+	if crossScope != EmbedCrossScopeAdvisoryOnly && crossScope != EmbedCrossScopeStrict {
+		crossScope = EmbedCrossScopeAdvisoryOnly
+	}
 	st, err := sqlite.Open(abs, opts.Now)
 	if err != nil {
 		return nil, err
 	}
 	return &Vault{
-		Dir:          abs,
-		store:        st,
-		now:          opts.Now,
-		telemetry:    opts.Telemetry,
-		inheritAlpha: alpha,
-		embed:        opts.Embed,
-		embedTimeout: timeout,
-		embedThresh:  thresh,
+		Dir:             abs,
+		store:           st,
+		now:             opts.Now,
+		telemetry:       opts.Telemetry,
+		inheritAlpha:    alpha,
+		embed:           opts.Embed,
+		embedTimeout:    timeout,
+		embedThresh:     thresh,
+		embedCrossScope: crossScope,
 	}, nil
 }
 
@@ -270,7 +285,7 @@ func (v *Vault) AddRecord(claim string, scope []string, text string, confidence 
 		v.emit(TelemetryEvent{Op: "write_rejected", Code: "privacy_rejected"}, trace)
 		return nil, err
 	}
-	duplicates, err := v.duplicateCandidates(claim, scope)
+	duplicates, advLexical, err := v.duplicateCandidates(claim, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -278,12 +293,19 @@ func (v *Vault) AddRecord(claim string, scope []string, text string, confidence 
 	// duplicate check and the vector store — two ONNX round-trips per write
 	// would double write latency for zero benefit. Blocking candidates reject
 	// the write; advisory ones only ride along in the result so the caller
-	// can arbitrate polarity conflicts.
+	// can arbitrate polarity conflicts. The candidate scope is passed so
+	// strict cross-scope mode can filter the rule pool correctly.
 	var advisory []DuplicateCandidate
 	qvec, vecOK := v.embedClaim(claim, trace)
-	duplicates, advisory, err = v.mergeEmbedDuplicatesVec(claim, qvec, vecOK, duplicates, trace)
+	duplicates, advisory, err = v.mergeEmbedDuplicatesScope(claim, qvec, vecOK, duplicates, scope, trace)
 	if err != nil {
 		return nil, err
+	}
+	// Lexical polarity-conflicting candidates are advisory too — Jaccard
+	// cannot see "always wrap" vs "never wrap" any more than cosine can.
+	// They merge into the advisory list rather than ride as a second bucket.
+	if len(advLexical) > 0 {
+		advisory = append(advisory, advLexical...)
 	}
 	if len(duplicates) > 0 {
 		v.emit(TelemetryEvent{Op: "write_rejected", Code: "duplicate"}, trace)
@@ -581,5 +603,103 @@ func (v *Vault) ImportRecords(recs []*Record) error {
 	for _, r := range recs {
 		r.Path = sqlite.DBPath(v.Dir)
 	}
-	return v.store.ImportRecords(recs)
+	if err := v.store.ImportRecords(recs); err != nil {
+		return err
+	}
+	// Import clears rule_vectors. Backfill runs after the wipe so a re-embed
+	// actually has rows to operate on. No embedder / sidecar down: silent pass.
+	v.BackfillEmbeddings(0, false, false, 0)
+	return nil
+}
+
+// BackfillResult is the audit shape for `imprint embed backfill`.
+type BackfillResult struct {
+	Scanned  int      `json:"scanned"`
+	Encoded  int      `json:"encoded"`
+	Skipped  int      `json:"skipped"`
+	Failed   int      `json:"failed"`
+	FailedIDs []string `json:"failed_ids,omitempty"`
+	DryRun   bool     `json:"dry_run,omitempty"`
+}
+
+// BackfillEmbeddings encodes every active+dormant rule that has no stored
+// vector for the configured model. limit caps the batch (0 = all). force
+// re-encodes rows that already have a vector (useful after a model upgrade).
+// dryRun reports the scan without writing.
+//
+// The embedder is mandatory — backfill is a no-op (Scanned=0) when nil. A
+// failing sidecar surfaces as Failed > 0 with the offending ids so the user
+// can re-run. Each rule uses a single Embed call; per-call latency is bounded
+// by embedTimeout so a stuck sidecar cannot block the batch forever.
+func (v *Vault) BackfillEmbeddings(limit int, force, dryRun bool, batchSize int) BackfillResult {
+	start := time.Now()
+	trace := newTraceID()
+	res := BackfillResult{}
+	if v.embed == nil {
+		v.emit(TelemetryEvent{Op: "backfill_skipped", Code: "no_embedder"}, trace)
+		return res
+	}
+	model := v.embed.Model()
+	if force {
+		// In force mode, every active+dormant rule is eligible regardless of
+		// existing vector state. We approximate by reading all rule ids.
+		recs, err := v.store.AllRecords(false)
+		if err != nil {
+			v.emit(TelemetryEvent{Op: "backfill_failed", Code: "scan_failed", LatencyMS: time.Since(start).Milliseconds()}, trace)
+			return res
+		}
+		for _, r := range recs {
+			if r.Status != StatusActive && r.Status != StatusDormant {
+				continue
+			}
+			res.Scanned++
+			if limit > 0 && res.Encoded+res.Failed+res.Skipped >= limit {
+				break
+			}
+			if dryRun {
+				continue
+			}
+			if vec, ok := v.embedClaim(r.Claim, trace); ok {
+				v.storeEmbeddingVec(r.ID, vec, trace)
+				res.Encoded++
+			} else {
+				res.Failed++
+				res.FailedIDs = append(res.FailedIDs, r.ID)
+			}
+		}
+	} else {
+		// Incremental: only rules without a row in rule_vectors for this model.
+		ids, err := v.store.RulesWithoutVectors(model, limit)
+		if err != nil {
+			v.emit(TelemetryEvent{Op: "backfill_failed", Code: "scan_failed", LatencyMS: time.Since(start).Milliseconds()}, trace)
+			return res
+		}
+		res.Scanned = len(ids)
+		if dryRun {
+			res.DryRun = true
+			v.emit(TelemetryEvent{Op: "backfill_completed", Code: "dry_run", LatencyMS: time.Since(start).Milliseconds()}, trace)
+			return res
+		}
+		for _, id := range ids {
+			rec, err := v.store.GetRecord(id)
+			if err != nil || rec == nil {
+				res.Failed++
+				res.FailedIDs = append(res.FailedIDs, id)
+				continue
+			}
+			if vec, ok := v.embedClaim(rec.Claim, trace); ok {
+				v.storeEmbeddingVec(rec.ID, vec, trace)
+				res.Encoded++
+			} else {
+				res.Failed++
+				res.FailedIDs = append(res.FailedIDs, id)
+			}
+		}
+	}
+	res.DryRun = dryRun
+	v.emit(TelemetryEvent{
+		Op: "backfill_completed", RuleHitCount: res.Encoded,
+		LatencyMS: time.Since(start).Milliseconds(),
+	}, trace)
+	return res
 }

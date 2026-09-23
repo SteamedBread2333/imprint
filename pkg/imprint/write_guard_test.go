@@ -59,3 +59,48 @@ func TestWritePrivacyGuards(t *testing.T) {
 		t.Fatal("unsafe source path was accepted")
 	}
 }
+
+// Two near-duplicate claims with reordered words ("Always use pnpm" vs
+// "Use pnpm always") must still be hard-rejected: they share every
+// token, so Jaccard is 1.0, and reordering is not a polarity signal.
+func TestJaccardReorderIsDuplicate(t *testing.T) {
+	v, err := Open(OpenOptions{Dir: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := v.Add("Always use pnpm workspaces", []string{"js", "packages"}, "team policy", 0.6); err != nil {
+		t.Fatal(err)
+	}
+	_, err = v.Add("Use pnpm workspaces always", []string{"js"}, "repeated policy", 0.6)
+	if err == nil {
+		t.Fatal("reordered duplicate was accepted")
+	}
+	var guarded *WriteGuardError
+	if !errors.As(err, &guarded) {
+		t.Fatalf("error = %v, want WriteGuardError", err)
+	}
+	if guarded.Code != "duplicate" {
+		t.Fatalf("code = %q", guarded.Code)
+	}
+}
+
+// Longer claims where the antonym pair lands in the high-Jaccard band
+// must downgrade to advisory. Short "Always X / Never X" pairs fall
+// under the Jaccard threshold — the embed semantic layer catches those
+// (see TestEmbedAdvisoryOnPolarityConflict).
+func TestJaccardPolarityConflictLongClaim(t *testing.T) {
+	v, err := Open(OpenOptions{Dir: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := v.Add("Prefer tabs over spaces for Go code", []string{"go"}, "tabs", 0.6); err != nil {
+		t.Fatal(err)
+	}
+	res, err := v.Add("Prefer spaces over tabs for Go code", []string{"go"}, "spaces", 0.6)
+	if err != nil {
+		t.Fatalf("antonym pair was hard-rejected: %v", err)
+	}
+	if len(res.Similar) == 0 {
+		t.Fatal("antonym pair must surface as advisory similar")
+	}
+}

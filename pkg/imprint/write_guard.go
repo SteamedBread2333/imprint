@@ -46,16 +46,23 @@ func (v *Vault) checkSourcePaths(sources []DocRef) error {
 	return nil
 }
 
-func (v *Vault) duplicateCandidates(claim string, scope []string) ([]DuplicateCandidate, error) {
+// duplicateCandidates runs the lexical (Jaccard) duplicate gate and splits
+// matches into blocking and advisory lists, mirroring the semantic gate in
+// mergeEmbedDuplicatesVec. A high-Jaccard hit only blocks when its claim is
+// not polarity-conflicting — otherwise it is demoted to advisory, because
+// Jaccard (like cosine) cannot see "always wrap" vs "never wrap".
+//
+// scopeOverlap is required so a Chinese/English claim pair in different
+// projects does not bleed into a third project's hard-reject path.
+func (v *Vault) duplicateCandidates(claim string, scope []string) (blocking []DuplicateCandidate, advisory []DuplicateCandidate, err error) {
 	want := tokenSet(textseg.Tokenize(claim))
 	if len(want) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 	records, err := v.store.ActiveCandidates(nil, 0)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	var out []DuplicateCandidate
 	for _, rec := range records {
 		if !scopesOverlap(scope, rec.Scope) {
 			continue
@@ -72,20 +79,35 @@ func (v *Vault) duplicateCandidates(claim string, scope []string) ([]DuplicateCa
 			}
 			score = jaccard(want, got)
 		}
-		if score >= duplicateClaimThreshold {
-			out = append(out, DuplicateCandidate{ID: rec.ID, Score: score, Claim: rec.Claim})
+		if score < duplicateClaimThreshold {
+			continue
 		}
+		cand := DuplicateCandidate{ID: rec.ID, Score: score, Claim: rec.Claim}
+		if PolarityConflict(claim, rec.Claim) {
+			advisory = append(advisory, cand)
+			continue
+		}
+		blocking = append(blocking, cand)
 	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].Score == out[j].Score {
-			return out[i].ID < out[j].ID
+	sort.Slice(blocking, func(i, j int) bool {
+		if blocking[i].Score == blocking[j].Score {
+			return blocking[i].ID < blocking[j].ID
 		}
-		return out[i].Score > out[j].Score
+		return blocking[i].Score > blocking[j].Score
 	})
-	if len(out) > 3 {
-		out = out[:3]
+	sort.Slice(advisory, func(i, j int) bool {
+		if advisory[i].Score == advisory[j].Score {
+			return advisory[i].ID < advisory[j].ID
+		}
+		return advisory[i].Score > advisory[j].Score
+	})
+	if len(blocking) > 3 {
+		blocking = blocking[:3]
 	}
-	return out, nil
+	if len(advisory) > 3 {
+		advisory = advisory[:3]
+	}
+	return blocking, advisory, nil
 }
 
 // MergeEmbedDuplicates adds semantic near-neighbours to the lexical duplicate
@@ -117,7 +139,25 @@ func (v *Vault) MergeEmbedDuplicatesVec(claim string, query []float32, ok bool, 
 // The comparison is O(N) over every active+dormant rule vector — fine for a
 // personal or project vault (thousands of rules), but document the ceiling:
 // beyond that, move this to an ANN index (e.g. sqlite-vec) instead of a scan.
+//
+// In strict cross-scope mode the candidate pool is restricted to rules
+// whose scope overlaps candidateScope, so a foreign-language rule in
+// another project can never surface as a paraphrase here. The default
+// advisory_only mode keeps the cross-project recall signal but downgrades
+// cross-scope hits to advisory (no hard reject).
+//
+// candidateScope is the scope of the proposed (not-yet-stored) claim. When
+// nil, strict mode falls back to a global pool — that is the safe behaviour
+// at non-write entry points (link, mcp_add) where the caller did not pass
+// scope. AddRecord always passes the real scope.
 func (v *Vault) mergeEmbedDuplicatesVec(claim string, query []float32, ok bool, lexical []DuplicateCandidate, trace string) ([]DuplicateCandidate, []DuplicateCandidate, error) {
+	return v.mergeEmbedDuplicatesScope(claim, query, ok, lexical, nil, trace)
+}
+
+// mergeEmbedDuplicatesScope is mergeEmbedDuplicatesVec with an explicit
+// candidate scope. Callers that know the proposed scope (the AddRecord
+// path) pass it here; cross-scope policy applies it directly.
+func (v *Vault) mergeEmbedDuplicatesScope(claim string, query []float32, ok bool, lexical []DuplicateCandidate, candidateScope []string, trace string) ([]DuplicateCandidate, []DuplicateCandidate, error) {
 	if v.embed == nil || !ok {
 		return lexical, nil, nil
 	}
@@ -130,14 +170,19 @@ func (v *Vault) mergeEmbedDuplicatesVec(claim string, query []float32, ok bool, 
 	if len(vectors) == 0 {
 		return lexical, nil, nil
 	}
-	// Claims are needed to render candidates; the pool is active + dormant
-	// rules (a dormant rule is still the same policy, just low-confidence).
-	records, err := v.store.ActiveCandidates(nil, 0)
+	// Strict mode: scope the pool to rules overlapping candidateScope.
+	// If candidateScope is unknown (callers without scope context), strict
+	// mode degrades to advisory_only rather than risk blocking the write.
+	scopeForPool := []string(nil) // nil = no scope filter on the pool
+	if v.embedCrossScope == EmbedCrossScopeStrict && len(candidateScope) > 0 {
+		scopeForPool = candidateScope
+	}
+	records, err := v.store.ActiveCandidates(scopeForPool, 0)
 	if err != nil {
 		v.emit(TelemetryEvent{Op: "embed_unavailable", Code: "vector_read_failed", LatencyMS: time.Since(start).Milliseconds()}, trace)
 		return lexical, nil, nil
 	}
-	if dormant, err := v.store.DormantCandidates(nil); err == nil {
+	if dormant, err := v.store.DormantCandidates(scopeForPool); err == nil {
 		records = append(records, dormant...)
 	}
 
@@ -160,6 +205,14 @@ func (v *Vault) mergeEmbedDuplicatesVec(claim string, query []float32, ok bool, 
 			continue
 		}
 		cand := DuplicateCandidate{ID: rec.ID, Score: score, Claim: rec.Claim}
+		// In advisory_only mode, cross-scope hits (when candidateScope is
+		// known) are downgraded to advisory so the cross-project recall
+		// signal stays visible without risking a hard block.
+		if v.embedCrossScope == EmbedCrossScopeAdvisoryOnly &&
+			len(candidateScope) > 0 && !scopesOverlap(candidateScope, rec.Scope) {
+			advisory = append(advisory, cand)
+			continue
+		}
 		if PolarityConflict(claim, rec.Claim) {
 			// Same topic, likely opposite policy: surface it, do not reject.
 			advisory = append(advisory, cand)

@@ -305,3 +305,24 @@ func TestCLIReportJSON(t *testing.T) {
 		t.Fatalf("report = %s", out)
 	}
 }
+
+// `imprint add` in human mode must surface the similar advisory list when
+// the embed sidecar reports polarity-conflicting paraphrases. Without this
+// the user has to pass --json to discover the link — see Issue 4.
+//
+// Without an embedder (the testApp default) lexical Jaccard does not surface
+// short claims as advisory, so we assert the human output's clean shape
+// here. The embed-enabled path is covered by TestSimilarAdvisoryRendersIdScoreAndHint.
+func TestCLIAddHumanOutputCleanShapeWithoutEmbed(t *testing.T) {
+	dir := t.TempDir()
+	app, out, _ := testApp(t, dir)
+	if code := app.Run([]string{"--vault", dir, "add", "Always wrap errors with %w", "--scope", "go", "--text", "wrap"}); code != 0 {
+		t.Fatalf("first add exit %d", code)
+	}
+	if !strings.Contains(out.String(), "added") {
+		t.Fatalf("expected 'added' in human output, got:\n%s", out.String())
+	}
+	if strings.Contains(out.String(), "similar") {
+		t.Fatalf("no embedder → no advisory expected, got:\n%s", out.String())
+	}
+}

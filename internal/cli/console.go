@@ -23,6 +23,15 @@ type console struct {
 	tty bool
 }
 
+// similarItem is the human-rendering shape for one advisory rule. Pulled
+// out of imprint.DuplicateCandidate so the console layer owns its display
+// contract and the pkg/imprint JSON shape stays unchanged.
+type similarItem struct {
+	ID    string
+	Score float64
+	Claim string
+}
+
 func (a *App) console() *console {
 	w := a.out()
 	return newConsole(w)
@@ -150,6 +159,26 @@ func (c *console) RuleBrief(id string, conf float64, status, scope, claim string
 	}
 	fmt.Fprintf(c.w, "      %s\n", meta)
 	c.ruleClaim(claim)
+}
+
+// SimilarAdvisory renders the semantic-advisory list returned by add. It
+// surfaces only when there is at least one similar rule so a clean write
+// stays quiet.
+func (c *console) SimilarAdvisory(similar []similarItem) {
+	if len(similar) == 0 {
+		return
+	}
+	c.blank()
+	warn := c.color("⚠", "33")
+	fmt.Fprintf(c.w, "  %s  similar (cosine or jaccard) — review before keeping:\n", warn)
+	for _, s := range similar {
+		score := fmt.Sprintf("%.2f", s.Score)
+		fmt.Fprintf(c.w, "      %s  ·  score %s\n", s.ID, score)
+		c.ruleClaim(s.Claim)
+	}
+	c.blank()
+	hint := c.color("→", "2")
+	fmt.Fprintf(c.w, "  %s  decide with: imprint reinforce ID --evidence ...  |  supersede OLD_ID --claim ...\n", hint)
 }
 
 func (c *console) ruleClaim(claim string) {

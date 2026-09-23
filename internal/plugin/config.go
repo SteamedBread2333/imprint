@@ -285,6 +285,7 @@ func (c *Config) ApplyToOpenOptions(opts *imprint.OpenOptions) {
 	if cfg.DuplicateThreshold > 0 {
 		opts.EmbedDuplicateThreshold = cfg.DuplicateThreshold
 	}
+	opts.EmbedCrossScopePolicy = cfg.CrossScopePolicy
 }
 
 // EmbedConfig is the parsed plugins.embed.config section.
@@ -293,7 +294,21 @@ type EmbedConfig struct {
 	Model              string
 	TimeoutSeconds     int
 	DuplicateThreshold float64
+	// CrossScopePolicy controls whether the semantic duplicate gate runs
+	// across all rules (advisory_only, default) or only across rules whose
+	// scope overlaps the candidate (strict). advisory_only keeps the
+	// cross-project recall signal — a Chinese rule in one project can still
+	// surface as a paraphrase of an English rule in another — at the cost
+	// of occasionally surfacing a foreign-scope advisory. strict trades that
+	// recall for zero cross-scope noise.
+	CrossScopePolicy string
 }
+
+// EmbedCrossScopePolicy values. Empty / unknown = default.
+const (
+	EmbedCrossScopeAdvisoryOnly = "advisory_only"
+	EmbedCrossScopeStrict       = "strict"
+)
 
 // EmbedConfigFrom reads typed values from a plugin entry with defaults.
 func EmbedConfigFrom(entry PluginEntry) EmbedConfig {
@@ -302,6 +317,7 @@ func EmbedConfigFrom(entry PluginEntry) EmbedConfig {
 		Model:              imprint.EmbedModel,
 		TimeoutSeconds:     imprint.DefaultEmbedTimeoutSeconds,
 		DuplicateThreshold: imprint.DefaultEmbedDuplicateThreshold,
+		CrossScopePolicy:   EmbedCrossScopeAdvisoryOnly,
 	}
 	if entry.Config == nil {
 		return cfg
@@ -321,6 +337,12 @@ func EmbedConfigFrom(entry PluginEntry) EmbedConfig {
 	}
 	if v, ok := entry.Config["duplicate_threshold"].(float64); ok && v > 0 && v < 1 {
 		cfg.DuplicateThreshold = v
+	}
+	if v, ok := entry.Config["cross_scope_policy"].(string); ok {
+		v = strings.TrimSpace(v)
+		if v == EmbedCrossScopeAdvisoryOnly || v == EmbedCrossScopeStrict {
+			cfg.CrossScopePolicy = v
+		}
 	}
 	return cfg
 }

@@ -356,3 +356,199 @@ func TestPolarityConflictDetection(t *testing.T) {
 		}
 	}
 }
+
+// Backfill: rules that pre-date embed enablement (no vector row) must get
+// encoded on demand. Dry-run reports without writing. Force re-encodes
+// rules that already have a vector.
+func TestBackfillEmbedsMissingRules(t *testing.T) {
+	stub := newStub(64)
+	v := embedVault(t, stub, 0.70)
+
+	for _, claim := range []string{"Use tabs for indentation", "Always wrap errors", "Avoid global state"} {
+		if _, err := v.Add(claim, []string{"go"}, "doc", 0.7); err != nil {
+			t.Fatal(err)
+		}
+	}
+	waitVectors(t, v, stub.Model(), 3)
+
+	// Wipe vectors to simulate a pre-embed vault.
+	recs, err := v.loadAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids := make([]string, len(recs))
+	for i, r := range recs {
+		ids[i] = r.ID
+	}
+	if err := v.store.DeleteRuleVectors(ids); err != nil {
+		t.Fatal(err)
+	}
+
+	// Dry-run reports the count without writing.
+	res := v.BackfillEmbeddings(0, false, true, 0)
+	if !res.DryRun {
+		t.Fatalf("dry-run flag missing: %+v", res)
+	}
+	if res.Scanned != 3 {
+		t.Fatalf("dry-run should report 3 missing, got %d", res.Scanned)
+	}
+	if n, _ := v.store.VectorCount(stub.Model()); n != 0 {
+		t.Fatalf("dry-run wrote vectors: count=%d", n)
+	}
+
+	// Real run actually writes.
+	res = v.BackfillEmbeddings(0, false, false, 0)
+	if res.Encoded != 3 {
+		t.Fatalf("encoded = %d, want 3", res.Encoded)
+	}
+	waitVectors(t, v, stub.Model(), 3)
+
+	// Idempotent: a second pass with force=false encodes nothing new.
+	res = v.BackfillEmbeddings(0, false, false, 0)
+	if res.Scanned != 0 {
+		t.Fatalf("idempotent re-run scanned: %d, want 0", res.Scanned)
+	}
+}
+
+// Force mode re-encodes everything — the path taken after a model upgrade.
+func TestBackfillForceReencodes(t *testing.T) {
+	stub := newStub(64)
+	v := embedVault(t, stub, 0.70)
+	for _, claim := range []string{"Use tabs for indentation", "Always wrap errors"} {
+		if _, err := v.Add(claim, []string{"go"}, "doc", 0.7); err != nil {
+			t.Fatal(err)
+		}
+	}
+	waitVectors(t, v, stub.Model(), 2)
+	called := stub.called
+
+	res := v.BackfillEmbeddings(0, true, false, 0)
+	if res.Scanned != 2 || res.Encoded != 2 {
+		t.Fatalf("force backfill = %+v, want Scanned=2 Encoded=2", res)
+	}
+	if stub.called <= called {
+		t.Fatalf("force did not re-embed: calls=%d", stub.called)
+	}
+}
+
+// Backfill with no embedder installed is a silent no-op (Scanned=0). The
+// user gets no rows encoded and no error.
+func TestBackfillWithoutEmbedder(t *testing.T) {
+	v, err := Open(OpenOptions{Dir: t.TempDir(), Now: func() time.Time { return day(0) }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = v.Close() })
+	if _, err := v.Add("Use tabs for indentation", []string{"go"}, "doc", 0.7); err != nil {
+		t.Fatal(err)
+	}
+	res := v.BackfillEmbeddings(0, false, false, 0)
+	if res.Scanned != 0 || res.Encoded != 0 || res.Failed != 0 || len(res.FailedIDs) != 0 {
+		t.Fatalf("backfill without embedder should be zero result, got %+v", res)
+	}
+}
+
+// Limit caps how many rules a backfill pass encodes.
+func TestBackfillLimit(t *testing.T) {
+	stub := newStub(64)
+	v := embedVault(t, stub, 0.70)
+	for _, claim := range []string{"Use tabs for indentation", "Always wrap errors", "Avoid global state"} {
+		if _, err := v.Add(claim, []string{"go"}, "doc", 0.7); err != nil {
+			t.Fatal(err)
+		}
+	}
+	waitVectors(t, v, stub.Model(), 3)
+	// Wipe all vectors.
+	recs, _ := v.loadAll()
+	ids := make([]string, len(recs))
+	for i, r := range recs {
+		ids[i] = r.ID
+	}
+	if err := v.store.DeleteRuleVectors(ids); err != nil {
+		t.Fatal(err)
+	}
+
+	res := v.BackfillEmbeddings(2, false, false, 0)
+	if res.Encoded != 2 {
+		t.Fatalf("encoded = %d, want 2", res.Encoded)
+	}
+	if res.Scanned != 2 {
+		t.Fatalf("scanned = %d, want 2 (limit caps the work)", res.Scanned)
+	}
+}
+
+// Import wipes rule_vectors and must re-encode the imported rules. Without
+// this, every imported vault has a silent blank semantic layer until the
+// user notices — see Issue 6.
+func TestImportRecordsTriggersBackfill(t *testing.T) {
+	stub := newStub(64)
+	v := embedVault(t, stub, 0.70)
+	recs := []*Record{
+		{
+			ID:          "r-2026-09-23-001",
+			Scope:       []string{"go"},
+			Claim:       "Use tabs for indentation",
+			Confidence:  0.7,
+			Status:      StatusActive,
+			CreatedAt:   day(0),
+			UpdatedAt:   day(0),
+			EvidenceLog: []Evidence{{At: day(0), Kind: EvidenceOriginal, Text: "tabs"}},
+		},
+		{
+			ID:          "r-2026-09-23-002",
+			Scope:       []string{"go"},
+			Claim:       "Always wrap errors",
+			Confidence:  0.7,
+			Status:      StatusActive,
+			CreatedAt:   day(0),
+			UpdatedAt:   day(0),
+			EvidenceLog: []Evidence{{At: day(0), Kind: EvidenceOriginal, Text: "wrap"}},
+		},
+	}
+	if err := v.ImportRecords(recs); err != nil {
+		t.Fatal(err)
+	}
+	waitVectors(t, v, stub.Model(), 2)
+}
+
+// cross_scope_policy=strict: a high-cosine hit in a different scope must
+// not surface at all (filtered out of the candidate pool). The default
+// advisory_only keeps the cross-project recall signal.
+func TestEmbedCrossScopeStrictFilters(t *testing.T) {
+	stub := newStub(64)
+	stub.makeSimilar("Use tabs for indentation", "Use spaces for indentation", 0.95)
+	v := embedVault(t, stub, 0.70)
+	v.embedCrossScope = EmbedCrossScopeStrict
+
+	if _, err := v.Add("Use tabs for indentation", []string{"go", "style"}, "tabs", 0.7); err != nil {
+		t.Fatal(err)
+	}
+	// Different scope — strict mode must not surface as advisory or blocker.
+	res, err := v.Add("Use spaces for indentation", []string{"python", "style"}, "spaces", 0.7)
+	if err != nil {
+		t.Fatalf("strict mode rejected: %v", err)
+	}
+	if len(res.Similar) > 0 {
+		t.Fatalf("strict mode surfaced cross-scope advisory: %+v", res.Similar)
+	}
+}
+
+// Default (advisory_only) policy keeps the cross-project recall signal:
+// foreign-scope paraphrase surfaces as advisory, never blocks.
+func TestEmbedCrossScopeAdvisoryOnlyKeepsRecall(t *testing.T) {
+	stub := newStub(64)
+	stub.makeSimilar("Use tabs for indentation", "Use spaces for indentation", 0.95)
+	v := embedVault(t, stub, 0.70)
+	// v.embedCrossScope stays at default (advisory_only).
+
+	if _, err := v.Add("Use tabs for indentation", []string{"go", "style"}, "tabs", 0.7); err != nil {
+		t.Fatal(err)
+	}
+	res, err := v.Add("Use spaces for indentation", []string{"python", "style"}, "spaces", 0.7)
+	if err != nil {
+		t.Fatalf("advisory_only rejected: %v", err)
+	}
+	if len(res.Similar) == 0 {
+		t.Fatal("advisory_only should surface cross-scope paraphrase as advisory")
+	}
+}

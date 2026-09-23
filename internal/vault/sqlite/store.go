@@ -1415,3 +1415,34 @@ func (s *Store) VectorCount(model string) (int, error) {
 	err := s.db.QueryRow(`SELECT COUNT(*) FROM rule_vectors WHERE model = ?`, model).Scan(&n)
 	return n, err
 }
+
+// RulesWithoutVectors returns active+dormant rule ids whose claims are not
+// yet encoded for the given model. Used by the backfill command to catch up
+// after enabling the embed sidecar or importing a vault. limit ≤ 0 means
+// return every missing rule.
+func (s *Store) RulesWithoutVectors(model string, limit int) ([]string, error) {
+	q := `
+SELECT r.id FROM rules r
+LEFT JOIN rule_vectors v ON v.rule_id = r.id AND v.model = ?
+WHERE r.status IN ('active','dormant') AND v.rule_id IS NULL
+ORDER BY r.id`
+	args := []any{model}
+	if limit > 0 {
+		q += ` LIMIT ?`
+		args = append(args, limit)
+	}
+	rows, err := s.db.Query(q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
+}

@@ -10,6 +10,14 @@ const EmbedModel = "BAAI/bge-small-zh-v1.5"
 // DefaultEmbedPort is the imprint-embed plugin port.
 const DefaultEmbedPort = 4174
 
+// EmbedCrossScope policies control whether the semantic duplicate gate runs
+// across all rules (advisory_only) or only across rules whose scope
+// overlaps the candidate (strict).
+const (
+	EmbedCrossScopeAdvisoryOnly = "advisory_only"
+	EmbedCrossScopeStrict       = "strict"
+)
+
 // DefaultEmbedDuplicateThreshold is the semantic duplicate cosine threshold,
 // calibrated by imprint-embed-sidecar/calibrate.py on 20 pairs per group with
 // bge-small-zh-v1.5:

@@ -146,7 +146,7 @@ Rules live in `vault.db`. IDs: `r-YYYY-MM-DD-NNN`. Status: `active` | `dormant` 
 | **Desk** | External plugin | `plugins.desk` + [imprint-desk-plugin](https://github.com/SteamedBread2333/imprint-desk-plugin) |
 | **Embed** | External sidecar (plugin protocol) | `plugins.embed` + [imprint-embed-sidecar](https://github.com/SteamedBread2333/imprint-embed-sidecar) |
 
-Embed adds a semantic duplicate gate to `add`: the lexical Jaccard check only catches near-identical wording, so paraphrases slip through. Off by default; when the sidecar is absent or slow, writes degrade back to the lexical path.
+Embed adds a semantic duplicate gate to `add`: the lexical Jaccard check only catches near-identical wording, so paraphrases slip through. Off by default; when the sidecar is absent or slow, writes degrade back to the lexical path. See [docs/semantic-dedup.md](docs/semantic-dedup.md) for the full pipeline, calibration data, and tuning.
 
 Shelves indexes markdown under `roots` (e.g. `docs/`, `.cursor/rules/`). One MCP mount (`imprint-mcp`); with shelves on, `find` + query returns `rules`, `documents`, and `links`. See [docs/shelves-builtin.md](docs/shelves-builtin.md).
 

@@ -46,3 +46,31 @@ func TestStatusHintsSkipsWhenShelvesEmpty(t *testing.T) {
 		t.Fatalf("expected no duplicate hint, got %q", why)
 	}
 }
+
+// SimilarAdvisory stays quiet when the list is empty — a clean write must
+// not print a stub header.
+func TestSimilarAdvisoryEmptyProducesNoOutput(t *testing.T) {
+	var buf bytes.Buffer
+	c := newConsole(&buf)
+	c.SimilarAdvisory(nil)
+	if buf.Len() != 0 {
+		t.Fatalf("expected empty output, got %q", buf.String())
+	}
+}
+
+// SimilarAdvisory renders each advisory rule with id, score, and claim,
+// plus a follow-up hint pointing at reinforce / supersede.
+func TestSimilarAdvisoryRendersIdScoreAndHint(t *testing.T) {
+	var buf bytes.Buffer
+	c := newConsole(&buf)
+	c.SimilarAdvisory([]similarItem{
+		{ID: "R-001", Score: 0.94, Claim: "Use tabs for indentation"},
+		{ID: "R-002", Score: 0.81, Claim: "Prefer tabs over spaces"},
+	})
+	out := buf.String()
+	for _, want := range []string{"R-001", "0.94", "Use tabs for indentation", "R-002", "0.81", "reinforce", "supersede"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("expected %q in output:\n%s", want, out)
+		}
+	}
+}

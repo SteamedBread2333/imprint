@@ -436,9 +436,11 @@ func (v *Vault) findRanked(scope []string, query string, topK int, traceID ...st
 	}
 	corpus := append(append([]*Record(nil), active...), dormant...)
 	idx := buildIndex(corpus)
-	// Semantic recall layer: one embedding call per find, bounded by
-	// embedTimeout. Any failure degrades to pure lexical ranking — find must
-	// never fail because the sidecar is down.
+	// Semantic recall layer: one embedding call per findRanked invocation.
+	// FindMerged runs findRanked twice (once for the query, once for the
+	// effective query_local), so it costs up to two embed calls; the per-call
+	// timeout still bounds the worst case. Any failure degrades to pure
+	// lexical ranking — find must never fail because the sidecar is down.
 	var semVec []float32
 	var vectors map[string][]float32
 	if v.embed != nil && strings.TrimSpace(query) != "" {

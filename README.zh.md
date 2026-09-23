@@ -146,6 +146,8 @@ Vault 和 shelves 都以 WAL 模式打开 SQLite，方便 CLI、MCP、host 跨�
 | **Desk** | 外部插件 | `plugins.desk` · [imprint-desk-plugin](https://github.com/SteamedBread2333/imprint-desk-plugin) |
 | **Embed** | 外部 sidecar（插件协议） | `plugins.embed` · [imprint-embed-sidecar](https://github.com/SteamedBread2333/imprint-embed-sidecar) |
 
+Embed 给 `add` 加语义查重门禁——词面 Jaccard 只抓得到近同词面，改述会漏；默认关，sidecar 缺席/慢时降级回词面路径。完整链路、标定数据、调优见 [docs/semantic-dedup.zh.md](docs/semantic-dedup.zh.md)。
+
 Shelves 在 `roots` 下建文档索引（如 `docs/`、`.cursor/rules/`）。挂载一次 MCP（`imprint-mcp`）；shelves 开且 `find` 带 query 时，响应含 `rules`、`documents`、`links`。见 [docs/shelves-builtin.zh.md](docs/shelves-builtin.zh.md)。
 
 ## CLI
