@@ -69,16 +69,24 @@ Vectors are produced by the sidecar and stored in `rule_vectors`.
 
 ## Lifecycle
 
-| Phase      | What happens                                                              |
-| ---------- | ------------------------------------------------------------------------- |
-| `up`       | `imprint up` starts the sidecar via `./run.sh`; polls `GET /health`       |
-| steady     | Go client reuses HTTP keep-alive; sidecar caches the ONNX session in RAM  |
-| `down`     | `imprint down` terminates the sidecar; 4174 (or configured port) goes dark |
-| cold start | First `POST /embed` triggers model download (~130MB) into `~/.cache/`    |
+Embed is a **singleton daemon**. `imprint up` / `down` never start or stop it.
+MCP (or `imprint plugin start embed`) owns the process; stop it with
+`imprint plugin stop embed`.
 
-The sidecar is **not** a daemon — it lives only while `imprint up` keeps it
-alive. There is no crash recovery or auto-restart; the write path degrades
-back to Jaccard if the sidecar dies mid-session.
+| Phase | What happens |
+| --- | --- |
+| `imprint-mcp` | If `plugins.embed` is enabled: `GET /health` on the configured port. Unhealthy → fork once at MCP start. Healthy → reuse, no second process. Closing the editor does **not** stop the sidecar (no parent watch); the next MCP start reuses it if still healthy. |
+| `plugin start embed` | Always **stop then fork** (kills whoever holds the port). The new process stays up after the CLI exits. |
+| `plugin stop embed` | Frees the configured embed LISTEN port. |
+| CLI `add` / `find` | HTTP client only. Never forks. Connection refused → Jaccard. |
+| `up` | Starts host / shelves / desk. Does **not** start or stop embed. Probes the port and reports running or a start hint. |
+| `down` | Stops host / desk. Leaves embed running. Hint: `imprint plugin stop embed`. |
+| steady | Go client reuses HTTP keep-alive; sidecar caches the ONNX session in RAM |
+| cold start | First `POST /embed` may download the model (~130MB) into `~/.cache/` |
+
+There is no crash recovery. MCP probes once at process start and does not
+restart a sidecar killed later. The write path degrades to Jaccard if the
+sidecar dies mid-session.
 
 ## Write-time gate
 
@@ -283,11 +291,14 @@ naming explicitly because it bounds what users can do with embed.
 **Operational rules:**
 
 - One `imprint-embed-sidecar` process per machine, no matter how many
-  vaults or projects live under the user's home.
-- `imprint plugin start embed` and the auto-relaunch done by
-  `imprint-mcp` are mutual exclusion points: whoever binds port 4174
-  first wins; the loser sees the port in use and reuses it instead of
-  spawning a duplicate.
+  vaults or projects live under the user's home. Only one listener can
+  bind 4174 (or `plugins.embed.config.port`).
+- `imprint-mcp` **reuses** a healthy listener: the startup health probe
+  returns and it does not fork.
+- `imprint plugin start embed` does **not** reuse: it stops whatever
+  holds that port, then forks a new process.
+- `imprint up` and `imprint down` do **not** touch embed. Start or stop
+  it only with `imprint plugin start embed` / `imprint plugin stop embed`.
 - If you ever need multi-model support (bge-small + OpenAI text-embedding-3
   + Cohere, say), the sidecar must be re-architected as a **router**
   that spawns or proxies per-model child processes. That is out of scope

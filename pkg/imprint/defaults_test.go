@@ -11,6 +11,7 @@ func TestLocalURL(t *testing.T) {
 func TestDefaultPortForPlugin(t *testing.T) {
 	cases := map[string]int{
 		"desk":  DefaultDeskPort,
+		"embed": DefaultEmbedPort,
 		"other": DefaultPluginPort,
 	}
 	for id, want := range cases {

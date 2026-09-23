@@ -91,31 +91,12 @@ func (m *Manager) statusFor(id string, entry PluginEntry) Status {
 	return st
 }
 
-// Reload stops enabled plugins and starts them again.
-func (m *Manager) Reload(ctx context.Context) ([]Status, error) {
-	m.StopAll()
-	for id, entry := range m.cfg.Plugins {
-		if !entry.Enabled {
-			continue
-		}
-		if err := m.startOne(ctx, id, entry); err != nil {
-			m.mu.Lock()
-			st := m.statusFor(id, entry)
-			st.Error = err.Error()
-			m.status[id] = st
-			m.mu.Unlock()
-		}
-	}
-	return m.List()
-}
-
-// StartEnabledExcept stops any running plugins and starts every enabled one
-// whose id is not in omit. Use this when one plugin is managed elsewhere
-// (e.g. embed is owned by `imprint-mcp` and must not be reaped by `up`).
-// Plugins already running are still stopped first, so the caller does not
-// have to worry about leftover state from a previous manager lifetime.
+// StartEnabledExcept stops running plugins and starts every enabled one
+// whose id is not in omit. Omitted plugins are not stopped either — use this
+// when a plugin is owned elsewhere (e.g. embed is owned by `imprint-mcp` /
+// `imprint plugin start embed` and must not be reaped by `up`).
 func (m *Manager) StartEnabledExcept(ctx context.Context, omit []string) ([]Status, error) {
-	m.StopAll()
+	m.StopAllExcept(omit)
 	skip := make(map[string]struct{}, len(omit))
 	for _, id := range omit {
 		skip[strings.TrimSpace(id)] = struct{}{}
@@ -149,6 +130,21 @@ func (m *Manager) StartPlugin(ctx context.Context, id string) error {
 	return m.startOne(ctx, id, entry)
 }
 
+// StopPlugin frees the listen port for one plugin id. Safe when this
+// Manager did not start the process: stop is by port, not by the procs map.
+func (m *Manager) StopPlugin(id string) error {
+	if m.cfg == nil {
+		return fmt.Errorf("plugin config missing")
+	}
+	entry, ok := m.cfg.Plugins[id]
+	if !ok {
+		return fmt.Errorf("unknown plugin %q", id)
+	}
+	port := PluginPort(entry, imprint.DefaultPortForPlugin(id))
+	m.stopPlugin(id, port)
+	return nil
+}
+
 func (m *Manager) startOne(ctx context.Context, id string, entry PluginEntry) error {
 	pkgDir := PackageDir(m.cfg.Workspace(), entry.Package)
 	if pkgDir == "" {
@@ -177,12 +173,12 @@ func (m *Manager) startOne(ctx context.Context, id string, entry PluginEntry) er
 	vaultDir := m.cfg.ResolveVaultAbs()
 	pluginState := imprint.PluginStateDir(m.cfg.Workspace(), id)
 	_ = os.MkdirAll(pluginState, 0o755)
-	// IMPRINT_PARENT_PID lets the sidecar watch our pid and clean itself up
-	// when the manager exits (long-lived MCP, in particular). Plugin processes
-	// are detached, so the manager's death is the only reliable signal.
+	// Embed (and any daemon-style plugin) is not bound to this process:
+	// DetachProcess (setsid) lets it outlive the CLI, and the sidecar does
+	// not watch getppid(). IMPRINT_PLUGIN_STATE is the per-plugin state
+	// directory; stop is by listen port (StopPlugin / stopPlugin).
 	cmd.Env = append(os.Environ(),
 		fmt.Sprintf("IMPRINT_PLUGIN_PORT=%d", port),
-		fmt.Sprintf("IMPRINT_PARENT_PID=%d", os.Getpid()),
 		fmt.Sprintf("IMPRINT_HOST_URL=%s", m.cfg.HostURL()),
 		fmt.Sprintf("IMPRINT_VAULT=%s", vaultDir),
 		fmt.Sprintf("IMPRINT_WORKSPACE=%s", m.cfg.Workspace()),
@@ -240,7 +236,8 @@ func deskStartArgs(id string, entry PluginEntry, cfg *Config) string {
 }
 
 // StopAll frees listen ports for every configured plugin.
-// enabled is an up/start flag; down still stops a leftover process on that port.
+// `up` / `down` must not call this when embed is in the config — they use
+// StopAllExcept so the sidecar is left running.
 func (m *Manager) StopAll() {
 	m.mu.Lock()
 	for id, cmd := range m.procs {
@@ -254,6 +251,40 @@ func (m *Manager) StopAll() {
 		return
 	}
 	for id, entry := range m.cfg.Plugins {
+		port := PluginPort(entry, imprint.DefaultPortForPlugin(id))
+		_ = freePort(port, 2*time.Second)
+	}
+}
+
+// StopAllExcept is StopAll with a list of plugin ids excluded. Use this when
+// one plugin is owned by a different process (e.g. embed is owned by
+// `imprint-mcp` or `imprint plugin start embed`, and `imprint down` must not
+// reap it just because it happens to occupy the configured port). The omit
+// list applies to both the procs map and the cfg.Plugins port-sweep, so
+// downstream callers can rely on the omitted plugin remaining untouched.
+func (m *Manager) StopAllExcept(omit []string) {
+	skip := make(map[string]struct{}, len(omit))
+	for _, id := range omit {
+		skip[strings.TrimSpace(id)] = struct{}{}
+	}
+	m.mu.Lock()
+	for id, cmd := range m.procs {
+		if _, isOmitted := skip[id]; isOmitted {
+			continue
+		}
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+		}
+		delete(m.procs, id)
+	}
+	m.mu.Unlock()
+	if m.cfg == nil {
+		return
+	}
+	for id, entry := range m.cfg.Plugins {
+		if _, isOmitted := skip[id]; isOmitted {
+			continue
+		}
 		port := PluginPort(entry, imprint.DefaultPortForPlugin(id))
 		_ = freePort(port, 2*time.Second)
 	}

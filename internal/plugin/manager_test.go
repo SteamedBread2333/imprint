@@ -85,3 +85,10 @@ func TestStartEnabledExceptRespectsDisabledFlag(t *testing.T) {
 		t.Fatal("disabled plugin reported as running")
 	}
 }
+
+func TestStopPluginUnknownID(t *testing.T) {
+	mgr := NewManager(&Config{Plugins: map[string]PluginEntry{}})
+	if err := mgr.StopPlugin("embed"); err == nil {
+		t.Fatal("StopPlugin(unknown) must error")
+	}
+}

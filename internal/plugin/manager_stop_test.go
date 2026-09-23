@@ -3,6 +3,7 @@
 package plugin
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os/exec"
@@ -55,6 +56,161 @@ func TestStopAllFreesConfiguredPluginPort(t *testing.T) {
 	}
 	if len(pids) != 0 {
 		t.Fatalf("configured plugin port %d still held by %v", port, pids)
+	}
+}
+
+// TestStopAllExceptLeavesOmittedPluginRunning confirms the contract that
+// `imprint down` relies on: when embed is in the omit list, the manager
+// must not reap a process listening on embed's port, even though the port
+// is in cfg.Plugins. A listener started by `imprint-mcp` or `imprint plugin
+// start embed` is the embed sidecar's concern, not the manager's.
+func TestStopAllExceptLeavesOmittedPluginRunning(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	if err := ln.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := exec.Command("python3", "-c", fmt.Sprintf(
+		"import socket,time;s=socket.socket();s.bind(('127.0.0.1',%d));s.listen(1);time.sleep(30)", port))
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	if err := cmd.Start(); err != nil {
+		t.Skip(err)
+	}
+	defer func() { _ = cmd.Process.Kill() }()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		pids, err := pidsOnPort(port)
+		if err == nil && len(pids) > 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("listener never bound port %d: %v", port, err)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	mgr := NewManager(&Config{
+		Plugins: map[string]PluginEntry{
+			"embed": {Enabled: true, Config: map[string]any{"port": port}},
+		},
+	})
+	mgr.StopAllExcept([]string{"embed"})
+
+	pids, err := pidsOnPort(port)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pids) == 0 {
+		t.Fatalf("omitted plugin port %d was freed by StopAllExcept — embed sidecar was reaped", port)
+	}
+	if err := cmd.Process.Signal(syscall.Signal(0)); err != nil {
+		t.Fatalf("listener pid was killed despite omit list: %v", err)
+	}
+}
+
+// StartEnabledExcept must not free an omitted plugin's port. `imprint up`
+// uses this path; killing embed here would drop the MCP sidecar.
+func TestStartEnabledExceptDoesNotReapOmittedPort(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	if err := ln.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := exec.Command("python3", "-c", fmt.Sprintf(
+		"import socket,time;s=socket.socket();s.bind(('127.0.0.1',%d));s.listen(1);time.sleep(30)", port))
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	if err := cmd.Start(); err != nil {
+		t.Skip(err)
+	}
+	defer func() { _ = cmd.Process.Kill() }()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		pids, err := pidsOnPort(port)
+		if err == nil && len(pids) > 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("listener never bound port %d: %v", port, err)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	mgr := NewManager(&Config{
+		Plugins: map[string]PluginEntry{
+			"embed": {Enabled: true, Config: map[string]any{"port": port}},
+		},
+	})
+	if _, err := mgr.StartEnabledExcept(context.Background(), []string{"embed"}); err != nil {
+		t.Fatalf("StartEnabledExcept: %v", err)
+	}
+
+	pids, err := pidsOnPort(port)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pids) == 0 {
+		t.Fatalf("omitted plugin port %d was freed by StartEnabledExcept", port)
+	}
+	if err := cmd.Process.Signal(syscall.Signal(0)); err != nil {
+		t.Fatalf("listener pid was killed despite omit list: %v", err)
+	}
+}
+
+func TestStopPluginFreesConfiguredPort(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	if err := ln.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := exec.Command("python3", "-c", fmt.Sprintf(
+		"import socket,time;s=socket.socket();s.bind(('127.0.0.1',%d));s.listen(1);time.sleep(30)", port))
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	if err := cmd.Start(); err != nil {
+		t.Skip(err)
+	}
+	defer func() { _ = cmd.Process.Kill() }()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		pids, err := pidsOnPort(port)
+		if err == nil && len(pids) > 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("listener never bound port %d: %v", port, err)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	mgr := NewManager(&Config{
+		Plugins: map[string]PluginEntry{
+			"embed": {Enabled: true, Config: map[string]any{"port": port}},
+		},
+	})
+	if err := mgr.StopPlugin("embed"); err != nil {
+		t.Fatalf("StopPlugin: %v", err)
+	}
+
+	pids, err := pidsOnPort(port)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pids) != 0 {
+		t.Fatalf("plugin port %d still held by %v", port, pids)
 	}
 }
 

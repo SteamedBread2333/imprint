@@ -146,7 +146,7 @@ Rules live in `vault.db`. IDs: `r-YYYY-MM-DD-NNN`. Status: `active` | `dormant` 
 | **Desk** | External plugin | `plugins.desk` + [imprint-desk-plugin](https://github.com/SteamedBread2333/imprint-desk-plugin) |
 | **Embed** | External sidecar (plugin protocol) | `plugins.embed` + [imprint-embed-sidecar](https://github.com/SteamedBread2333/imprint-embed-sidecar) |
 
-Embed adds a semantic duplicate gate to `add`: the lexical Jaccard check only catches near-identical wording, so paraphrases slip through. Off by default; when the sidecar is absent or slow, writes degrade back to the lexical path. See [docs/semantic-dedup.md](docs/semantic-dedup.md) for the full pipeline, calibration data, and tuning.
+Embed adds a semantic duplicate gate to `add`: the lexical Jaccard check only catches near-identical wording, so paraphrases slip through. Off by default; when the sidecar is absent or slow, writes degrade back to the lexical path. `imprint-mcp` starts the sidecar if the port is down (reuses it if healthy). `imprint plugin start embed` always stop-then-fork; `imprint plugin stop embed` stops it. `imprint up` / `down` do not touch embed. See [docs/semantic-dedup.md](docs/semantic-dedup.md) for the full pipeline, calibration data, and tuning.
 
 Shelves indexes markdown under `roots` (e.g. `docs/`, `.cursor/rules/`). One MCP mount (`imprint-mcp`); with shelves on, `find` + query returns `rules`, `documents`, and `links`. See [docs/shelves-builtin.md](docs/shelves-builtin.md).
 
@@ -177,8 +177,8 @@ imprint get r-2026-09-11-001
 
 | Command | What it does |
 | --- | --- |
-| `imprint up` | Start the local stack (vault API, shelves, enabled desk, …) |
-| `imprint down` | Stop the local stack |
+| `imprint up` | Start the local stack (vault API, shelves, enabled desk, …). Does **not** start or stop embed |
+| `imprint down` | Stop the local stack. Leaves embed running (`imprint plugin stop embed`) |
 | `imprint desk open` | Open desk in the browser (requires `up` first) |
 | `imprint status` | Snapshot of running services |
 
@@ -196,7 +196,7 @@ After editing `imprint.yaml`: run `down` then `up`.
 | Command | What it does |
 | --- | --- |
 | `imprint host start` / `host stop` | Host only (includes shelves) |
-| `imprint plugin start` / `plugin stop` | External plugins only |
+| `imprint plugin start ID` / `plugin stop ID` | External plugins only (id required; pass `embed` to start/stop the sidecar) |
 | `plugin list` · `enable` · `disable` | Toggle plugins in yaml |
 | `imprint host serve [--listen ADDR]` | Foreground host (Ctrl+C) |
 | `imprint clear --confirm --yes` | Delete every rule — irreversible |

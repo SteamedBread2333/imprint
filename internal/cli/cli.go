@@ -270,8 +270,8 @@ Environment:
   IMPRINT_VAULT  Default vault path when --vault is omitted
 
 Everyday — local stack:
-  up          Start vault API, shelves, and enabled plugins (then: desk open)
-  down        Stop the local stack
+  up          Start vault API, shelves, and enabled plugins except embed (then: desk open)
+  down        Stop the local stack (embed sidecar is left running)
   status      Snapshot of services (vault API, shelves, desk)
   desk open   Open desk in browser (does not start services)
 
@@ -348,9 +348,9 @@ See docs/editors.md.
 	case "clear":
 		return "Usage: imprint clear --confirm --yes\n\nIrreversible. Both flags are required.\n"
 	case "up":
-		return "Usage: imprint up\n\nStarts host (vault API + shelves) and every enabled external plugin.\n"
+		return "Usage: imprint up\n\nStarts host (vault API + shelves) and every enabled external plugin except embed.\n"
 	case "down":
-		return "Usage: imprint down\n\nStops external plugins and the host.\n"
+		return "Usage: imprint down\n\nStops external plugins except embed, then the host. Stop embed with: imprint plugin stop embed\n"
 	case "status":
 		return "Usage: imprint status\n\nRead-only snapshot of host, shelves, and external plugins.\n"
 	case "host":

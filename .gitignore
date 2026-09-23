@@ -44,6 +44,17 @@ Thumbs.db
 .vscode/
 *.code-workspace
 .cursor/
+.claude/
+.workbuddy/
+.trae/
+.gemini/
+.deepseek/
+.grok/
+.perplexity/
+.google/
+.openai/
+.anthropic/
+.meta/
 
 # --- local scratch ---
 tmp/

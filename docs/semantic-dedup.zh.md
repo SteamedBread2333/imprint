@@ -59,14 +59,20 @@ Go 二进制**没有** ONNX / fastembed / sentence-transformers 任何依赖。�
 
 ## 生命周期
 
-| 阶段       | 发生了什么                                                                |
-| ---------- | ------------------------------------------------------------------------- |
-| `up`       | `imprint up` 走 `./run.sh` 启动 sidecar；轮询 `GET /health`                |
-| 稳态       | Go 客户端复用 HTTP keep-alive；sidecar 在内存缓存 ONNX session             |
-| `down`     | `imprint down` 终止 sidecar；4174（或配置的端口）空出                     |
-| 冷启动     | 首次 `POST /embed` 触发模型下载（~130MB）落 `~/.cache/`                   |
+embed 是**单例 daemon**。`imprint up` / `down` 既不起也不停。进程由 MCP（或 `imprint plugin start embed`）管；停它用 `imprint plugin stop embed`。
 
-sidecar **不是**守护进程——它只在 `imprint up` 持有期间存活。无崩溃恢复、无自动重启；中途挂掉写路径直接降级回 Jaccard。
+| 阶段 | 发生了什么 |
+| --- | --- |
+| `imprint-mcp` | `plugins.embed` 启用时：对配置端口 `GET /health`。不健康 → MCP 启动时 fork 一次。已健康 → 复用，不拉第二个进程。关编辑器**不会**停 sidecar（没有 parent watch）；下次 MCP 启动时若仍健康就复用。 |
+| `plugin start embed` | **每次先 stop 再 fork**（端口上无论谁在听都会被杀）。CLI 退出后新进程继续活着。 |
+| `plugin stop embed` | 清掉配置端口上的 LISTEN 进程。 |
+| CLI `add` / `find` | 只打 HTTP，不 fork。连接拒绝 → Jaccard。 |
+| `up` | 起 host / shelves / desk。**不起也不停** embed。探测端口：在跑就报 running，否则给 start 提示。 |
+| `down` | 停 host / desk。embed 继续跑。提示：`imprint plugin stop embed`。 |
+| 稳态 | Go 客户端复用 HTTP keep-alive；sidecar 在内存缓存 ONNX session |
+| 冷启动 | 首次 `POST /embed` 可能下载模型（~130MB）落 `~/.cache/` |
+
+无崩溃恢复。MCP 只在进程启动时 probe 一次，之后被杀掉不会自动再起。中途挂掉写路径直接降级回 Jaccard。
 
 ## 写时门禁
 
@@ -229,8 +235,10 @@ embed sidecar 是**单例**——一个进程、一个模型、一个端口（41
 
 **运维铁律：**
 
-- 一台机器只有一个 `imprint-embed-sidecar` 进程，不管用户家目录下挂了多少 vault 和项目。
-- `imprint plugin start embed` 和 `imprint-mcp` 自动起的 sidecar 互斥——**谁先 bind 4174 谁赢**，输家看到端口被占直接复用，**不会**拉起第二个进程。
+- 一台机器只有一个 `imprint-embed-sidecar` 进程，不管用户家目录下挂了多少 vault 和项目。4174（或 `plugins.embed.config.port`）同一时刻只能有一个监听者。
+- `imprint-mcp` **会复用**已健康的监听：启动时 health probe 通过就 return，不 fork。
+- `imprint plugin start embed` **不会复用**：先停掉占着该端口的进程，再 fork 一个新的。
+- `imprint up`、`imprint down` **都不碰** embed。起停只用 `imprint plugin start embed` / `imprint plugin stop embed`。
 - 真要支持多模型（比如 bge-small + OpenAI text-embedding-3 + Cohere），sidecar 必须改造成**路由器**——按模型分派或代理到子进程。当前不在范围。
 
 ## Trace 串链路

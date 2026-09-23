@@ -26,6 +26,8 @@ func DefaultPortForPlugin(id string) int {
 	switch id {
 	case "desk":
 		return DefaultDeskPort
+	case "embed":
+		return DefaultEmbedPort
 	default:
 		return DefaultPluginPort
 	}

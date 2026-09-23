@@ -3,9 +3,12 @@ package cli
 import (
 	"context"
 	"fmt"
+	"time"
 
+	"github.com/SteamedBread2333/imprint/internal/embed"
 	"github.com/SteamedBread2333/imprint/internal/plugin"
 	"github.com/SteamedBread2333/imprint/internal/shelves"
+	"github.com/SteamedBread2333/imprint/pkg/imprint"
 )
 
 // embedPluginID is the plugin id whose lifecycle `imprint up` does not own.
@@ -16,9 +19,9 @@ import (
 //
 //   - MCP users do not run `imprint up` at all; treating embed as part of
 //     `up` would make MCP silently miss the sidecar.
-//   - CLI users who want embed can opt in once with
-//     `imprint plugin start embed`, after which the process stays up across
-//     `up` / `down` cycles and is reaped by `down` only.
+//   - CLI users who want embed opt in with `imprint plugin start embed`.
+//     The process stays up across `up` / `down`. Stop it with
+//     `imprint plugin stop embed`.
 //
 // See docs/semantic-dedup.md "Single-instance constraint" for the rationale
 // behind the singleton port.
@@ -55,9 +58,11 @@ func (a *App) cmdUp(g globals, rest []string) int {
 			"vault":   rt.Vault,
 			"shelves": rt.Health.Shelves,
 			"plugins": items,
-			// Surface the embed caveat so JSON consumers do not have to
-			// chase the docs.
-			"embed_notice": embedUpNotice(cfg),
+			// Embed's real state — JSON consumers should see whether the
+			// sidecar is actually listening, not a static "did not start
+			// it" string that suggests a bug when MCP or a previous run
+			// has the port.
+			"embed": embedLiveJSON(cfg),
 		}
 		return boolExit(a.writeJSON(out))
 	}
@@ -76,8 +81,9 @@ func (a *App) cmdUp(g globals, rest []string) int {
 		// StartEnabledExcept to omit it from the start loop, but the
 		// subsequent List() still walks every plugin in cfg.Plugins,
 		// and statusFor may surface a "no such manifest" error from the
-		// pre-launch probe. Skip it here — it has its own notice row
-		// below — so the operator is not confused.
+		// pre-launch probe. Skip it here — it has its own status row
+		// computed from the live port probe below — so the operator is
+		// not confused by a stale "no manifest" error.
 		if st.ID == embedPluginID {
 			continue
 		}
@@ -86,26 +92,90 @@ func (a *App) cmdUp(g globals, rest []string) int {
 		}
 		printPluginBlock(c, st.ID, st.Name, st.Enabled, st.Healthy, st.URL, st.Error)
 	}
-	if notice := embedUpNotice(cfg); notice != "" {
-		c.Row(embedPluginID, stateOff, "not started by up", notice)
+	// Show embed's real state (probe the port) instead of a static "not
+	// started by up" notice — the sidecar may already be up because
+	// `imprint-mcp` (in the common case) or a previous `plugin start`
+	// started it. Showing "not started" when it actually IS running
+	// suggests a bug and prompts users to start a second sidecar on
+	// the same port. State reflects the truth; the start hint only
+	// appears when nothing is listening.
+	if id, st, badge, detail, show := embedLiveRow(cfg); show {
+		c.Row(id, st, badge, detail)
 	}
 	printUpNextSteps(c, deskEnabled, rt.Health.Shelves.Indexed, true)
 	c.blank()
 	return 0
 }
 
-// embedUpNotice returns a one-line human hint when the embed plugin is
-// configured but `up` deliberately did not start it. Returns "" when the
-// embed entry is absent or disabled.
-func embedUpNotice(cfg *plugin.Config) string {
+// embedLiveRow probes the configured embed port and returns the row data
+// `up` should print. When the sidecar is healthy it reports the live URL
+// and model (so a sidecar brought up by `imprint-mcp` or a leftover from
+// an earlier session is honestly described as "running"). When nothing is
+// listening it returns the start hint so CLI-only users have a clear next
+// step. show is false when embed is absent or disabled in the config.
+func embedLiveRow(cfg *plugin.Config) (id string, st lineState, badge, detail string, show bool) {
 	if cfg == nil {
-		return ""
+		return "", 0, "", "", false
 	}
 	entry, ok := cfg.Plugins[embedPluginID]
 	if !ok || !entry.Enabled {
-		return ""
+		return "", 0, "", "", false
 	}
-	return "start with: imprint plugin start embed"
+	port, healthy, model := embedProbe(cfg)
+	if healthy {
+		url := imprint.LocalURL(port)
+		if model != "" {
+			return embedPluginID, stateOK, "running", fmt.Sprintf("%s · %s", url, model), true
+		}
+		return embedPluginID, stateOK, "running", url, true
+	}
+	return embedPluginID, stateOff, "not started by up", "start with: imprint plugin start embed", true
+}
+
+// embedLiveJSON returns the same live state for JSON consumers.
+func embedLiveJSON(cfg *plugin.Config) map[string]any {
+	out := map[string]any{
+		"configured": false,
+		"running":    false,
+	}
+	if cfg == nil {
+		return out
+	}
+	entry, ok := cfg.Plugins[embedPluginID]
+	if !ok {
+		return out
+	}
+	out["configured"] = entry.Enabled
+	if !entry.Enabled {
+		return out
+	}
+	port, healthy, model := embedProbe(cfg)
+	out["port"] = port
+	out["url"] = imprint.LocalURL(port)
+	out["running"] = healthy
+	if healthy && model != "" {
+		out["model"] = model
+	}
+	if !healthy {
+		out["start_hint"] = "imprint plugin start embed"
+	}
+	return out
+}
+
+// embedProbe returns the configured embed port, whether the sidecar is
+// healthy on it, and the model it advertises. Centralised so the human
+// row and the JSON payload stay in sync.
+func embedProbe(cfg *plugin.Config) (port int, healthy bool, model string) {
+	entry, _ := cfg.Plugins[embedPluginID]
+	port = plugin.EmbedConfigFrom(entry).Port
+	if port <= 0 {
+		port = imprint.DefaultEmbedPort
+	}
+	client := embed.NewClient(port, "", 500*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 700*time.Millisecond)
+	defer cancel()
+	healthy, model, _ = client.Health(ctx)
+	return port, healthy, model
 }
 
 func (a *App) cmdDown(g globals, rest []string) int {
@@ -118,8 +188,11 @@ func (a *App) cmdDown(g globals, rest []string) int {
 		return a.fail(g.json, err)
 	}
 	mgr := plugin.NewManager(cfg)
-	stopped := configuredPluginIDs(cfg)
-	mgr.StopAll()
+	// `down` does not own the embed sidecar — MCP / `imprint plugin start
+	// embed` do. Stop it explicitly with `imprint plugin stop embed`
+	// (listen-port sweep, same as start).
+	stopped := configuredPluginIDsExcept(cfg, embedPluginID)
+	mgr.StopAllExcept([]string{embedPluginID})
 	listen, err := a.hostStop(g)
 	if err != nil {
 		return a.fail(g.json, err)
@@ -137,6 +210,23 @@ func (a *App) cmdDown(g globals, rest []string) int {
 		c.Row(id, stateOff, "stopped", "")
 	}
 	c.Action("start again when needed", "imprint up")
+	if notice := embedDownNotice(cfg); notice != "" {
+		c.Row(embedPluginID, stateOff, "left running", notice)
+	}
 	c.blank()
 	return 0
+}
+
+// embedDownNotice returns a one-line hint when embed is configured but
+// `down` deliberately left it running. Returns "" when the embed entry is
+// absent or disabled.
+func embedDownNotice(cfg *plugin.Config) string {
+	if cfg == nil {
+		return ""
+	}
+	entry, ok := cfg.Plugins[embedPluginID]
+	if !ok || !entry.Enabled {
+		return ""
+	}
+	return "stop with: imprint plugin stop embed"
 }

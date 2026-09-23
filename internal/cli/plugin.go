@@ -44,8 +44,12 @@ const pluginUsage = `Usage:
   imprint plugin list
   imprint plugin enable ID
   imprint plugin disable ID
-  imprint plugin start [ID...]   Start enabled external plugins (default: all)
-  imprint plugin stop            Stop running plugins
+  imprint plugin start ID...   Start enabled external plugins
+  imprint plugin stop ID...    Stop running plugins
+
+Embed is started by imprint-mcp, or: imprint plugin start embed
+Stop it with: imprint plugin stop embed
+up/down do not start or stop embed.
 
 Shelves is host config (shelves: in imprint.yaml) — use imprint up/down.
 `
@@ -118,25 +122,19 @@ func (a *App) pluginStart(g globals, mgr *plugin.Manager, args []string) int {
 	if cfg == nil {
 		return a.fail(g.json, fmt.Errorf("plugin config missing"))
 	}
-	if len(args) > 0 {
-		for _, id := range args {
-			id = strings.TrimSpace(id)
-			if id == "" {
-				continue
-			}
-			if id == "shelves" {
-				return a.fail(g.json, fmt.Errorf("shelves is host config — run: imprint up"))
-			}
-			entry, ok := cfg.Plugins[id]
-			if !ok || !entry.Enabled {
-				return a.fail(g.json, fmt.Errorf("plugin %q is not enabled in imprint.yaml", id))
-			}
-			if err := mgr.StartPlugin(context.Background(), id); err != nil {
-				return a.fail(g.json, err)
-			}
+	ids := collectPluginIDs(args)
+	if len(ids) == 0 {
+		return a.fail(g.json, fmt.Errorf("plugin id required"))
+	}
+	for _, id := range ids {
+		if id == "shelves" {
+			return a.fail(g.json, fmt.Errorf("shelves is host config — run: imprint up"))
 		}
-	} else {
-		if _, err := mgr.Reload(context.Background()); err != nil {
+		entry, ok := cfg.Plugins[id]
+		if !ok || !entry.Enabled {
+			return a.fail(g.json, fmt.Errorf("plugin %q is not enabled in imprint.yaml", id))
+		}
+		if err := mgr.StartPlugin(context.Background(), id); err != nil {
 			return a.fail(g.json, err)
 		}
 	}
@@ -150,10 +148,7 @@ func (a *App) pluginStart(g globals, mgr *plugin.Manager, args []string) int {
 	c := a.console()
 	c.Heading("plugin start")
 	for _, st := range items {
-		if !st.Enabled {
-			continue
-		}
-		if len(args) > 0 && !containsID(args, st.ID) {
+		if !st.Enabled || !containsID(ids, st.ID) {
 			continue
 		}
 		printPluginBlock(c, st.ID, st.Name, st.Enabled, st.Healthy, st.URL, st.Error)
@@ -163,21 +158,41 @@ func (a *App) pluginStart(g globals, mgr *plugin.Manager, args []string) int {
 }
 
 func (a *App) pluginStop(g globals, mgr *plugin.Manager, args []string) int {
-	if len(args) > 0 {
-		fmt.Fprint(a.out(), "Usage: imprint plugin stop\n")
-		return 2
+	ids := collectPluginIDs(args)
+	if len(ids) == 0 {
+		return a.fail(g.json, fmt.Errorf("plugin id required"))
 	}
-	mgr.StopAll()
+	var stopped []string
+	for _, id := range ids {
+		if id == "shelves" {
+			return a.fail(g.json, fmt.Errorf("shelves is host config — run: imprint down"))
+		}
+		if err := mgr.StopPlugin(id); err != nil {
+			return a.fail(g.json, err)
+		}
+		stopped = append(stopped, id)
+	}
 	if g.json {
-		return boolExit(a.writeJSON(map[string]any{"stopped": configuredPluginIDs(mgr.Config())}))
+		return boolExit(a.writeJSON(map[string]any{"stopped": stopped}))
 	}
 	c := a.console()
 	c.Heading("plugin stop")
-	for _, id := range configuredPluginIDs(mgr.Config()) {
+	for _, id := range stopped {
 		c.Row(id, stateOff, "stopped", "")
 	}
 	c.blank()
 	return 0
+}
+
+func collectPluginIDs(args []string) []string {
+	var ids []string
+	for _, id := range args {
+		id = strings.TrimSpace(id)
+		if id != "" {
+			ids = append(ids, id)
+		}
+	}
+	return ids
 }
 
 func containsID(ids []string, want string) bool {

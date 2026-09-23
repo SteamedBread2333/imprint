@@ -146,7 +146,7 @@ Vault 和 shelves 都以 WAL 模式打开 SQLite，方便 CLI、MCP、host 跨�
 | **Desk** | 外部插件 | `plugins.desk` · [imprint-desk-plugin](https://github.com/SteamedBread2333/imprint-desk-plugin) |
 | **Embed** | 外部 sidecar（插件协议） | `plugins.embed` · [imprint-embed-sidecar](https://github.com/SteamedBread2333/imprint-embed-sidecar) |
 
-Embed 给 `add` 加语义查重门禁——词面 Jaccard 只抓得到近同词面，改述会漏；默认关，sidecar 缺席/慢时降级回词面路径。完整链路、标定数据、调优见 [docs/semantic-dedup.zh.md](docs/semantic-dedup.zh.md)。
+Embed 给 `add` 加语义查重门禁——词面 Jaccard 只抓得到近同词面，改述会漏；默认关，sidecar 缺席/慢时降级回词面路径。`imprint-mcp` 在端口不健康时拉起 sidecar（已健康则复用）；`imprint plugin start embed` 每次先 stop 再 fork；停它用 `imprint plugin stop embed`。`imprint up` / `down` 不碰 embed。完整链路、标定数据、调优见 [docs/semantic-dedup.zh.md](docs/semantic-dedup.zh.md)。
 
 Shelves 在 `roots` 下建文档索引（如 `docs/`、`.cursor/rules/`）。挂载一次 MCP（`imprint-mcp`）；shelves 开且 `find` 带 query 时，响应含 `rules`、`documents`、`links`。见 [docs/shelves-builtin.zh.md](docs/shelves-builtin.zh.md)。
 
@@ -177,8 +177,8 @@ imprint get r-2026-09-11-001
 
 | 命令 | 作用 |
 | --- | --- |
-| `imprint up` | 启动本地服务（vault API、shelves、已启用的 desk 等） |
-| `imprint down` | 停止本地服务 |
+| `imprint up` | 启动本地服务（vault API、shelves、已启用的 desk 等）。**不起也不停** embed |
+| `imprint down` | 停止本地服务。embed 继续跑（`imprint plugin stop embed`） |
 | `imprint desk open` | 浏览器打开 desk（需先 `up`） |
 | `imprint status` | 本地服务快照 |
 
@@ -196,7 +196,7 @@ imprint down
 | 命令 | 作用 |
 | --- | --- |
 | `imprint host start` / `host stop` | 仅 host（含 shelves） |
-| `imprint plugin start` / `plugin stop` | 仅外部插件 |
+| `imprint plugin start ID` / `plugin stop ID` | 仅外部插件（必须带 id；传 `embed` 才起停 sidecar） |
 | `plugin list` · `enable` · `disable` | 改 yaml 里的插件开关 |
 | `imprint host serve [--listen ADDR]` | 前台 host（Ctrl+C）— 调试 API |
 | `imprint clear --confirm --yes` | 删除全部规则 — 不可逆 |

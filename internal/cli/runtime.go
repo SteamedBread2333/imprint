@@ -196,3 +196,22 @@ func configuredPluginIDs(cfg *plugin.Config) []string {
 	sort.Strings(ids)
 	return ids
 }
+
+func configuredPluginIDsExcept(cfg *plugin.Config, omit ...string) []string {
+	if cfg == nil {
+		return nil
+	}
+	skip := make(map[string]struct{}, len(omit))
+	for _, id := range omit {
+		skip[strings.TrimSpace(id)] = struct{}{}
+	}
+	var ids []string
+	for id := range cfg.Plugins {
+		if _, isOmitted := skip[id]; isOmitted {
+			continue
+		}
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	return ids
+}
