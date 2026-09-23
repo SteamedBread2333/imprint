@@ -140,11 +140,11 @@ func (v *Vault) MergeEmbedDuplicatesVec(claim string, query []float32, ok bool, 
 // personal or project vault (thousands of rules), but document the ceiling:
 // beyond that, move this to an ANN index (e.g. sqlite-vec) instead of a scan.
 //
-// In strict cross-scope mode the candidate pool is restricted to rules
-// whose scope overlaps candidateScope, so a foreign-language rule in
-// another project can never surface as a paraphrase here. The default
-// advisory_only mode keeps the cross-project recall signal but downgrades
-// cross-scope hits to advisory (no hard reject).
+// In strict mode the pool is ActiveCandidates(candidateScope): an existing
+// rule must have every tag of the new claim (AND, same as find). Shared
+// tags alone ([go,style] vs [python,style]) do not qualify, so a foreign
+// project cannot hard-block. The default advisory_only mode keeps that
+// cross-project recall signal but downgrades those hits to advisory.
 //
 // candidateScope is the scope of the proposed (not-yet-stored) claim. When
 // nil, strict mode falls back to a global pool — that is the safe behaviour
@@ -170,9 +170,9 @@ func (v *Vault) mergeEmbedDuplicatesScope(claim string, query []float32, ok bool
 	if len(vectors) == 0 {
 		return lexical, nil, nil
 	}
-	// Strict mode: scope the pool to rules overlapping candidateScope.
-	// If candidateScope is unknown (callers without scope context), strict
-	// mode degrades to advisory_only rather than risk blocking the write.
+	// Strict mode: AND-filter the pool by candidateScope (existing ⊇ candidate).
+	// If candidateScope is unknown, strict degrades to advisory_only rather
+	// than risk blocking the write.
 	scopeForPool := []string(nil) // nil = no scope filter on the pool
 	if v.embedCrossScope == EmbedCrossScopeStrict && len(candidateScope) > 0 {
 		scopeForPool = candidateScope
@@ -245,6 +245,42 @@ func (v *Vault) mergeEmbedDuplicatesScope(claim string, query []float32, ok bool
 	}
 	v.emit(TelemetryEvent{Op: "embed", LatencyMS: time.Since(start).Milliseconds()}, trace)
 	return lexical, advisory, nil
+}
+
+// mergeAdvisoryCandidates unions advisory lists by rule id. When the same
+// rule trips both Jaccard polarity and the semantic gate, keep the higher
+// score (usually cosine) so Similar lists it once. Capped at 3 to match
+// each gate's own limit.
+func mergeAdvisoryCandidates(lists ...[]DuplicateCandidate) []DuplicateCandidate {
+	byID := map[string]DuplicateCandidate{}
+	for _, list := range lists {
+		for _, c := range list {
+			if c.ID == "" {
+				continue
+			}
+			prev, ok := byID[c.ID]
+			if !ok || c.Score > prev.Score {
+				byID[c.ID] = c
+			}
+		}
+	}
+	if len(byID) == 0 {
+		return nil
+	}
+	out := make([]DuplicateCandidate, 0, len(byID))
+	for _, c := range byID {
+		out = append(out, c)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Score == out[j].Score {
+			return out[i].ID < out[j].ID
+		}
+		return out[i].Score > out[j].Score
+	})
+	if len(out) > 3 {
+		out = out[:3]
+	}
+	return out
 }
 
 // cosine returns the cosine similarity of two equal-length vectors, or 0 when

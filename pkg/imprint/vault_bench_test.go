@@ -27,7 +27,7 @@ func BenchmarkFind3000Rules(b *testing.B) {
 			EvidenceLog: []Evidence{{At: time.Date(2026, 9, 11, 12, 0, 0, 0, time.UTC), Kind: EvidenceOriginal, Text: "PascalCase"}},
 		}
 	}
-	if err := v.ImportRecords(recs); err != nil {
+	if _, err := v.ImportRecords(recs); err != nil {
 		b.Fatal(err)
 	}
 	b.ResetTimer()

@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -578,6 +580,91 @@ func (a *App) cmdExport(g globals, args []string) int {
 	return 0
 }
 
+func (a *App) cmdImport(g globals, args []string) int {
+	fs := newFlags()
+	pos, err := fs.parse(args)
+	if err != nil {
+		if err == errHelp {
+			fmt.Fprint(a.out(), commandHelp("import"))
+			return 0
+		}
+		return a.fail(g.json, err)
+	}
+	v, err := a.openVault(g)
+	if err != nil {
+		return a.fail(g.json, err)
+	}
+	defer v.Close()
+	path := ""
+	if len(pos) > 0 {
+		path = pos[0]
+	} else {
+		exportDir := filepath.Join(v.Dir, imprint.ExportDirName)
+		for _, name := range []string{"vault.json", "vault.jsonl"} {
+			cand := filepath.Join(exportDir, name)
+			if st, err := os.Stat(cand); err == nil && !st.IsDir() {
+				path = cand
+				break
+			}
+		}
+		if path == "" {
+			return a.fail(g.json, fmt.Errorf("usage: imprint import [FILE] (no %s/vault.json or vault.jsonl)", imprint.ExportDirName))
+		}
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return a.fail(g.json, err)
+	}
+	recs, err := parseExportedRecords(raw)
+	if err != nil {
+		return a.fail(g.json, err)
+	}
+	res, err := v.ImportRecords(recs)
+	if err != nil {
+		return a.fail(g.json, err)
+	}
+	if g.json {
+		return a.fail(false, a.writeJSON(map[string]any{
+			"imported": len(recs),
+			"path":     path,
+			"backfill": res,
+		}))
+	}
+	c := a.console()
+	c.Heading("import")
+	c.Done("imported %d rules from %s", len(recs), path)
+	printBackfillHint(c, res)
+	c.blank()
+	return 0
+}
+
+func parseExportedRecords(raw []byte) ([]*imprint.Record, error) {
+	trim := bytes.TrimSpace(raw)
+	if len(trim) == 0 {
+		return nil, fmt.Errorf("import file is empty")
+	}
+	if trim[0] == '[' {
+		var recs []*imprint.Record
+		if err := json.Unmarshal(trim, &recs); err != nil {
+			return nil, fmt.Errorf("parse json export: %w", err)
+		}
+		return recs, nil
+	}
+	dec := json.NewDecoder(bytes.NewReader(trim))
+	var recs []*imprint.Record
+	for {
+		var rec imprint.Record
+		if err := dec.Decode(&rec); err == io.EOF {
+			break
+		} else if err != nil {
+			return nil, fmt.Errorf("parse jsonl export: %w", err)
+		}
+		cp := rec
+		recs = append(recs, &cp)
+	}
+	return recs, nil
+}
+
 func (a *App) cmdReport(g globals, args []string) int {
 	fs := newFlags()
 	days := fs.Int("days", 30)
@@ -691,8 +778,8 @@ Encodes every active+dormant rule whose claim has no vector for the embed
 plugin's model. Use after enabling embed, after importing a vault, or after a
 sidecar cold-restart that lost cache. --force re-encodes rules that already
 have a vector (e.g. after a model upgrade). --dry-run reports the scan
-without writing. The sidecar must be running; writes degrade silently if it
-is not (open vault and enable the embed plugin in imprint.yaml).
+without writing. The sidecar must be running. If it is down or the plugin is
+off, the command prints a hint to run imprint up && imprint embed backfill.
 `
 
 func (a *App) cmdEmbedBackfill(g globals, args []string) int {
@@ -724,10 +811,21 @@ func (a *App) cmdEmbedBackfill(g globals, args []string) int {
 		return 0
 	}
 	c.Done("scanned %d  ·  encoded %d  ·  failed %d", res.Scanned, res.Encoded, res.Failed)
-	if len(res.FailedIDs) > 0 {
-		c.Action("some rules failed; check the sidecar and re-run", "imprint embed backfill --limit "+strconv.Itoa(*limit))
-		c.Note("failed ids: %s", strings.Join(res.FailedIDs, ", "))
-	}
+	printBackfillHint(c, res)
 	c.blank()
 	return 0
+}
+
+func printBackfillHint(c *console, res imprint.BackfillResult) {
+	switch {
+	case res.NoEmbedder:
+		c.Action("embed is off; rules have no vectors until the sidecar is enabled and backfill runs",
+			"set plugins.embed.enabled: true, then imprint up && imprint embed backfill")
+	case res.Failed > 0:
+		c.Action("sidecar missed some rules; vectors stay empty until backfill succeeds",
+			"imprint up && imprint embed backfill")
+		if len(res.FailedIDs) > 0 {
+			c.Note("failed ids: %s", strings.Join(res.FailedIDs, ", "))
+		}
+	}
 }

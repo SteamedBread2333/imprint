@@ -227,6 +227,8 @@ func (a *App) Run(args []string) int {
 		return a.cmdInit(g, rest)
 	case "export":
 		return a.cmdExport(g, rest)
+	case "import":
+		return a.cmdImport(g, rest)
 	case "clear":
 		return a.cmdClear(g, rest)
 	case "up":
@@ -287,6 +289,7 @@ Everyday — vault (no local stack required):
   report      Lifecycle, recall, duplicate, conflict, and telemetry audit
   sweep       Decay stale rules and mark low-confidence ones dormant
   export      Write JSON or JSONL under .imprint/export/
+  import      Replace the vault from an export file
 
 Debug & advanced:
   host start | host stop | host serve   Split host control (prefer up/down)
@@ -338,6 +341,8 @@ See docs/editors.md.
 `
 	case "export":
 		return "Usage: imprint export [--format json|jsonl]\n\nWrites vault.json (default) or vault.jsonl under .imprint/export/.\n"
+	case "import":
+		return "Usage: imprint import [FILE]\n\nReplaces the vault with records from a JSON array or JSONL export. Default file: <vault>/export/vault.json (then vault.jsonl). Import never fails because the embed sidecar is down; the command prints a backfill hint when vectors were not encoded.\n"
 	case "report":
 		return "Usage: imprint report [--days 30]\n\nAudit lifecycle events, recall stats, duplicates, conflicts, recommendations, and telemetry.\n"
 	case "clear":

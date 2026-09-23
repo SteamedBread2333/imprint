@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -49,6 +50,7 @@ func Run(ctx context.Context, cfg Config) error {
 		if loadErr != nil {
 			return loadErr
 		}
+		ensureEmbedSidecar(ctx, pcfg)
 		if pcfg.Telemetry.Enabled {
 			opts.Telemetry = telemetry.New(
 				filepath.Join(dir, imprint.StateDirName, "telemetry"),
@@ -77,6 +79,60 @@ func Run(ctx context.Context, cfg Config) error {
 	}
 
 	return server.Run(ctx, &sdkmcp.StdioTransport{})
+}
+
+// ensureEmbedSidecar starts the embed plugin if it is enabled and the sidecar
+// port is not already healthy. Safe to call when the plugin is already
+// running: the probe returns true and we no-op.
+//
+// When the port is bound by a process we do not own (e.g. another imprint-mcp
+// instance, or `imprint plugin start embed` started earlier), we leave it
+// alone: whoever owns port 4174 owns the model space (see
+// docs/semantic-dedup.md "Single-instance constraint").
+//
+// Errors are logged and swallowed — the embed path always degrades silently
+// to lexical Jaccard when the sidecar never comes up.
+func ensureEmbedSidecar(ctx context.Context, pcfg *plugin.Config) {
+	if pcfg == nil {
+		return
+	}
+	entry, ok := pcfg.Plugins["embed"]
+	if !ok || !entry.Enabled {
+		return
+	}
+	cfg := plugin.EmbedConfigFrom(entry)
+	if probeEmbedHealth(cfg.Port) {
+		return
+	}
+	mgr := plugin.NewManager(pcfg)
+	if err := mgr.StartPlugin(ctx, "embed"); err != nil {
+		fmt.Fprintf(
+			os.Stderr,
+			"imprint-mcp: embed sidecar not running on port %d and auto-start failed: %v\n"+
+				"imprint-mcp: semantic gate will fall back to Jaccard\n"+
+				"imprint-mcp: run `imprint plugin start embed` manually if the gate matters\n",
+			cfg.Port, err,
+		)
+		return
+	}
+	fmt.Fprintf(os.Stderr, "imprint-mcp: embed sidecar started on port %d\n", cfg.Port)
+}
+
+// probeEmbedHealth pings GET http://127.0.0.1:<port>/health with a short
+// timeout. Returns true only on a 2xx response.
+func probeEmbedHealth(port int) bool {
+	if port <= 0 {
+		port = imprint.DefaultEmbedPort
+	}
+	url := fmt.Sprintf("http://127.0.0.1:%d/health", port)
+	client := &http.Client{Timeout: 500 * time.Millisecond}
+	resp, err := client.Get(url)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body)
+	return resp.StatusCode >= 200 && resp.StatusCode < 300
 }
 
 // resolvePluginConfigPath pairs plugin config with the vault directory only.

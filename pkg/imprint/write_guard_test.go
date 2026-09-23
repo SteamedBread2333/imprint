@@ -104,3 +104,31 @@ func TestJaccardPolarityConflictLongClaim(t *testing.T) {
 		t.Fatal("antonym pair must surface as advisory similar")
 	}
 }
+
+func TestMergeAdvisoryCandidatesDedupesByID(t *testing.T) {
+	got := mergeAdvisoryCandidates(
+		[]DuplicateCandidate{
+			{ID: "r-1", Score: 0.71, Claim: "Use tabs"},
+			{ID: "r-2", Score: 0.80, Claim: "Wrap errors"},
+		},
+		[]DuplicateCandidate{
+			{ID: "r-1", Score: 0.94, Claim: "Use tabs"},
+			{ID: "r-3", Score: 0.85, Claim: "No globals"},
+		},
+	)
+	if len(got) != 3 {
+		t.Fatalf("len = %d, want 3", len(got))
+	}
+	if got[0].ID != "r-1" || got[0].Score != 0.94 {
+		t.Fatalf("expected r-1 at 0.94 first, got %+v", got[0])
+	}
+	ids := map[string]int{}
+	for _, c := range got {
+		ids[c.ID]++
+	}
+	for id, n := range ids {
+		if n != 1 {
+			t.Fatalf("id %s listed %d times", id, n)
+		}
+	}
+}

@@ -10,9 +10,12 @@ const EmbedModel = "BAAI/bge-small-zh-v1.5"
 // DefaultEmbedPort is the imprint-embed plugin port.
 const DefaultEmbedPort = 4174
 
-// EmbedCrossScope policies control whether the semantic duplicate gate runs
-// across all rules (advisory_only) or only across rules whose scope
-// overlaps the candidate (strict).
+// EmbedCrossScope policies control the semantic duplicate pool.
+// advisory_only scans every active+dormant rule (cross-scope hits are advisory).
+// strict uses the same AND filter as find: an existing rule is in-pool only
+// when it has every tag of the new claim (candidate ⊆ existing). That is
+// not tag overlap — [go] vs [go,naming] and [go,style] vs [python,style]
+// both miss, which keeps shared generic tags from hard-blocking.
 const (
 	EmbedCrossScopeAdvisoryOnly = "advisory_only"
 	EmbedCrossScopeStrict       = "strict"

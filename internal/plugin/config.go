@@ -294,13 +294,11 @@ type EmbedConfig struct {
 	Model              string
 	TimeoutSeconds     int
 	DuplicateThreshold float64
-	// CrossScopePolicy controls whether the semantic duplicate gate runs
-	// across all rules (advisory_only, default) or only across rules whose
-	// scope overlaps the candidate (strict). advisory_only keeps the
-	// cross-project recall signal — a Chinese rule in one project can still
-	// surface as a paraphrase of an English rule in another — at the cost
-	// of occasionally surfacing a foreign-scope advisory. strict trades that
-	// recall for zero cross-scope noise.
+	// CrossScopePolicy is advisory_only (default) or strict.
+	// advisory_only keeps the cross-project recall signal — a Chinese rule
+	// in one project can still surface as a paraphrase of an English rule
+	// in another — as advisory only. strict requires the existing rule to
+	// have every tag of the new claim (AND / subset, not overlap).
 	CrossScopePolicy string
 }
 

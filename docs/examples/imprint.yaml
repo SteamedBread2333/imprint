@@ -38,4 +38,4 @@ plugins:
       duplicate_threshold: 0.70   # calibrated by imprint-embed-sidecar/calibrate.py; do not raise without re-running it
       # cross_scope_policy: advisory_only   # advisory_only (default) | strict
       #   advisory_only: foreign-scope paraphrases surface as advisory only (recall preserved)
-      #   strict:        foreign-scope hits filtered out entirely (no cross-project noise)
+      #   strict:        existing rule must have every tag of the new claim (AND, not overlap)

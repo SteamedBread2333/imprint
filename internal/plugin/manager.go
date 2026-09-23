@@ -109,6 +109,35 @@ func (m *Manager) Reload(ctx context.Context) ([]Status, error) {
 	return m.List()
 }
 
+// StartEnabledExcept stops any running plugins and starts every enabled one
+// whose id is not in omit. Use this when one plugin is managed elsewhere
+// (e.g. embed is owned by `imprint-mcp` and must not be reaped by `up`).
+// Plugins already running are still stopped first, so the caller does not
+// have to worry about leftover state from a previous manager lifetime.
+func (m *Manager) StartEnabledExcept(ctx context.Context, omit []string) ([]Status, error) {
+	m.StopAll()
+	skip := make(map[string]struct{}, len(omit))
+	for _, id := range omit {
+		skip[strings.TrimSpace(id)] = struct{}{}
+	}
+	for id, entry := range m.cfg.Plugins {
+		if !entry.Enabled {
+			continue
+		}
+		if _, isOmitted := skip[id]; isOmitted {
+			continue
+		}
+		if err := m.startOne(ctx, id, entry); err != nil {
+			m.mu.Lock()
+			st := m.statusFor(id, entry)
+			st.Error = err.Error()
+			m.status[id] = st
+			m.mu.Unlock()
+		}
+	}
+	return m.List()
+}
+
 // StartPlugin starts one plugin by id.
 func (m *Manager) StartPlugin(ctx context.Context, id string) error {
 	entry, ok := m.cfg.Plugins[id]
@@ -148,8 +177,12 @@ func (m *Manager) startOne(ctx context.Context, id string, entry PluginEntry) er
 	vaultDir := m.cfg.ResolveVaultAbs()
 	pluginState := imprint.PluginStateDir(m.cfg.Workspace(), id)
 	_ = os.MkdirAll(pluginState, 0o755)
+	// IMPRINT_PARENT_PID lets the sidecar watch our pid and clean itself up
+	// when the manager exits (long-lived MCP, in particular). Plugin processes
+	// are detached, so the manager's death is the only reliable signal.
 	cmd.Env = append(os.Environ(),
 		fmt.Sprintf("IMPRINT_PLUGIN_PORT=%d", port),
+		fmt.Sprintf("IMPRINT_PARENT_PID=%d", os.Getpid()),
 		fmt.Sprintf("IMPRINT_HOST_URL=%s", m.cfg.HostURL()),
 		fmt.Sprintf("IMPRINT_VAULT=%s", vaultDir),
 		fmt.Sprintf("IMPRINT_WORKSPACE=%s", m.cfg.Workspace()),

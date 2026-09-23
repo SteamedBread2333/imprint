@@ -326,3 +326,35 @@ func TestCLIAddHumanOutputCleanShapeWithoutEmbed(t *testing.T) {
 		t.Fatalf("no embedder → no advisory expected, got:\n%s", out.String())
 	}
 }
+
+func TestCLIImportAndBackfillHintWhenEmbedOff(t *testing.T) {
+	dir := t.TempDir()
+	app, out, errw := testApp(t, dir)
+	if code := app.Run([]string{"--vault", dir, "add", "Always wrap errors with %w", "--scope", "go", "--text", "wrap"}); code != 0 {
+		t.Fatalf("add: %s", errw)
+	}
+	out.Reset()
+	if code := app.Run([]string{"--vault", dir, "export", "--format", "json"}); code != 0 {
+		t.Fatalf("export: %s", errw)
+	}
+	exportPath := filepath.Join(dir, imprint.ExportDirName, "vault.json")
+	out.Reset()
+	if code := app.Run([]string{"--vault", dir, "import", exportPath}); code != 0 {
+		t.Fatalf("import exit %d: %s", code, errw)
+	}
+	got := out.String()
+	for _, want := range []string{"imported", "embed is off", "imprint embed backfill"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("import hint missing %q:\n%s", want, got)
+		}
+	}
+
+	out.Reset()
+	if code := app.Run([]string{"--vault", dir, "embed", "backfill"}); code != 0 {
+		t.Fatalf("backfill exit %d: %s", code, errw)
+	}
+	got = out.String()
+	if !strings.Contains(got, "embed is off") || !strings.Contains(got, "imprint embed backfill") {
+		t.Fatalf("backfill hint missing:\n%s", got)
+	}
+}

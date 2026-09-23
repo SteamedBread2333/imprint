@@ -17,14 +17,14 @@ import (
 
 // Vault is a SQLite-backed imprint store at Dir/vault.db.
 type Vault struct {
-	Dir          string
-	store        *sqlite.Store
-	now          func() time.Time
-	telemetry    EventSink
-	inheritAlpha float64
-	embed        Embedder
-	embedTimeout time.Duration
-	embedThresh  float64
+	Dir             string
+	store           *sqlite.Store
+	now             func() time.Time
+	telemetry       EventSink
+	inheritAlpha    float64
+	embed           Embedder
+	embedTimeout    time.Duration
+	embedThresh     float64
 	embedCrossScope string
 }
 
@@ -45,10 +45,9 @@ type OpenOptions struct {
 	// EmbedTimeout bounds each embedding call. <= 0 uses DefaultEmbedTimeoutSeconds.
 	EmbedTimeout time.Duration
 	// EmbedCrossScopePolicy is "advisory_only" (default) or "strict".
-	// advisory_only: the semantic gate scans every active+dormant rule and
-	//   surfaces cross-scope hits as advisory only (lower confidence).
-	// strict: the gate only considers rules whose scope overlaps the
-	//   candidate's scope; cross-scope hits are invisible.
+	// advisory_only: scan every active+dormant rule; cross-scope hits are advisory.
+	// strict: existing rule must have every tag of the new claim (AND / subset),
+	//   not mere tag overlap. Cross-scope hits are invisible.
 	EmbedCrossScopePolicy string
 }
 
@@ -303,10 +302,8 @@ func (v *Vault) AddRecord(claim string, scope []string, text string, confidence 
 	}
 	// Lexical polarity-conflicting candidates are advisory too — Jaccard
 	// cannot see "always wrap" vs "never wrap" any more than cosine can.
-	// They merge into the advisory list rather than ride as a second bucket.
-	if len(advLexical) > 0 {
-		advisory = append(advisory, advLexical...)
-	}
+	// Merge by id so a pair that trips both gates is listed once.
+	advisory = mergeAdvisoryCandidates(advisory, advLexical)
 	if len(duplicates) > 0 {
 		v.emit(TelemetryEvent{Op: "write_rejected", Code: "duplicate"}, trace)
 		return nil, &WriteGuardError{
@@ -598,28 +595,29 @@ func (v *Vault) Clear() error {
 	return v.store.Clear()
 }
 
-// ImportRecords replaces vault contents with recs.
-func (v *Vault) ImportRecords(recs []*Record) error {
+// ImportRecords replaces vault contents with recs, then backfills embeddings.
+// The import itself never fails because the sidecar is down — callers must
+// inspect BackfillResult (NoEmbedder / Failed) and tell the user to run
+// `imprint embed backfill` after the sidecar is up.
+func (v *Vault) ImportRecords(recs []*Record) (BackfillResult, error) {
 	for _, r := range recs {
 		r.Path = sqlite.DBPath(v.Dir)
 	}
 	if err := v.store.ImportRecords(recs); err != nil {
-		return err
+		return BackfillResult{}, err
 	}
-	// Import clears rule_vectors. Backfill runs after the wipe so a re-embed
-	// actually has rows to operate on. No embedder / sidecar down: silent pass.
-	v.BackfillEmbeddings(0, false, false, 0)
-	return nil
+	return v.BackfillEmbeddings(0, false, false, 0), nil
 }
 
-// BackfillResult is the audit shape for `imprint embed backfill`.
+// BackfillResult is the audit shape for `imprint embed backfill` and import.
 type BackfillResult struct {
-	Scanned  int      `json:"scanned"`
-	Encoded  int      `json:"encoded"`
-	Skipped  int      `json:"skipped"`
-	Failed   int      `json:"failed"`
-	FailedIDs []string `json:"failed_ids,omitempty"`
-	DryRun   bool     `json:"dry_run,omitempty"`
+	Scanned    int      `json:"scanned"`
+	Encoded    int      `json:"encoded"`
+	Skipped    int      `json:"skipped"`
+	Failed     int      `json:"failed"`
+	FailedIDs  []string `json:"failed_ids,omitempty"`
+	DryRun     bool     `json:"dry_run,omitempty"`
+	NoEmbedder bool     `json:"no_embedder,omitempty"`
 }
 
 // BackfillEmbeddings encodes every active+dormant rule that has no stored
@@ -636,6 +634,7 @@ func (v *Vault) BackfillEmbeddings(limit int, force, dryRun bool, batchSize int)
 	trace := newTraceID()
 	res := BackfillResult{}
 	if v.embed == nil {
+		res.NoEmbedder = true
 		v.emit(TelemetryEvent{Op: "backfill_skipped", Code: "no_embedder"}, trace)
 		return res
 	}

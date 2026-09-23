@@ -8,6 +8,22 @@ import (
 	"github.com/SteamedBread2333/imprint/internal/shelves"
 )
 
+// embedPluginID is the plugin id whose lifecycle `imprint up` does not own.
+// The embed sidecar is a singleton started by either `imprint-mcp` (the
+// common case for MCP users) or `imprint plugin start embed` (manual /
+// CLI-only users). `up` starts the host, shelves, and the rest of the
+// plugin set — embedding is intentionally not in that set because:
+//
+//   - MCP users do not run `imprint up` at all; treating embed as part of
+//     `up` would make MCP silently miss the sidecar.
+//   - CLI users who want embed can opt in once with
+//     `imprint plugin start embed`, after which the process stays up across
+//     `up` / `down` cycles and is reaped by `down` only.
+//
+// See docs/semantic-dedup.md "Single-instance constraint" for the rationale
+// behind the singleton port.
+const embedPluginID = "embed"
+
 func shelvesRoots(cfg *plugin.Config) []string {
 	if cfg == nil {
 		return shelves.DefaultRoots
@@ -26,10 +42,10 @@ func (a *App) cmdUp(g globals, rest []string) int {
 	}
 	cfg, _, _ := a.projectConfig(g)
 	mgr := plugin.NewManager(cfg)
-	if _, err := mgr.Reload(context.Background()); err != nil {
-		return a.fail(g.json, err)
-	}
-	items, err := mgr.List()
+	// `up` no longer starts the embed sidecar. The MCP server owns embed
+	// when it is running; for CLI-only setups the user opts in via
+	// `imprint plugin start embed`. See embedPluginID for the rationale.
+	items, err := mgr.StartEnabledExcept(context.Background(), []string{embedPluginID})
 	if err != nil {
 		return a.fail(g.json, err)
 	}
@@ -39,6 +55,9 @@ func (a *App) cmdUp(g globals, rest []string) int {
 			"vault":   rt.Vault,
 			"shelves": rt.Health.Shelves,
 			"plugins": items,
+			// Surface the embed caveat so JSON consumers do not have to
+			// chase the docs.
+			"embed_notice": embedUpNotice(cfg),
 		}
 		return boolExit(a.writeJSON(out))
 	}
@@ -53,14 +72,40 @@ func (a *App) cmdUp(g globals, rest []string) int {
 	printShelvesBlock(c, rt.Health.Shelves, roots, true)
 	deskEnabled := false
 	for _, st := range items {
+		// embed is intentionally not in `items` because we used
+		// StartEnabledExcept to omit it from the start loop, but the
+		// subsequent List() still walks every plugin in cfg.Plugins,
+		// and statusFor may surface a "no such manifest" error from the
+		// pre-launch probe. Skip it here — it has its own notice row
+		// below — so the operator is not confused.
+		if st.ID == embedPluginID {
+			continue
+		}
 		if st.ID == "desk" && st.Enabled {
 			deskEnabled = true
 		}
 		printPluginBlock(c, st.ID, st.Name, st.Enabled, st.Healthy, st.URL, st.Error)
 	}
+	if notice := embedUpNotice(cfg); notice != "" {
+		c.Row(embedPluginID, stateOff, "not started by up", notice)
+	}
 	printUpNextSteps(c, deskEnabled, rt.Health.Shelves.Indexed, true)
 	c.blank()
 	return 0
+}
+
+// embedUpNotice returns a one-line human hint when the embed plugin is
+// configured but `up` deliberately did not start it. Returns "" when the
+// embed entry is absent or disabled.
+func embedUpNotice(cfg *plugin.Config) string {
+	if cfg == nil {
+		return ""
+	}
+	entry, ok := cfg.Plugins[embedPluginID]
+	if !ok || !entry.Enabled {
+		return ""
+	}
+	return "start with: imprint plugin start embed"
 }
 
 func (a *App) cmdDown(g globals, rest []string) int {

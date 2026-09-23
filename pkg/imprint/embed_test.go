@@ -143,6 +143,30 @@ func TestEmbedUnavailableStillWrites(t *testing.T) {
 	}
 }
 
+// A pair that trips Jaccard polarity AND the semantic gate must appear
+// once in Similar (higher score wins), not twice.
+func TestSimilarDedupesWhenBothGatesFire(t *testing.T) {
+	const a = "Prefer tabs over spaces for Go code"
+	const b = "Prefer spaces over tabs for Go code"
+	stub := newStub(64)
+	stub.makeSimilar(a, b, 0.95)
+	v := embedVault(t, stub, 0.70)
+
+	if _, err := v.Add(a, []string{"go"}, "tabs", 0.8); err != nil {
+		t.Fatal(err)
+	}
+	res, err := v.Add(b, []string{"go"}, "spaces", 0.8)
+	if err != nil {
+		t.Fatalf("antonym pair was rejected: %v", err)
+	}
+	if len(res.Similar) != 1 {
+		t.Fatalf("similar = %d, want 1 unique rule: %+v", len(res.Similar), res.Similar)
+	}
+	if res.Similar[0].Score < 0.70 {
+		t.Fatalf("kept the weaker score: %+v", res.Similar[0])
+	}
+}
+
 // Polarity must flip a blocking candidate into an advisory one.
 func TestEmbedAdvisoryOnPolarityConflict(t *testing.T) {
 	stub := newStub(64)
@@ -446,6 +470,9 @@ func TestBackfillWithoutEmbedder(t *testing.T) {
 	if res.Scanned != 0 || res.Encoded != 0 || res.Failed != 0 || len(res.FailedIDs) != 0 {
 		t.Fatalf("backfill without embedder should be zero result, got %+v", res)
 	}
+	if !res.NoEmbedder {
+		t.Fatal("NoEmbedder should be set when the plugin is not wired")
+	}
 }
 
 // Limit caps how many rules a backfill pass encodes.
@@ -505,10 +532,35 @@ func TestImportRecordsTriggersBackfill(t *testing.T) {
 			EvidenceLog: []Evidence{{At: day(0), Kind: EvidenceOriginal, Text: "wrap"}},
 		},
 	}
-	if err := v.ImportRecords(recs); err != nil {
+	if _, err := v.ImportRecords(recs); err != nil {
 		t.Fatal(err)
 	}
 	waitVectors(t, v, stub.Model(), 2)
+}
+
+// Sidecar down during import must not fail the import, but BackfillResult
+// has to tell the caller to re-run backfill — otherwise the CLI stays silent.
+func TestImportRecordsSidecarDownReportsFailed(t *testing.T) {
+	stub := newStub(64)
+	stub.fail = true
+	v := embedVault(t, stub, 0.70)
+	recs := []*Record{
+		{
+			ID: "r-2026-09-23-001", Scope: []string{"go"}, Claim: "Use tabs for indentation",
+			Confidence: 0.7, Status: StatusActive, CreatedAt: day(0), UpdatedAt: day(0),
+			EvidenceLog: []Evidence{{At: day(0), Kind: EvidenceOriginal, Text: "tabs"}},
+		},
+	}
+	res, err := v.ImportRecords(recs)
+	if err != nil {
+		t.Fatalf("import failed: %v", err)
+	}
+	if res.Failed != 1 || len(res.FailedIDs) != 1 {
+		t.Fatalf("sidecar-down backfill = %+v, want Failed=1", res)
+	}
+	if n, _ := v.store.VectorCount(stub.Model()); n != 0 {
+		t.Fatalf("vectors written while sidecar down: %d", n)
+	}
 }
 
 // cross_scope_policy=strict: a high-cosine hit in a different scope must
@@ -530,6 +582,28 @@ func TestEmbedCrossScopeStrictFilters(t *testing.T) {
 	}
 	if len(res.Similar) > 0 {
 		t.Fatalf("strict mode surfaced cross-scope advisory: %+v", res.Similar)
+	}
+}
+
+// strict is AND (candidate ⊆ existing), not overlap: a broader [go] rule
+// must not enter the pool for a narrower [go, naming] add.
+func TestEmbedCrossScopeStrictNestedTags(t *testing.T) {
+	const a = "Go exported identifiers must use PascalCase"
+	const b = "Exported things use Pascal Case naming"
+	stub := newStub(64)
+	stub.makeSimilar(a, b, 0.95)
+	v := embedVault(t, stub, 0.70)
+	v.embedCrossScope = EmbedCrossScopeStrict
+
+	if _, err := v.Add(a, []string{"go"}, "pascal", 0.7); err != nil {
+		t.Fatal(err)
+	}
+	res, err := v.Add(b, []string{"go", "naming"}, "naming", 0.7)
+	if err != nil {
+		t.Fatalf("nested-scope strict rejected: %v", err)
+	}
+	if len(res.Similar) > 0 {
+		t.Fatalf("strict AND treated [go] as matching [go,naming]: %+v", res.Similar)
 	}
 }
 

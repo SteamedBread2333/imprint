@@ -99,7 +99,7 @@ func main() {
 	if err != nil {
 		fatal(err)
 	}
-	if err := v.ImportRecords(recs); err != nil {
+	if _, err := v.ImportRecords(recs); err != nil {
 		fatal(err)
 	}
 	wrote := time.Since(start)
