@@ -128,6 +128,7 @@ func (a *App) cmdAdd(g globals, args []string) int {
 	text := fs.String("text", "")
 	conf := fs.Float("confidence", 0)
 	queryLocal := fs.String("query-local", "")
+	conflicts := fs.String("conflicts", "")
 	pos, err := fs.parse(args)
 	if err != nil {
 		if err == errHelp {
@@ -141,7 +142,7 @@ func (a *App) cmdAdd(g globals, args []string) int {
 	if err != nil {
 		return a.fail(g.json, err)
 	}
-	res, err := v.AddRecord(claim, splitCSV(*scope), *text, *conf, nil, nil, nil, nil, *queryLocal)
+	res, err := v.AddRecord(claim, splitCSV(*scope), *text, *conf, nil, nil, splitCSV(*conflicts), nil, *queryLocal)
 	if err != nil {
 		return a.fail(g.json, err)
 	}
@@ -294,6 +295,39 @@ func (a *App) cmdForget(g globals, args []string) int {
 	c := a.console()
 	c.Heading("forget")
 	c.Done("forgot %s", pos[0])
+	c.blank()
+	return 0
+}
+
+func (a *App) cmdLink(g globals, args []string) int {
+	fs := newFlags()
+	related := fs.String("related", "")
+	conflicts := fs.String("conflicts", "")
+	pos, err := fs.parse(args)
+	if err != nil {
+		if err == errHelp {
+			fmt.Fprint(a.out(), commandHelp("link"))
+			return 0
+		}
+		return a.fail(g.json, err)
+	}
+	if len(pos) != 1 {
+		return a.fail(g.json, fmt.Errorf("usage: imprint link ID [--related id,id] [--conflicts id,id]"))
+	}
+	v, err := a.openVault(g)
+	if err != nil {
+		return a.fail(g.json, err)
+	}
+	res, err := v.Link(pos[0], splitCSV(*related), splitCSV(*conflicts))
+	if err != nil {
+		return a.fail(g.json, err)
+	}
+	if g.json {
+		return a.fail(false, a.writeJSON(res))
+	}
+	c := a.console()
+	c.Heading("link")
+	c.Done("linked %s  ·  related +%d  ·  conflicts +%d", res.ID, res.RelatedAdded, res.ConflictsAdded)
 	c.blank()
 	return 0
 }

@@ -34,6 +34,7 @@ type event struct {
 	WakeCandidate  bool      `json:"wake_candidate,omitempty"`
 	LatencyMS      int64     `json:"latency_ms,omitempty"`
 	Code           string    `json:"code,omitempty"`
+	TraceID        string    `json:"trace_id,omitempty"`
 }
 
 func New(dir string, retentionDays int, now func() time.Time, warn io.Writer) *Writer {
@@ -72,7 +73,7 @@ func (w *Writer) Record(in imprint.TelemetryEvent) error {
 		TS: in.At.UTC(), Op: in.Op, ScopeCount: in.ScopeCount,
 		QueryTermCount: in.QueryTermCount, RuleHitCount: in.RuleHitCount,
 		DocHitCount: in.DocHitCount, WakeCandidate: in.WakeCandidate,
-		LatencyMS: in.LatencyMS, Code: in.Code,
+		LatencyMS: in.LatencyMS, Code: in.Code, TraceID: in.TraceID,
 	})
 	if err != nil {
 		return w.fail(err)

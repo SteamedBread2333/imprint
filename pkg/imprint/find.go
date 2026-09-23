@@ -18,6 +18,21 @@ const (
 	weightBody     = 1.0
 	dormantPenalty = 0.35
 	maxDormantHits = 1
+	// zeroHitFloor scales confidence for query-zero-hit rules. They stay in
+	// the candidate list at the tail instead of being dropped outright, so
+	// synonym rewrites ("error wrapping policy" vs "Wrap errors") remain
+	// findable while any BM25 hit still outranks them.
+	zeroHitFloor = 0.3
+	// conflictPenalty scales the lower-scoring side of a conflicts_with pair
+	// so two mutually exclusive rules do not enter context at par.
+	conflictPenalty = 0.5
+	// embedRecallThreshold gates semantic recall: a rule with zero lexical
+	// overlap and no vector above this cosine stays on the zeroHitFloor. It
+	// is deliberately lower than the duplicate gate (0.70): recall never
+	// blocks anything, a weak match only lifts a rule into the tail — the
+	// calibration set puts unrelated pairs at a 0.528 median, so 0.55 keeps
+	// them out while genuine paraphrases (duplicate median 0.823) pass.
+	embedRecallThreshold = 0.55
 )
 
 func tokenize(s string) []string {
@@ -166,7 +181,7 @@ func scopeScore(recScope, queryScope []string) (score float64, matched int) {
 	return float64(matched) / float64(len(queryScope)), matched
 }
 
-func rankScore(rec *Record, scope []string, query string, idx *termIndex) (float64, bool) {
+func rankScore(rec *Record, scope []string, query string, idx *termIndex, semVec []float32, vectors map[string][]float32) (float64, bool) {
 	hasScope := len(scope) > 0
 	hasQuery := strings.TrimSpace(query) != ""
 	ss, matched := scopeScore(rec.Scope, scope)
@@ -179,15 +194,31 @@ func rankScore(rec *Record, scope []string, query string, idx *termIndex) (float
 		}
 	}
 
-	switch {
-	case hasScope && matched != len(scope):
-		return 0, false
-	case hasQuery && qs == 0:
+	// Scope stays a hard AND filter: every requested tag must be present.
+	if hasScope && matched != len(scope) {
 		return 0, false
 	}
 
 	var s float64
 	switch {
+	case hasQuery && qs == 0:
+		// A query with zero lexical overlap used to eliminate the rule from
+		// the candidate set entirely ("recalled never" cliff). Now it floors
+		// to zeroHitFloor * confidence so the rule sinks to the tail but
+		// survives — semantic recall layers (embed) and the LLM can still
+		// see it; lexical hits always outrank it.
+		s = zeroHitFloor * rec.Confidence
+		// Semantic recall: when the embed plugin produced a query vector and
+		// this rule has a stored one, a cosine above embedRecallThreshold
+		// replaces the floor. Recall is not rejection — no polarity guard
+		// here, a conflict rule is still worth surfacing.
+		if semVec != nil {
+			if vec, ok := vectors[rec.ID]; ok {
+				if sem := cosine(semVec, vec); sem >= embedRecallThreshold {
+					s = sem * rec.Confidence
+				}
+			}
+		}
 	case hasScope && hasQuery:
 		s = 0.7*ss + 0.3*qs
 	case hasScope:
@@ -212,10 +243,12 @@ func rankScore(rec *Record, scope []string, query string, idx *termIndex) (float
 // Query is optional BM25 ranking over claim, scope, evidence, query_local, and body.
 func (v *Vault) Find(scope []string, query string, topK int) ([]FindHit, error) {
 	start := time.Now()
-	hits, err := v.findRanked(scope, query, topK)
+	trace := newTraceID()
+	hits, err := v.findRanked(scope, query, topK, trace)
 	if err == nil {
-		v.recordHits(hits)
-		v.emitFind(scope, query, hits, time.Since(start))
+		hits = v.penalizeConflicts(hits, trace)
+		v.recordHits(hits, trace)
+		v.emitFind(scope, query, hits, time.Since(start), trace)
 	}
 	return hits, err
 }
@@ -223,6 +256,7 @@ func (v *Vault) Find(scope []string, query string, topK int) ([]FindHit, error) 
 // FindMerged runs BM25 for query and effective query_local, merging by rule id (max score).
 func (v *Vault) FindMerged(scope []string, query, queryLocal string, topK int) ([]FindHit, error) {
 	start := time.Now()
+	trace := newTraceID()
 	if topK <= 0 {
 		topK = DefaultTopK
 	}
@@ -234,11 +268,11 @@ func (v *Vault) FindMerged(scope []string, query, queryLocal string, topK int) (
 	if localQ == "" || localQ == q {
 		return v.Find(scope, q, topK)
 	}
-	h1, err := v.findRanked(scope, q, topK*3)
+	h1, err := v.findRanked(scope, q, topK*3, trace)
 	if err != nil {
 		return nil, err
 	}
-	h2, err := v.findRanked(scope, localQ, topK*3)
+	h2, err := v.findRanked(scope, localQ, topK*3, trace)
 	if err != nil {
 		return nil, err
 	}
@@ -247,12 +281,79 @@ func (v *Vault) FindMerged(scope []string, query, queryLocal string, topK int) (
 	if len(merged) > topK {
 		merged = merged[:topK]
 	}
-	v.recordHits(merged)
-	v.emitFind(scope, q+" "+localQ, merged, time.Since(start))
+	merged = v.penalizeConflicts(merged, trace)
+	v.recordHits(merged, trace)
+	v.emitFind(scope, q+" "+localQ, merged, time.Since(start), trace)
 	return merged, nil
 }
 
-func (v *Vault) emitFind(scope []string, query string, hits []FindHit, elapsed time.Duration) {
+// penalizeConflicts scales the lower-scoring side of every conflicts_with pair
+// present in a hit list, then re-sorts. Mutually exclusive rules ("always wrap
+// errors" vs "return bare errors") may otherwise enter the same context at par
+// and force the agent to arbitrate. Conflict edge lookup failure never blocks
+// find — the unpenalized list is returned instead.
+func (v *Vault) penalizeConflicts(hits []FindHit, traceID ...string) []FindHit {
+	if len(hits) < 2 {
+		return hits
+	}
+	ids := make([]string, 0, len(hits))
+	scoreByID := make(map[string]float64, len(hits))
+	for _, h := range hits {
+		ids = append(ids, h.ID)
+		scoreByID[h.ID] = h.Score
+	}
+	pairs, err := v.store.ConflictPairs(ids)
+	if err != nil {
+		v.emit(TelemetryEvent{Op: "find", Code: "conflict_penalty_failed"}, traceID...)
+		return hits
+	}
+	if len(pairs) == 0 {
+		return hits
+	}
+	penalized := map[string]struct{}{}
+	for _, pair := range pairs {
+		a, b := pair[0], pair[1]
+		sa, okA := scoreByID[a]
+		sb, okB := scoreByID[b]
+		if !okA || !okB {
+			continue
+		}
+		loser := a
+		switch {
+		case sa < sb:
+			loser = a
+		case sb < sa:
+			loser = b
+		default:
+			if b < a {
+				loser = b
+			}
+		}
+		penalized[loser] = struct{}{}
+	}
+	if len(penalized) == 0 {
+		return hits
+	}
+	out := make([]FindHit, len(hits))
+	for i, h := range hits {
+		if _, ok := penalized[h.ID]; ok {
+			h.Score = math.Round(h.Score*conflictPenalty*10000) / 10000
+		}
+		out[i] = h
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Score != out[j].Score {
+			return out[i].Score > out[j].Score
+		}
+		if out[i].Confidence != out[j].Confidence {
+			return out[i].Confidence > out[j].Confidence
+		}
+		return out[i].ID > out[j].ID
+	})
+	return out
+}
+
+func (v *Vault) emitFind(scope []string, query string, hits []FindHit, elapsed time.Duration, traceID ...string) {
 	wake := false
 	for _, hit := range hits {
 		wake = wake || hit.WakeCandidate
@@ -260,16 +361,16 @@ func (v *Vault) emitFind(scope []string, query string, hits []FindHit, elapsed t
 	v.emit(TelemetryEvent{
 		Op: "find", ScopeCount: len(scope), QueryTermCount: len(tokenize(query)),
 		RuleHitCount: len(hits), WakeCandidate: wake, LatencyMS: elapsed.Milliseconds(),
-	})
+	}, traceID...)
 }
 
-func (v *Vault) recordHits(hits []FindHit) {
+func (v *Vault) recordHits(hits []FindHit, traceID ...string) {
 	ids := make([]string, 0, len(hits))
 	for _, hit := range hits {
 		ids = append(ids, hit.ID)
 	}
 	if err := v.store.RecordHits(ids, v.instant()); err != nil {
-		v.emit(TelemetryEvent{Op: "stats_write_failed", Code: "stats_write_failed"})
+		v.emit(TelemetryEvent{Op: "stats_write_failed", Code: "stats_write_failed"}, traceID...)
 	}
 }
 
@@ -317,7 +418,7 @@ func mergeFindHits(a, b []FindHit) []FindHit {
 	return out
 }
 
-func (v *Vault) findRanked(scope []string, query string, topK int) ([]FindHit, error) {
+func (v *Vault) findRanked(scope []string, query string, topK int, traceID ...string) ([]FindHit, error) {
 	if topK <= 0 {
 		topK = DefaultTopK
 	}
@@ -335,6 +436,20 @@ func (v *Vault) findRanked(scope []string, query string, topK int) ([]FindHit, e
 	}
 	corpus := append(append([]*Record(nil), active...), dormant...)
 	idx := buildIndex(corpus)
+	// Semantic recall layer: one embedding call per find, bounded by
+	// embedTimeout. Any failure degrades to pure lexical ranking — find must
+	// never fail because the sidecar is down.
+	var semVec []float32
+	var vectors map[string][]float32
+	if v.embed != nil && strings.TrimSpace(query) != "" {
+		if q, ok := v.embedClaim(query, traceID...); ok {
+			if vecs, err := v.store.RuleVectors(v.embed.Model()); err == nil {
+				semVec, vectors = q, vecs
+			} else {
+				v.emit(TelemetryEvent{Op: "embed_unavailable", Code: "vector_read_failed"}, traceID...)
+			}
+		}
+	}
 	type scored struct {
 		rec   *Record
 		score float64
@@ -342,7 +457,7 @@ func (v *Vault) findRanked(scope []string, query string, topK int) ([]FindHit, e
 	scoreRecords := func(records []*Record, penalty float64) []scored {
 		var hits []scored
 		for _, r := range records {
-			s, ok := rankScore(r, scope, query, idx)
+			s, ok := rankScore(r, scope, query, idx, semVec, vectors)
 			if !ok {
 				continue
 			}

@@ -2,7 +2,9 @@ package sqlite
 
 import (
 	"database/sql"
+	"encoding/binary"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,7 +15,7 @@ import (
 	"github.com/SteamedBread2333/imprint/internal/vault/model"
 )
 
-const schemaVersion = "1"
+const schemaVersion = "2"
 
 const rulesSelectCols = `id, claim, body, query_local, status, confidence, reinforcement_count, created_at, updated_at`
 
@@ -38,7 +40,8 @@ CREATE TABLE IF NOT EXISTS rule_stats (
   rule_id           TEXT PRIMARY KEY,
   recall_count      INTEGER NOT NULL DEFAULT 0,
   last_recalled_at  TEXT,
-  last_confirmed_at TEXT NOT NULL
+  last_confirmed_at TEXT NOT NULL,
+  base_confidence   REAL NOT NULL DEFAULT -1
 );
 CREATE INDEX IF NOT EXISTS idx_rule_stats_confirmed ON rule_stats(last_confirmed_at);
 CREATE TABLE IF NOT EXISTS rule_events (
@@ -84,6 +87,14 @@ CREATE TABLE IF NOT EXISTS id_sequences (
   day        TEXT PRIMARY KEY,
   next_value INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS rule_vectors (
+  rule_id    TEXT PRIMARY KEY,
+  model      TEXT NOT NULL,
+  dim        INTEGER NOT NULL,
+  vec        BLOB NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_rule_vectors_model ON rule_vectors(model);
 `
 
 // Store persists vault rules in SQLite.
@@ -145,21 +156,103 @@ func (s *Store) instant() time.Time {
 
 func (s *Store) ensureMeta() error {
 	now := s.instant().Format(time.RFC3339)
-	if _, err := s.db.Exec(
-		`INSERT OR IGNORE INTO meta(key, value) VALUES('schema_version', ?), ('created_at', ?)`,
-		schemaVersion, now,
-	); err != nil {
+	var current string
+	err := s.db.QueryRow(`SELECT value FROM meta WHERE key = 'schema_version'`).Scan(&current)
+	if err == sql.ErrNoRows {
+		// Fresh vault: schemaSQL above already created v2 structures.
+		_, err = s.db.Exec(
+			`INSERT INTO meta(key, value) VALUES('schema_version', ?), ('created_at', ?)`,
+			schemaVersion, now,
+		)
 		return err
 	}
-	var v string
-	err := s.db.QueryRow(`SELECT value FROM meta WHERE key = 'schema_version'`).Scan(&v)
 	if err != nil {
 		return err
 	}
-	if v == schemaVersion {
+	if current == schemaVersion {
 		return nil
 	}
-	return fmt.Errorf("unsupported vault schema version %q; delete vault.db and rebuild", v)
+	// A newer vault (written by a future binary) must fail loudly instead of
+	// being silently downgraded.
+	var currentNum, wantNum int
+	if _, err := fmt.Sscanf(current, "%d", &currentNum); err != nil {
+		return fmt.Errorf("unsupported vault schema version %q", current)
+	}
+	if _, err := fmt.Sscanf(schemaVersion, "%d", &wantNum); err != nil {
+		return fmt.Errorf("unsupported vault schema version %q", schemaVersion)
+	}
+	if currentNum > wantNum {
+		return fmt.Errorf(
+			"vault schema version %q is newer than this binary supports (%q); upgrade imprint",
+			current, schemaVersion,
+		)
+	}
+	if err := s.migrate(current); err != nil {
+		return fmt.Errorf("migrate vault schema %q -> %q: %w", current, schemaVersion, err)
+	}
+	_, err = s.db.Exec(
+		`UPDATE meta SET value = ? WHERE key = 'schema_version'`,
+		schemaVersion,
+	)
+	return err
+}
+
+// migrate upgrades an older vault in-place. Steps probe with PRAGMA
+// table_info so they are idempotent and tolerate both v1.2.1 vaults
+// (last_touched_at column, no query_local) and v1.3.2 vaults (query_local,
+// no base_confidence). Old columns are kept, never dropped.
+func (s *Store) migrate(from string) error {
+	return s.withTx(func(tx *sql.Tx) error {
+		// rules.query_local (missing only in pre-v1.3.2 vaults).
+		if !columnExists(tx, "rules", "query_local") {
+			if _, err := tx.Exec(`ALTER TABLE rules ADD COLUMN query_local TEXT NOT NULL DEFAULT ''`); err != nil {
+				return fmt.Errorf("add rules.query_local: %w", err)
+			}
+		}
+		// rule_stats.base_confidence (added in v2; DEFAULT -1 marks rows
+		// awaiting backfill so a real confidence of 0 is never confused).
+		if !columnExists(tx, "rule_stats", "base_confidence") {
+			if _, err := tx.Exec(`ALTER TABLE rule_stats ADD COLUMN base_confidence REAL NOT NULL DEFAULT -1`); err != nil {
+				return fmt.Errorf("add rule_stats.base_confidence: %w", err)
+			}
+		}
+		if _, err := tx.Exec(`
+UPDATE rule_stats SET base_confidence = (
+  SELECT confidence FROM rules WHERE rules.id = rule_stats.rule_id
+) WHERE base_confidence < 0`); err != nil {
+			return fmt.Errorf("backfill base_confidence: %w", err)
+		}
+		// Rows with no stats at all (e.g. a pre-v1.3.2 vault where rule_stats
+		// was just created empty): seed from rules, preferring the legacy
+		// last_touched_at column when it still exists.
+		hasLastTouched := columnExists(tx, "rules", "last_touched_at")
+		seed := `
+INSERT INTO rule_stats(rule_id, recall_count, last_recalled_at, last_confirmed_at, base_confidence)
+SELECT id, 0, NULL, updated_at, confidence FROM rules
+WHERE id NOT IN (SELECT rule_id FROM rule_stats)`
+		if hasLastTouched {
+			seed = `
+INSERT INTO rule_stats(rule_id, recall_count, last_recalled_at, last_confirmed_at, base_confidence)
+SELECT id, 0, NULL,
+       COALESCE(NULLIF(last_touched_at, ''), updated_at),
+       confidence
+FROM rules
+WHERE id NOT IN (SELECT rule_id FROM rule_stats)`
+		}
+		if _, err := tx.Exec(seed); err != nil {
+			return fmt.Errorf("seed rule_stats: %w", err)
+		}
+		return nil
+	})
+}
+
+func columnExists(tx *sql.Tx, table, column string) bool {
+	rows, err := tx.Query(`SELECT 1 FROM pragma_table_info(?) WHERE name = ?`, table, column)
+	if err != nil {
+		return false
+	}
+	defer rows.Close()
+	return rows.Next()
 }
 
 func formatTime(t time.Time) string {
@@ -364,7 +457,18 @@ func putRecordTx(tx *sql.Tx, r *model.Record) error {
 	if _, err := tx.Exec(`DELETE FROM evidence_events WHERE rule_id = ?`, r.ID); err != nil {
 		return err
 	}
-	return insertEvidence(tx, r.ID, r.EvidenceLog)
+	if err := insertEvidence(tx, r.ID, r.EvidenceLog); err != nil {
+		return err
+	}
+	// A full rewrite resets the decay baseline: confidence changes made here
+	// are authoritative, not the result of time-based decay. Existing
+	// last_confirmed_at / recall stats are preserved.
+	_, err := tx.Exec(`
+INSERT INTO rule_stats(rule_id, recall_count, last_recalled_at, last_confirmed_at, base_confidence)
+VALUES(?, 0, NULL, ?, ?)
+ON CONFLICT(rule_id) DO UPDATE SET base_confidence = excluded.base_confidence`,
+		r.ID, formatTime(r.UpdatedAt), r.Confidence)
+	return err
 }
 
 // PutRecord writes a full rule (metadata + children). Evidence is replaced entirely.
@@ -459,7 +563,7 @@ RETURNING confidence, reinforcement_count`,
 		); err != nil {
 			return err
 		}
-		if _, err = tx.Exec(`UPDATE rule_stats SET last_confirmed_at = ? WHERE rule_id = ?`, formatTime(now), id); err != nil {
+		if _, err = tx.Exec(`UPDATE rule_stats SET last_confirmed_at = ?, base_confidence = ? WHERE rule_id = ?`, formatTime(now), confidence, id); err != nil {
 			return err
 		}
 		return insertRuleEvent(tx, id, now, "reinforce", "")
@@ -467,24 +571,63 @@ RETURNING confidence, reinforcement_count`,
 	return confidence, count, err
 }
 
-// SweepActive atomically decays stale active rules and marks active rules below
-// threshold dormant. It never rewrites child tables or evidence.
-func (s *Store) SweepActive(cutoff, now time.Time, decayAmount, dormantThreshold float64) (decayed, archived int, err error) {
+// minIdleDays is the smallest idle span that counts as decayable. Below it a
+// rule is "just confirmed" and must keep its confidence exactly — otherwise
+// sub-second idle times produce float noise that decays a rule on every sweep,
+// breaking idempotence.
+const minIdleDays = 1.0 / 24.0
+
+// SweepActive decays stale active rules and archives those below threshold.
+//
+// Decay is a pure function of elapsed time, not of how often sweep runs:
+//
+//	confidence' = max(0, base_confidence - λ * idle_days)
+//
+// where λ = decayAmount / decayDays and idle_days is measured from the most
+// recent activity (explicit confirmation or recall hit). Running sweep daily,
+// monthly, or once yields the same confidence — the old fixed −0.05 per call
+// coupled decay speed to cron frequency and never decayed if never run.
+//
+// It never rewrites child tables or evidence.
+func (s *Store) SweepActive(now time.Time, decayDays int, decayAmount, dormantThreshold float64) (decayed, archived int, err error) {
+	if decayDays <= 0 {
+		decayDays = 1
+	}
+	lambda := decayAmount / float64(decayDays)
+	nowStr := formatTime(now)
 	err = s.withTx(func(tx *sql.Tx) error {
+		// Self-heal rows whose baseline is missing (e.g. stats rows created
+		// before v2): the baseline is the rule's current confidence.
+		if _, err := tx.Exec(`
+UPDATE rule_stats SET base_confidence = (
+  SELECT confidence FROM rules WHERE rules.id = rule_stats.rule_id
+) WHERE base_confidence < 0`); err != nil {
+			return err
+		}
+
+		// idle expression: days since the later of explicit confirmation
+		// and last recall hit (retrieval counts as activity — testing effect).
+		const idle = `(julianday(?) - julianday(MAX(st.last_confirmed_at, COALESCE(st.last_recalled_at, st.last_confirmed_at))))`
+		const target = `MAX(0, st.base_confidence - ? * ` + idle + `)`
+		// updated_at is deliberately NOT bumped: decay is background
+		// maintenance, not user activity. Bumping it would poison
+		// `list --since` ("touched since") and the recency tiebreaks in
+		// find/Show with rules the user never touched.
 		rows, err := tx.Query(`
 UPDATE rules
-SET confidence = MAX(0, confidence - ?),
-    status = CASE
-      WHEN MAX(0, confidence - ?) < ? THEN ?
-      ELSE status
-    END,
-    updated_at = ?
-WHERE status = ? AND id IN (
-  SELECT rule_id FROM rule_stats WHERE last_confirmed_at <= ?
-)
-RETURNING id, status`,
-			decayAmount, decayAmount, dormantThreshold, string(model.StatusDormant),
-			formatTime(now), string(model.StatusActive), formatTime(cutoff),
+SET confidence = `+target+`,
+    status = CASE WHEN `+target+` < ? THEN ? ELSE rules.status END
+FROM rule_stats st
+WHERE st.rule_id = rules.id
+  AND rules.status = ?
+  AND `+idle+` >= ?
+  AND `+target+` < rules.confidence
+RETURNING rules.id, rules.status`,
+			lambda, nowStr,
+			lambda, nowStr, dormantThreshold, string(model.StatusDormant),
+			string(model.StatusActive),
+			nowStr, minIdleDays,
+			lambda, nowStr,
 		)
 		if err != nil {
 			return err
@@ -512,10 +655,10 @@ RETURNING id, status`,
 
 		rows, err = tx.Query(`
 UPDATE rules
-SET status = ?, updated_at = ?
+SET status = ?
 WHERE status = ? AND confidence < ?
 RETURNING id`,
-			string(model.StatusDormant), formatTime(now),
+			string(model.StatusDormant),
 			string(model.StatusActive), dormantThreshold,
 		)
 		if err != nil {
@@ -568,8 +711,8 @@ func (s *Store) RecordHits(ids []string, at time.Time) error {
 	return s.withTx(func(tx *sql.Tx) error {
 		for _, id := range ids {
 			if _, err := tx.Exec(`
-INSERT INTO rule_stats(rule_id, recall_count, last_recalled_at, last_confirmed_at)
-SELECT ?, 1, ?, created_at
+INSERT INTO rule_stats(rule_id, recall_count, last_recalled_at, last_confirmed_at, base_confidence)
+SELECT ?, 1, ?, created_at, confidence
 FROM rules WHERE id = ?
 ON CONFLICT(rule_id) DO UPDATE SET
   recall_count = recall_count + 1,
@@ -651,6 +794,7 @@ func (s *Store) DeleteRecord(id string) error {
 			`DELETE FROM rule_edges WHERE from_id = ? OR to_id = ?`,
 			`DELETE FROM rule_sources WHERE rule_id = ?`,
 			`DELETE FROM rule_stats WHERE rule_id = ?`,
+			`DELETE FROM rule_vectors WHERE rule_id = ?`,
 			`DELETE FROM rules WHERE id = ?`,
 		} {
 			args := []any{id}
@@ -973,6 +1117,54 @@ func scopeArgs(minConf float64, scope []string) []any {
 
 // ConflictPairs returns directed conflicts_with edges whose endpoints are both
 // present in ids.
+// AddEdges inserts relationship edges from fromID to each existing target id.
+// kind must be "related" or "conflicts_with" ("supersedes" is written only by
+// the supersede flow). Inserts are idempotent (INSERT OR IGNORE on the edge
+// primary key); unknown target ids are rejected so a typo cannot mint a
+// dangling edge. Returns the number of edges actually created.
+func (s *Store) AddEdges(fromID string, toIDs []string, kind string) (int, error) {
+	if kind != "related" && kind != "conflicts_with" {
+		return 0, fmt.Errorf("unsupported edge kind %q", kind)
+	}
+	added := 0
+	err := s.withTx(func(tx *sql.Tx) error {
+		var exists int
+		if err := tx.QueryRow(`SELECT COUNT(1) FROM rules WHERE id = ?`, fromID).Scan(&exists); err != nil {
+			return err
+		}
+		if exists == 0 {
+			return fmt.Errorf("record %s not found", fromID)
+		}
+		now := s.instant()
+		for _, to := range toIDs {
+			if to == "" || to == fromID {
+				continue
+			}
+			if err := tx.QueryRow(`SELECT COUNT(1) FROM rules WHERE id = ?`, to).Scan(&exists); err != nil {
+				return err
+			}
+			if exists == 0 {
+				return fmt.Errorf("link target %s not found", to)
+			}
+			res, err := tx.Exec(
+				`INSERT OR IGNORE INTO rule_edges(from_id, to_id, kind) VALUES(?, ?, ?)`,
+				fromID, to, kind,
+			)
+			if err != nil {
+				return err
+			}
+			if n, err := res.RowsAffected(); err == nil && n > 0 {
+				added++
+				if err := insertRuleEvent(tx, fromID, now, "link", kind+":"+to); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	})
+	return added, err
+}
+
 func (s *Store) ConflictPairs(ids []string) ([][2]string, error) {
 	if len(ids) == 0 {
 		return nil, nil
@@ -1106,7 +1298,7 @@ func filepathSlash(p string) string {
 // Clear removes all vault data.
 func (s *Store) Clear() error {
 	return s.withTx(func(tx *sql.Tx) error {
-		for _, t := range []string{"evidence_events", "rule_scopes", "rule_edges", "rule_sources", "rule_stats", "rule_events", "rules"} {
+		for _, t := range []string{"evidence_events", "rule_scopes", "rule_edges", "rule_sources", "rule_stats", "rule_events", "rule_vectors", "rules"} {
 			if _, err := tx.Exec(`DELETE FROM ` + t); err != nil {
 				return err
 			}
@@ -1118,7 +1310,7 @@ func (s *Store) Clear() error {
 // ImportRecords replaces the entire vault contents.
 func (s *Store) ImportRecords(recs []*model.Record) error {
 	return s.withTx(func(tx *sql.Tx) error {
-		for _, t := range []string{"evidence_events", "rule_scopes", "rule_edges", "rule_sources", "rule_stats", "rule_events", "rules"} {
+		for _, t := range []string{"evidence_events", "rule_scopes", "rule_edges", "rule_sources", "rule_stats", "rule_events", "rule_vectors", "rules"} {
 			if _, err := tx.Exec(`DELETE FROM ` + t); err != nil {
 				return err
 			}
@@ -1142,4 +1334,84 @@ func (s *Store) ImportRecords(recs []*model.Record) error {
 		}
 		return nil
 	})
+}
+
+func encodeVector(vec []float32) []byte {
+	buf := make([]byte, 4*len(vec))
+	for i, v := range vec {
+		binary.LittleEndian.PutUint32(buf[i*4:], math.Float32bits(v))
+	}
+	return buf
+}
+
+func decodeVector(blob []byte) []float32 {
+	n := len(blob) / 4
+	out := make([]float32, n)
+	for i := 0; i < n; i++ {
+		out[i] = math.Float32frombits(binary.LittleEndian.Uint32(blob[i*4:]))
+	}
+	return out
+}
+
+// UpsertRuleVector stores the embedding for one rule. Rows for rules that no
+// longer exist are rejected so a racing forget after add cannot leave orphan
+// vectors behind.
+func (s *Store) UpsertRuleVector(ruleID, model string, vec []float32, at time.Time) error {
+	return sqliteutil.Retry(func() error {
+		_, err := s.db.Exec(`
+INSERT INTO rule_vectors(rule_id, model, dim, vec, updated_at)
+SELECT ?, ?, ?, ?, ?
+WHERE EXISTS(SELECT 1 FROM rules WHERE id = ?)
+ON CONFLICT(rule_id) DO UPDATE SET
+  model = excluded.model,
+  dim = excluded.dim,
+  vec = excluded.vec,
+  updated_at = excluded.updated_at`,
+			ruleID, model, len(vec), encodeVector(vec), formatTime(at), ruleID)
+		return err
+	})
+}
+
+// DeleteRuleVectors removes embeddings for the given rule ids.
+func (s *Store) DeleteRuleVectors(ids []string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	return sqliteutil.Retry(func() error {
+		placeholders := strings.TrimSuffix(strings.Repeat("?,", len(ids)), ",")
+		args := make([]any, len(ids))
+		for i, id := range ids {
+			args[i] = id
+		}
+		_, err := s.db.Exec(`DELETE FROM rule_vectors WHERE rule_id IN (`+placeholders+`)`, args...)
+		return err
+	})
+}
+
+// RuleVectors returns stored embeddings keyed by rule id for one model.
+// Vectors from other models are ignored (they live in a different space).
+func (s *Store) RuleVectors(model string) (map[string][]float32, error) {
+	rows, err := s.db.Query(`
+SELECT rule_id, vec FROM rule_vectors WHERE model = ?`, model)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string][]float32{}
+	for rows.Next() {
+		var id string
+		var blob []byte
+		if err := rows.Scan(&id, &blob); err != nil {
+			return nil, err
+		}
+		out[id] = decodeVector(blob)
+	}
+	return out, rows.Err()
+}
+
+// VectorCount returns the number of stored embeddings for one model.
+func (s *Store) VectorCount(model string) (int, error) {
+	var n int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM rule_vectors WHERE model = ?`, model).Scan(&n)
+	return n, err
 }

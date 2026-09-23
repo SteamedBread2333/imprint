@@ -30,8 +30,8 @@ Mount: `docs/mcp.md`, `docs/examples/cursor-mcp.json`. Write loop: `docs/correct
 | Link | Direction | Write | Read |
 | --- | --- | --- | --- |
 | `supersedes` | new rule → old rule | `supersede` | `get`, `/graph`, desk `/` |
-| `related` | rule → rule | `add` / vault maintenance | same |
-| `conflicts_with` | rule → rule | `add` | same |
+| `related` | rule → rule | `link` / vault maintenance | same |
+| `conflicts_with` | rule → rule | `add --conflicts` / `link` | same |
 | `referenced_by` | reverse (who points at me) | automatic | `get r-…` |
 
 ### Rule ↔ document (vault + shelves, persistent)
@@ -63,7 +63,8 @@ Default path: user speaks → MCP **`find(scope, query[, query_local])`** → do
 - **`query_local`**: LLM local-language search terms (**not** verbatim); on write, vault **merges gse tokens from CJK evidence** so terms like `30秒` are not dropped.
 - **`confidence` on add**: omit → **0.6**; **0.85** when user corrects; **never 0.9 on add** (tier 0.9 via `reinforce` over time).
 - **`sources`**: only when a document **excerpt substantively supports** the rule—not topical overlap (same section title without matching content).
-- `add` after ADD only: `claim`, `scope`, `text` required; optional **`sources`** / **`query_local`** as above.
+- `add` after ADD only: `claim`, `scope`, `text` required; optional **`sources`** / **`query_local`** as above; **`conflicts`** (CSV of existing rule ids) when the new rule is the opposite of another rule that must stay active.
+- `link ID --conflicts id,id`: post-hoc edges. When `add` returns advisory **`similar`** (embed sidecar: same topic, opposite polarity), **confirm with the user**, then record opposition via `link` (or keep both without linking); `conflicts_with` makes later `find` penalize the weaker side.
 - `reinforce` requires non-empty user reaffirmation evidence; confidence uses diminishing gain `min(0.95, old + (0.95-old)*0.25)`. Find hits never change confidence. `supersede` decays successor confidence by `supersede.inheritance_alpha` of the gap above 0.6 (default 0.20; 0 copies old, 1 drops to baseline) and inherits **`sources`** / **`query_local`** unless overridden; `forget` strips inbound links and keeps a lifecycle event.
 - Server-side guards reject likely secrets/personal data, denied source paths, and high-similarity active duplicates.
 - `list`: `--scope`, `--query`, `--min-confidence`, `--since`.

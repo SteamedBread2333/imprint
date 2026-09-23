@@ -1,6 +1,9 @@
 package imprint
 
 import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -19,6 +22,9 @@ type Vault struct {
 	now          func() time.Time
 	telemetry    EventSink
 	inheritAlpha float64
+	embed        Embedder
+	embedTimeout time.Duration
+	embedThresh  float64
 }
 
 // OpenOptions configures a vault. Construction is immutable after Open.
@@ -29,6 +35,14 @@ type OpenOptions struct {
 	// InheritanceAlpha is supersede trust-gap decay (0=copy old, 1=baseline).
 	// nil uses DefaultInheritanceAlpha (0.20).
 	InheritanceAlpha *float64
+	// Embed enables the semantic duplicate path when non-nil. All failures
+	// degrade silently to the lexical Jaccard path.
+	Embed Embedder
+	// EmbedDuplicateThreshold is the semantic-duplicate cosine threshold.
+	// <= 0 uses DefaultEmbedDuplicateThreshold.
+	EmbedDuplicateThreshold float64
+	// EmbedTimeout bounds each embedding call. <= 0 uses DefaultEmbedTimeoutSeconds.
+	EmbedTimeout time.Duration
 }
 
 // TelemetryEvent contains content-free operational measurements.
@@ -42,6 +56,9 @@ type TelemetryEvent struct {
 	WakeCandidate  bool
 	LatencyMS      int64
 	Code           string
+	// TraceID ties every event of one logical operation (e.g. an add that
+	// embeds, then rejects) together; empty for events without a trace.
+	TraceID string
 }
 
 // EventSink receives privacy-safe telemetry.
@@ -65,11 +82,28 @@ func Open(opts OpenOptions) (*Vault, error) {
 	if opts.InheritanceAlpha != nil {
 		alpha = ClampInheritanceAlpha(*opts.InheritanceAlpha)
 	}
+	thresh := opts.EmbedDuplicateThreshold
+	if thresh <= 0 || thresh >= 1 {
+		thresh = DefaultEmbedDuplicateThreshold
+	}
+	timeout := opts.EmbedTimeout
+	if timeout <= 0 {
+		timeout = DefaultEmbedTimeoutSeconds * time.Second
+	}
 	st, err := sqlite.Open(abs, opts.Now)
 	if err != nil {
 		return nil, err
 	}
-	return &Vault{Dir: abs, store: st, now: opts.Now, telemetry: opts.Telemetry, inheritAlpha: alpha}, nil
+	return &Vault{
+		Dir:          abs,
+		store:        st,
+		now:          opts.Now,
+		telemetry:    opts.Telemetry,
+		inheritAlpha: alpha,
+		embed:        opts.Embed,
+		embedTimeout: timeout,
+		embedThresh:  thresh,
+	}, nil
 }
 
 // Close releases the underlying SQLite connection.
@@ -87,14 +121,28 @@ func (v *Vault) instant() time.Time {
 	return v.now().UTC().Truncate(time.Second)
 }
 
-func (v *Vault) emit(event TelemetryEvent) {
+func (v *Vault) emit(event TelemetryEvent, traceID ...string) {
 	if v.telemetry == nil {
 		return
 	}
 	if event.At.IsZero() {
 		event.At = v.instant()
 	}
+	if len(traceID) > 0 {
+		event.TraceID = traceID[0]
+	}
 	_ = v.telemetry.Record(event)
+}
+
+// newTraceID returns a short random id that links all telemetry events of one
+// logical operation (add → embed → reject). 12 hex chars keep the JSONL small
+// while collisions stay negligible at personal-vault event rates.
+func newTraceID() string {
+	var b [6]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return ""
+	}
+	return hex.EncodeToString(b[:])
 }
 
 func (v *Vault) load(id string) (*Record, error) {
@@ -201,6 +249,7 @@ func (v *Vault) AddWithSources(claim string, scope []string, text string, confid
 // AddRecord is Add plus optional relationship fields and query_local.
 func (v *Vault) AddRecord(claim string, scope []string, text string, confidence float64, supersedes, related, conflicts []string, sources []DocRef, queryLocal string) (*AddResult, error) {
 	start := time.Now()
+	trace := newTraceID()
 	claim = strings.TrimSpace(claim)
 	if claim == "" {
 		return nil, fmt.Errorf("claim is required")
@@ -214,19 +263,30 @@ func (v *Vault) AddRecord(claim string, scope []string, text string, confidence 
 		guardedText{field: "text", text: text},
 		guardedText{field: "query_local", text: queryLocal},
 	); err != nil {
-		v.emit(TelemetryEvent{Op: "write_rejected", Code: "privacy_rejected"})
+		v.emit(TelemetryEvent{Op: "write_rejected", Code: "privacy_rejected"}, trace)
 		return nil, err
 	}
 	if err := v.checkSourcePaths(sources); err != nil {
-		v.emit(TelemetryEvent{Op: "write_rejected", Code: "privacy_rejected"})
+		v.emit(TelemetryEvent{Op: "write_rejected", Code: "privacy_rejected"}, trace)
 		return nil, err
 	}
 	duplicates, err := v.duplicateCandidates(claim, scope)
 	if err != nil {
 		return nil, err
 	}
+	// Semantic layer: embed the claim ONCE and reuse the vector for both the
+	// duplicate check and the vector store — two ONNX round-trips per write
+	// would double write latency for zero benefit. Blocking candidates reject
+	// the write; advisory ones only ride along in the result so the caller
+	// can arbitrate polarity conflicts.
+	var advisory []DuplicateCandidate
+	qvec, vecOK := v.embedClaim(claim, trace)
+	duplicates, advisory, err = v.mergeEmbedDuplicatesVec(claim, qvec, vecOK, duplicates, trace)
+	if err != nil {
+		return nil, err
+	}
 	if len(duplicates) > 0 {
-		v.emit(TelemetryEvent{Op: "write_rejected", Code: "duplicate"})
+		v.emit(TelemetryEvent{Op: "write_rejected", Code: "duplicate"}, trace)
 		return nil, &WriteGuardError{
 			Code:       "duplicate",
 			Message:    "similar active rule already exists",
@@ -263,8 +323,11 @@ func (v *Vault) AddRecord(claim string, scope []string, text string, confidence 
 	if err := v.store.InsertRecord(rec); err != nil {
 		return nil, err
 	}
-	v.emit(TelemetryEvent{Op: "add", ScopeCount: len(scope), LatencyMS: time.Since(start).Milliseconds()})
-	return &AddResult{ID: rec.ID, Confidence: rec.Confidence, Path: rec.Path}, nil
+	if vecOK {
+		v.storeEmbeddingVec(rec.ID, qvec, trace)
+	}
+	v.emit(TelemetryEvent{Op: "add", ScopeCount: len(scope), LatencyMS: time.Since(start).Milliseconds()}, trace)
+	return &AddResult{ID: rec.ID, Confidence: rec.Confidence, Path: rec.Path, Similar: advisory}, nil
 }
 
 // Get returns the full record by id, including reverse links.
@@ -420,6 +483,49 @@ func (v *Vault) Show(limit int) ([]*Record, error) {
 	return recs, nil
 }
 
+// embedClaim embeds one claim and reports whether a vector is available.
+// A nil embedder, timeout, or error yields ok=false so every caller degrades
+// to the lexical path — writes must never fail because the sidecar is down.
+func (v *Vault) embedClaim(claim string, traceID ...string) (vec []float32, ok bool) {
+	if v.embed == nil {
+		return nil, false
+	}
+	start := time.Now()
+	ctx, cancel := context.WithTimeout(context.Background(), v.embedTimeout)
+	defer cancel()
+	vecs, err := v.embed.Embed(ctx, []string{claim})
+	if err != nil || len(vecs) == 0 {
+		v.emit(TelemetryEvent{Op: "embed_unavailable", LatencyMS: time.Since(start).Milliseconds()}, traceID...)
+		return nil, false
+	}
+	return vecs[0], true
+}
+
+// storeEmbedding encodes a rule's claim and stores its vector before the write
+// returns.
+//
+// It is deliberately synchronous: imprint is often invoked as a short-lived CLI
+// process, where a background goroutine would be killed at exit and silently
+// leave the rule without a vector (which then defeats the next duplicate
+// check). The call is bounded by embedTimeout, so a cold or crashed sidecar
+// costs at most that delay and then degrades — the write itself never fails.
+func (v *Vault) storeEmbedding(id, claim string, traceID ...string) {
+	if vec, ok := v.embedClaim(claim, traceID...); ok {
+		v.storeEmbeddingVec(id, vec, traceID...)
+	}
+}
+
+// storeEmbeddingVec persists an already-computed vector. See storeEmbedding
+// for why this must finish before the write returns.
+func (v *Vault) storeEmbeddingVec(id string, vec []float32, traceID ...string) {
+	start := time.Now()
+	if err := v.store.UpsertRuleVector(id, v.embed.Model(), vec, time.Now().UTC()); err != nil {
+		v.emit(TelemetryEvent{Op: "embed_unavailable", Code: "vector_write_failed", LatencyMS: time.Since(start).Milliseconds()}, traceID...)
+		return
+	}
+	v.emit(TelemetryEvent{Op: "embed", LatencyMS: time.Since(start).Milliseconds()}, traceID...)
+}
+
 // Forget permanently deletes a record and strips inbound relationship ids.
 func (v *Vault) Forget(id string) (*ForgetResult, error) {
 	start := time.Now()
@@ -433,7 +539,7 @@ func (v *Vault) Forget(id string) (*ForgetResult, error) {
 	if err := v.store.DeleteRecord(id); err != nil {
 		return nil, err
 	}
-	v.emit(TelemetryEvent{Op: "forget", LatencyMS: time.Since(start).Milliseconds()})
+	v.emit(TelemetryEvent{Op: "forget", LatencyMS: time.Since(start).Milliseconds()}, newTraceID())
 	return &ForgetResult{Success: true}, nil
 }
 

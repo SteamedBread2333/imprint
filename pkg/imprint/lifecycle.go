@@ -14,12 +14,13 @@ func (v *Vault) Reinforce(id, evidence string) (*ReinforceResult, error) {
 // ReinforceQueryLocal is Reinforce; when queryLocal is non-empty it updates stored query_local.
 func (v *Vault) ReinforceQueryLocal(id, evidence, queryLocal string) (*ReinforceResult, error) {
 	start := time.Now()
+	trace := newTraceID()
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return nil, fmt.Errorf("id is required")
 	}
 	if strings.TrimSpace(evidence) == "" {
-		v.emit(TelemetryEvent{Op: "write_rejected", Code: "reinforce_evidence_required"})
+		v.emit(TelemetryEvent{Op: "write_rejected", Code: "reinforce_evidence_required"}, trace)
 		return nil, &WriteGuardError{
 			Code:    "reinforce_evidence_required",
 			Message: "reinforce requires non-empty user reaffirmation evidence",
@@ -30,7 +31,7 @@ func (v *Vault) ReinforceQueryLocal(id, evidence, queryLocal string) (*Reinforce
 		guardedText{field: "evidence", text: evidence},
 		guardedText{field: "query_local", text: queryLocal},
 	); err != nil {
-		v.emit(TelemetryEvent{Op: "write_rejected", Code: "privacy_rejected"})
+		v.emit(TelemetryEvent{Op: "write_rejected", Code: "privacy_rejected"}, trace)
 		return nil, err
 	}
 	now := v.instant()
@@ -43,7 +44,7 @@ func (v *Vault) ReinforceQueryLocal(id, evidence, queryLocal string) (*Reinforce
 	if err != nil {
 		return nil, err
 	}
-	v.emit(TelemetryEvent{Op: "reinforce", LatencyMS: time.Since(start).Milliseconds()})
+	v.emit(TelemetryEvent{Op: "reinforce", LatencyMS: time.Since(start).Milliseconds()}, trace)
 	return &ReinforceResult{
 		ID:                 id,
 		Confidence:         confidence,
@@ -59,6 +60,7 @@ func (v *Vault) Supersede(oldID, newClaim string, newScope []string, reason, ori
 // SupersedeWithSources archives oldID and writes a new rule, optionally replacing inherited sources.
 func (v *Vault) SupersedeWithSources(oldID, newClaim string, newScope []string, reason, originalText string, sources []DocRef, queryLocal string) (*SupersedeResult, error) {
 	start := time.Now()
+	trace := newTraceID()
 	oldID = strings.TrimSpace(oldID)
 	newClaim = strings.TrimSpace(newClaim)
 	if oldID == "" {
@@ -77,11 +79,11 @@ func (v *Vault) SupersedeWithSources(oldID, newClaim string, newScope []string, 
 		guardedText{field: "text", text: originalText},
 		guardedText{field: "query_local", text: queryLocal},
 	); err != nil {
-		v.emit(TelemetryEvent{Op: "write_rejected", Code: "privacy_rejected"})
+		v.emit(TelemetryEvent{Op: "write_rejected", Code: "privacy_rejected"}, trace)
 		return nil, err
 	}
 	if err := v.checkSourcePaths(sources); err != nil {
-		v.emit(TelemetryEvent{Op: "write_rejected", Code: "privacy_rejected"})
+		v.emit(TelemetryEvent{Op: "write_rejected", Code: "privacy_rejected"}, trace)
 		return nil, err
 	}
 	old, err := v.load(oldID)
@@ -139,11 +141,19 @@ func (v *Vault) SupersedeWithSources(oldID, newClaim string, newScope []string, 
 	if err := v.store.SupersedePair(old, newRec, expectedUpdatedAt); err != nil {
 		return nil, err
 	}
-	v.emit(TelemetryEvent{Op: "supersede", ScopeCount: len(newScope), LatencyMS: time.Since(start).Milliseconds()})
+	// The archived rule leaves the duplicate-detection pool; its vector is
+	// dropped while the successor gets a fresh one.
+	if err := v.store.DeleteRuleVectors([]string{old.ID}); err != nil {
+		v.emit(TelemetryEvent{Op: "embed_unavailable", Code: "vector_delete_failed"}, trace)
+	}
+	v.storeEmbedding(newRec.ID, newRec.Claim, trace)
+	v.emit(TelemetryEvent{Op: "supersede", ScopeCount: len(newScope), LatencyMS: time.Since(start).Milliseconds()}, trace)
 	return &SupersedeResult{ID: newID, SupersededOldID: old.ID}, nil
 }
 
 // Sweep decays untouched rules and archives those below the dormant threshold.
+// Decay is time-based and idempotent: running it daily, monthly, or once
+// converges to the same confidence for the same elapsed idle time.
 func (v *Vault) Sweep(decayDays int, decayAmount, dormantThreshold float64) (*SweepResult, error) {
 	start := time.Now()
 	if decayDays <= 0 {
@@ -156,11 +166,10 @@ func (v *Vault) Sweep(decayDays int, decayAmount, dormantThreshold float64) (*Sw
 		dormantThreshold = DefaultDormantThresh
 	}
 	now := v.instant()
-	cutoff := now.Add(-time.Duration(decayDays) * 24 * time.Hour)
-	decayed, archived, err := v.store.SweepActive(cutoff, now, decayAmount, dormantThreshold)
+	decayed, archived, err := v.store.SweepActive(now, decayDays, decayAmount, dormantThreshold)
 	if err != nil {
 		return nil, err
 	}
-	v.emit(TelemetryEvent{Op: "sweep", LatencyMS: time.Since(start).Milliseconds()})
+	v.emit(TelemetryEvent{Op: "sweep", LatencyMS: time.Since(start).Milliseconds()}, newTraceID())
 	return &SweepResult{Decayed: decayed, Archived: archived}, nil
 }

@@ -24,8 +24,8 @@
 | 字段 | 方向 | 写入 | 读取 |
 | --- | --- | --- | --- |
 | `supersedes` | 新 → 旧 | `supersede` | `get`, `/graph`, desk `/` |
-| `related` | rule → rule | vault | 同上 |
-| `conflicts_with` | rule → rule | vault | 同上 |
+| `related` | rule → rule | `link`、`add`（Go API） | 同上 |
+| `conflicts_with` | rule → rule | `link`、`add`（`conflicts`） | 同上 |
 | `referenced_by` | 反向 | 自动 | `get r-…` |
 
 ### 规则 ↔ 文档（持久）
@@ -116,10 +116,11 @@ go install github.com/SteamedBread2333/imprint/cmd/imprint-mcp@latest
 
 | 工具          | 对应 CLI              | 说明                                                                                    |
 | ----------- | ------------------- | ------------------------------------------------------------------------------------- |
-| `find`      | `imprint find`      | 默认紧凑返回规则 claim/计数和 `{rules,documents,links,conflict_set}`；可选 `query`、`query_local`、`top_k`（规则）。文档条数用 `shelves.config.find_top_k`（默认 2），snippet 为查询窗口（`snippet_runes` 默认 80）。仅审计时用 `full:true`。查询最多补一条降权 dormant `wake_candidate`；明确 `reinforce` 才唤醒。 |
-| `add`       | `imprint add`       | 必填 `claim`、`scope`、`text`；可选 `confidence`、`query_local`、`sources`。疑似敏感数据、禁用 source 路径和高相似 active 重复会被拒绝。 |
+| `find`      | `imprint find`      | 默认紧凑返回规则 claim/计数和 `{rules,documents,links,conflict_set}`；可选 `query`、`query_local`、`top_k`（规则）。文档条数用 `shelves.config.find_top_k`（默认 2），snippet 为查询窗口（`snippet_runes` 默认 80）。仅审计时用 `full:true`。查询最多补一条降权 dormant `wake_candidate`；明确 `reinforce` 才唤醒。embed sidecar 开启时，零词法命中的规则仍会按语义召回（余弦 ≥ 0.55 抬离地板）；词法命中永远排在前面。 |
+| `add`       | `imprint add`       | 必填 `claim`、`scope`、`text`；可选 `confidence`、`query_local`、`conflicts`、`sources`。疑似敏感数据、禁用 source 路径和高相似 active 重复会被拒绝。embed sidecar 开启时，结果里的 `similar` 列出咨询性近邻（同主题、极性相反）——先与用户确认，再二选一：`link`/`conflicts` 记录对立并共存，或 `supersede`。 |
 | `reinforce` | `imprint reinforce` | `id` 与必填非空 `evidence`；可选 `query_local`。find 命中永不加分。 |
 | `supersede` | `imprint supersede` | `old_id`、`claim`、`scope`；可选 `reason`、`text`、`query_local`（省略则继承）、`sources`（省略则继承）。新规则 **confidence** 按 `imprint.yaml` 的 `supersede.inheritance_alpha` 对高出 0.6 的缺口衰减（默认 0.20）。 |
+| `link`      | `imprint link`      | `id` 加 `related` 和/或 `conflicts`（逗号分隔的已存在规则 id）。事后补边，幂等；`conflicts_with` 会让 find 降权对立对中较弱一侧。链接前先与用户确认对立关系。 |
 | `forget`    | `imprint forget`    | `id`。 |
 | `get`       | `imprint get`       | 规则默认折叠 evidence 与来源正文；`include_evidence:true` 搭配 `evidence_limit`（默认 3），`full:true` 仅用于审计。chunk get 不变。 |
 | `list`      | `imprint list`      | 可选 `status`、`scope`、`query`、`min_confidence`、`since`、`limit`。   |

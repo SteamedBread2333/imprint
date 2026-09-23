@@ -211,6 +211,8 @@ func (a *App) Run(args []string) int {
 		return a.cmdSupersede(g, rest)
 	case "forget":
 		return a.cmdForget(g, rest)
+	case "link":
+		return a.cmdLink(g, rest)
 	case "list":
 		return a.cmdList(g, rest)
 	case "get":
@@ -275,6 +277,7 @@ Everyday — vault (no local stack required):
   add         Create a new rule
   reinforce   Strengthen an existing rule
   supersede   Replace a rule (marks the old one superseded)
+  link        Add related/conflicts_with edges between existing rules
   forget      Delete a rule permanently
   list        Short listing
   get         Full record by id
@@ -298,7 +301,7 @@ Vault:
 func commandHelp(cmd string) string {
 	switch cmd {
 	case "add":
-		return "Usage: imprint add CLAIM --scope tag,tag --text ORIG [--confidence 0.6] [--query-local TERMS]\n"
+		return "Usage: imprint add CLAIM --scope tag,tag --text ORIG [--confidence 0.6] [--query-local TERMS] [--conflicts id,id]\n"
 	case "find":
 		return "Usage: imprint find [--scope tag,tag] [--query TEXT] [--query-local TERMS] [--top-k 5]\n"
 	case "reinforce":
@@ -307,6 +310,8 @@ func commandHelp(cmd string) string {
 		return "Usage: imprint supersede OLD_ID --claim NEW --scope tag,tag [--reason TEXT] [--text ORIG] [--query-local TERMS]\n"
 	case "forget":
 		return "Usage: imprint forget ID\n"
+	case "link":
+		return "Usage: imprint link ID [--related id,id] [--conflicts id,id]\n\nAdds relationship edges from an existing rule to other existing rules. Use conflicts for opposite policies that must both stay active; confirm with the user first.\n"
 	case "list":
 		return "Usage: imprint list [--status active|dormant|superseded] [--scope tag,tag] [--query TEXT] [--min-confidence 0] [--since YYYY-MM-DD] [--limit N]\n"
 	case "get":

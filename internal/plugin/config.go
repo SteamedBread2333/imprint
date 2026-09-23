@@ -5,7 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/SteamedBread2333/imprint/internal/embed"
 	"github.com/SteamedBread2333/imprint/internal/textseg"
 	"github.com/SteamedBread2333/imprint/pkg/imprint"
 	"gopkg.in/yaml.v3"
@@ -267,12 +269,60 @@ func (c *Config) HostURL() string {
 }
 
 // ApplyToOpenOptions copies yaml vault tunables onto Open.
+// It also wires the optional embed sidecar when plugins.embed is enabled.
 func (c *Config) ApplyToOpenOptions(opts *imprint.OpenOptions) {
 	if c == nil || opts == nil {
 		return
 	}
 	a := c.Supersede.Alpha()
 	opts.InheritanceAlpha = &a
+	entry, ok := c.Plugins["embed"]
+	if !ok || !entry.Enabled {
+		return
+	}
+	cfg := EmbedConfigFrom(entry)
+	opts.Embed = embed.NewClient(cfg.Port, cfg.Model, time.Duration(cfg.TimeoutSeconds)*time.Second)
+	if cfg.DuplicateThreshold > 0 {
+		opts.EmbedDuplicateThreshold = cfg.DuplicateThreshold
+	}
+}
+
+// EmbedConfig is the parsed plugins.embed.config section.
+type EmbedConfig struct {
+	Port               int
+	Model              string
+	TimeoutSeconds     int
+	DuplicateThreshold float64
+}
+
+// EmbedConfigFrom reads typed values from a plugin entry with defaults.
+func EmbedConfigFrom(entry PluginEntry) EmbedConfig {
+	cfg := EmbedConfig{
+		Port:               imprint.DefaultEmbedPort,
+		Model:              imprint.EmbedModel,
+		TimeoutSeconds:     imprint.DefaultEmbedTimeoutSeconds,
+		DuplicateThreshold: imprint.DefaultEmbedDuplicateThreshold,
+	}
+	if entry.Config == nil {
+		return cfg
+	}
+	if v, ok := entry.Config["port"].(int); ok && v > 0 {
+		cfg.Port = v
+	} else if v, ok := entry.Config["port"].(float64); ok && v > 0 {
+		cfg.Port = int(v)
+	}
+	if v, ok := entry.Config["model"].(string); ok && strings.TrimSpace(v) != "" {
+		cfg.Model = strings.TrimSpace(v)
+	}
+	if v, ok := entry.Config["timeout_seconds"].(int); ok && v > 0 {
+		cfg.TimeoutSeconds = v
+	} else if v, ok := entry.Config["timeout_seconds"].(float64); ok && v > 0 {
+		cfg.TimeoutSeconds = int(v)
+	}
+	if v, ok := entry.Config["duplicate_threshold"].(float64); ok && v > 0 && v < 1 {
+		cfg.DuplicateThreshold = v
+	}
+	return cfg
 }
 
 // PluginPort returns the configured port for a plugin id.

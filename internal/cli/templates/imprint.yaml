@@ -28,3 +28,11 @@ plugins:
     config:
       port: 4173
       hostUrl: http://127.0.0.1:9470
+  embed:
+    enabled: false  # opt-in: semantic duplicate gate; degrades to Jaccard when off
+    package: ../imprint-embed-sidecar
+    config:
+      port: 4174
+      model: BAAI/bge-small-zh-v1.5   # must match the sidecar model; it keys rule_vectors
+      timeout_seconds: 2
+      duplicate_threshold: 0.70   # calibrated by imprint-embed-sidecar/calibrate.py; do not raise without re-running it

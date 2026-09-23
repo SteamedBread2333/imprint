@@ -46,7 +46,7 @@ for spec in "${PLATFORMS[@]}"; do
   CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags="$LDFLAGS" -o "${stage}/${mcp_bin}" ./cmd/imprint-mcp
 
   docs=()
-  for f in LICENSE README.md README.zh.md PROMPT.md docs/mcp.md docs/mcp.zh.md docs/correction.md docs/correction.zh.md docs/editors.md docs/editors.zh.md; do
+  for f in LICENSE README.md README.zh.md docs/PROMPT-v2.1-legacy.md docs/mcp.md docs/mcp.zh.md docs/correction.md docs/correction.zh.md docs/editors.md docs/editors.zh.md; do
     if [[ -f "$f" ]]; then
       base="$(basename "$f")"
       cp "$f" "${stage}/${base}"

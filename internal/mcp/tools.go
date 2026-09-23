@@ -30,6 +30,10 @@ func registerTools(server *sdkmcp.Server, v *imprint.Vault, shelvesSvc *shelves.
 		Description: "Archive an old rule and write its replacement when policy changes.",
 	}, s.supersede)
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
+		Name:        "link",
+		Description: "Add related/conflicts_with edges between existing rules; use after add returns advisory similar and the user confirms opposition.",
+	}, s.link)
+	sdkmcp.AddTool(server, &sdkmcp.Tool{
 		Name:        "forget",
 		Description: "Delete a rule the user asked to forget; resolve its id without asking the user.",
 	}, s.forget)
@@ -151,11 +155,12 @@ type addArgs struct {
 	Text       string      `json:"text" jsonschema:"user's original words (evidence); do not copy into query_local"`
 	Confidence float64     `json:"confidence,omitempty" jsonschema:"omit for 0.6; 0.85 only when user corrects; never 0.9 on add"`
 	QueryLocal string      `json:"query_local,omitempty" jsonschema:"LLM local-language search terms, not verbatim; vault merges CJK evidence tokens"`
+	Conflicts  string      `json:"conflicts,omitempty" jsonschema:"comma-separated rule ids this rule conflicts with (opposite policies); both must stay active"`
 	Sources    []docRefArg `json:"sources,omitempty" jsonschema:"[{path, heading?, chunk?}] only when excerpt substantively supports the claim, not topical overlap; vault only"`
 }
 
 func (s *vaultTools) add(_ context.Context, _ *sdkmcp.CallToolRequest, args addArgs) (*sdkmcp.CallToolResult, any, error) {
-	res, err := s.v.AddRecord(args.Claim, splitCSV(args.Scope), args.Text, args.Confidence, nil, nil, nil, parseDocRefs(args.Sources), args.QueryLocal)
+	res, err := s.v.AddRecord(args.Claim, splitCSV(args.Scope), args.Text, args.Confidence, nil, nil, splitCSV(args.Conflicts), parseDocRefs(args.Sources), args.QueryLocal)
 	if err != nil {
 		return toolErr(err), nil, nil
 	}
@@ -200,6 +205,20 @@ type forgetArgs struct {
 
 func (s *vaultTools) forget(_ context.Context, _ *sdkmcp.CallToolRequest, args forgetArgs) (*sdkmcp.CallToolResult, any, error) {
 	res, err := s.v.Forget(args.ID)
+	if err != nil {
+		return toolErr(err), nil, nil
+	}
+	return jsonOK(res)
+}
+
+type linkArgs struct {
+	ID        string `json:"id" jsonschema:"existing rule id the edges start from"`
+	Related   string `json:"related,omitempty" jsonschema:"comma-separated existing rule ids to mark related"`
+	Conflicts string `json:"conflicts,omitempty" jsonschema:"comma-separated existing rule ids with opposite policy; confirm with the user before linking"`
+}
+
+func (s *vaultTools) link(_ context.Context, _ *sdkmcp.CallToolRequest, args linkArgs) (*sdkmcp.CallToolResult, any, error) {
+	res, err := s.v.Link(args.ID, splitCSV(args.Related), splitCSV(args.Conflicts))
 	if err != nil {
 		return toolErr(err), nil, nil
 	}

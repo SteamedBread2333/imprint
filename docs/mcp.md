@@ -24,8 +24,8 @@
 | Field | Direction | Write | Read |
 | --- | --- | --- | --- |
 | `supersedes` | new → old | `supersede` | `get`, `/graph`, desk `/` |
-| `related` | rule → rule | vault | same |
-| `conflicts_with` | rule → rule | vault | same |
+| `related` | rule → rule | `link`, `add` (Go API) | same |
+| `conflicts_with` | rule → rule | `link`, `add` (`conflicts`) | same |
 | `referenced_by` | reverse | automatic | `get r-…` |
 
 ### Rule ↔ document (persistent)
@@ -109,10 +109,11 @@ Every tool returns **pretty-printed JSON** in the tool result text. On failure, 
 
 | Tool | CLI equivalent | Notes |
 | --- | --- | --- |
-| `find` | `imprint find` | Compact by default: rule claims/counts plus `{rules,documents,links,conflict_set}`. Optional `query`, `query_local`, `top_k` (rules). Document hits use `shelves.config.find_top_k` (default 2) and query-window snippets (`snippet_runes`, default 80). `full:true` is audit-only. A query may return at most one penalized dormant `wake_candidate`; only explicit `reinforce` wakes it. |
-| `add` | `imprint add` | `claim`, `scope`, `text` required; optional `confidence`, `query_local`, `sources`. Rejects sensitive data, denied source paths, and high-similarity active duplicates. |
+| `find` | `imprint find` | Compact by default: rule claims/counts plus `{rules,documents,links,conflict_set}`. Optional `query`, `query_local`, `top_k` (rules). Document hits use `shelves.config.find_top_k` (default 2) and query-window snippets (`snippet_runes`, default 80). `full:true` is audit-only. A query may return at most one penalized dormant `wake_candidate`; only explicit `reinforce` wakes it. When the embed sidecar is on, rules with zero lexical overlap are still recalled semantically (cosine ≥ 0.55 lifts them off the floor); lexical hits always outrank them. |
+| `add` | `imprint add` | `claim`, `scope`, `text` required; optional `confidence`, `query_local`, `conflicts`, `sources`. Rejects sensitive data, denied source paths, and high-similarity active duplicates. When the embed sidecar is on, `similar` in the result lists advisory neighbours (same topic, opposite polarity) — confirm with the user, then either keep both and record the opposition via `link`/`conflicts`, or `supersede`. |
 | `reinforce` | `imprint reinforce` | `id` and required non-empty `evidence`; optional `query_local`. Find hits never raise confidence. |
 | `supersede` | `imprint supersede` | `old_id`, `claim`, `scope`; optional `reason`, `text`, `query_local` (omit to inherit), `sources` (omit to inherit). New-rule **confidence** decays the gap above 0.6 by `supersede.inheritance_alpha` in `imprint.yaml` (default 0.20). |
+| `link` | `imprint link` | `id` plus `related` and/or `conflicts` (comma-separated existing rule ids). Post-hoc edge creation, idempotent; `conflicts_with` makes find penalize the weaker side of the pair. Confirm opposition with the user before linking. |
 | `forget` | `imprint forget` | `id`. |
 | `get` | `imprint get` | Rule get folds evidence and source text by default. `include_evidence:true` uses `evidence_limit` (default 3); `full:true` is audit-only. Chunk get is unchanged. |
 | `list` | `imprint list` | Optional `status`, `scope`, `query`, `min_confidence`, `since`, `limit`. |

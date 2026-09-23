@@ -13,6 +13,10 @@ type AddResult struct {
 	ID         string  `json:"id"`
 	Confidence float64 `json:"confidence"`
 	Path       string  `json:"path"`
+	// Similar holds advisory semantic neighbours: rules that look related but
+	// whose polarity differs (cosine cannot see "never"/"instead"), so the
+	// caller — not the system — decides reinforce / supersede / keep both.
+	Similar []DuplicateCandidate `json:"similar,omitempty"`
 }
 
 // FindHit is one find match.
@@ -78,6 +82,13 @@ type SupersedeResult struct {
 // ForgetResult is the --json shape for forget.
 type ForgetResult struct {
 	Success bool `json:"success"`
+}
+
+// LinkResult is the --json shape for link.
+type LinkResult struct {
+	ID             string `json:"id"`
+	RelatedAdded   int    `json:"related_added"`
+	ConflictsAdded int    `json:"conflicts_added"`
 }
 
 type Backlink = model.Backlink

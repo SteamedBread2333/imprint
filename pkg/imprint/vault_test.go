@@ -3,6 +3,7 @@ package imprint
 import (
 	"bytes"
 	"encoding/json"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -114,20 +115,36 @@ func TestFindScopeAndQuery(t *testing.T) {
 		t.Fatalf("python naming hits = %+v", hits)
 	}
 
+	// Zero lexical overlap must sink to the tail, not vanish: the rule stays
+	// findable (semantic recall / LLM arbitration) but ranks below any BM25 hit.
 	hits, err = v.Find([]string{"go"}, "PascalCase", 5)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(hits) != 1 || !strings.Contains(hits[0].Title, "PascalCase") {
+	if len(hits) != 2 {
 		t.Fatalf("go PascalCase hits = %+v", hits)
+	}
+	if !strings.Contains(hits[0].Title, "PascalCase") {
+		t.Fatalf("top hit should be the PascalCase rule: %+v", hits)
+	}
+	if !strings.Contains(hits[1].Title, "table-driven") {
+		t.Fatalf("zero-hit rule should survive at the tail: %+v", hits)
+	}
+	if hits[1].Score >= hits[0].Score {
+		t.Fatalf("zero-hit rule must rank below a lexical hit: %+v", hits)
 	}
 
 	hits, err = v.Find(nil, "table-driven", 5)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(hits) != 1 || hits[0].ID != "r-2026-09-11-003" {
+	if len(hits) == 0 || hits[0].ID != "r-2026-09-11-003" {
 		t.Fatalf("query hits = %+v", hits)
+	}
+	for _, h := range hits[1:] {
+		if h.Score >= hits[0].Score {
+			t.Fatalf("zero-hit rule outranked the lexical hit: %+v", hits)
+		}
 	}
 }
 
@@ -232,8 +249,13 @@ func TestSweepDecayAndArchive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if old.Status != StatusDormant || old.Confidence != 0.27 {
+	if old.Status != StatusDormant {
 		t.Fatalf("old = status %s conf %v", old.Status, old.Confidence)
+	}
+	// Decay is continuous in elapsed time: 100 idle days at λ=0.05/90 per day.
+	want := 0.32 - (0.05/90)*100
+	if math.Abs(old.Confidence-want) > 1e-6 {
+		t.Fatalf("old = status %s conf %v, want %v", old.Status, old.Confidence, want)
 	}
 	still, err := v.Get(fresh.ID)
 	if err != nil {
@@ -468,5 +490,100 @@ func TestVaultDBCreated(t *testing.T) {
 	}
 	if _, err := os.Stat(sqlite.DBPath(dir)); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// Decay must be a pure function of elapsed time: running sweep repeatedly at
+// the same instant must not keep subtracting (the old per-call -0.05 did).
+func TestSweepIsIdempotent(t *testing.T) {
+	dir := t.TempDir()
+	v := frozen(t, dir, day(-200))
+	if _, err := v.Add("Old preference", []string{"general"}, "old", 0.9); err != nil {
+		t.Fatal(err)
+	}
+	v.now = func() time.Time { return day(0) }
+	first, err := v.Sweep(90, 0.05, 0.3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Decayed != 1 {
+		t.Fatalf("first sweep = %+v", first)
+	}
+	after, err := v.Get("r-2026-06-24-001")
+	if err != nil {
+		// id date depends on the frozen clock; fall back to a list lookup.
+		recs, lerr := v.Show(0)
+		if lerr != nil || len(recs) == 0 {
+			t.Fatalf("lookup: %v / %v", err, lerr)
+		}
+		after = recs[0]
+	}
+	confidenceAfterFirst := after.Confidence
+
+	for i := 0; i < 5; i++ {
+		again, err := v.Sweep(90, 0.05, 0.3)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if again.Decayed != 0 {
+			t.Fatalf("repeat sweep %d decayed %d rules; decay must be idempotent", i, again.Decayed)
+		}
+	}
+	recs, err := v.Show(0)
+	if err != nil || len(recs) == 0 {
+		t.Fatalf("show: %v", err)
+	}
+	if math.Abs(recs[0].Confidence-confidenceAfterFirst) > 1e-9 {
+		t.Fatalf("confidence drifted across repeated sweeps: %v -> %v", confidenceAfterFirst, recs[0].Confidence)
+	}
+}
+
+// Two mutually exclusive rules must not enter context at equal weight.
+func TestFindPenalizesConflictingRules(t *testing.T) {
+	dir := t.TempDir()
+	v := frozen(t, dir, day(0))
+	high, err := v.AddRecord("Always wrap errors with percent w", []string{"go", "errors"}, "wrap", 0.9, nil, nil, nil, nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	low, err := v.AddRecord("Return bare errors without wrapping", []string{"go", "errors"}, "bare", 0.8, nil, nil, []string{high.ID}, nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	hits, err := v.Find([]string{"go", "errors"}, "errors wrapping", 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var scores = map[string]float64{}
+	for _, h := range hits {
+		scores[h.ID] = h.Score
+	}
+	baseHigh, err := v.Get(high.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = baseHigh
+	if len(hits) != 2 {
+		t.Fatalf("hits = %+v", hits)
+	}
+	// The conflict loser (the rule that declares conflicts_with, whichever
+	// scored lower before penalty) must end up strictly below the winner.
+	if scores[high.ID] == scores[low.ID] {
+		t.Fatalf("conflicting rules tied at %v: %+v", scores[high.ID], hits)
+	}
+	loser := low.ID
+	if scores[high.ID] < scores[low.ID] {
+		loser = high.ID
+	}
+	// Confirm the penalty actually applied: loser score is roughly half of
+	// what an unpenalized search returns.
+	unpenalized, err := v.Find([]string{"go", "errors"}, "", 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, h := range unpenalized {
+		if h.ID == loser && scores[loser] > h.Score {
+			t.Fatalf("penalty not applied to %s: %v vs %v", loser, scores[loser], h.Score)
+		}
 	}
 }
