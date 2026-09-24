@@ -271,7 +271,7 @@ Environment:
 
 Everyday — local stack:
   up          Start vault API, shelves, and enabled plugins except embed (then: desk open)
-  down        Stop the local stack (embed sidecar is left running)
+  down        Stop the local stack
   status      Snapshot of services (vault API, shelves, desk)
   desk open   Open desk in browser (does not start services)
 
@@ -350,7 +350,7 @@ See docs/editors.md.
 	case "up":
 		return "Usage: imprint up\n\nStarts host (vault API + shelves) and every enabled external plugin except embed.\n"
 	case "down":
-		return "Usage: imprint down\n\nStops external plugins except embed, then the host. Stop embed with: imprint plugin stop embed\n"
+		return "Usage: imprint down\n\nStops host and enabled plugins other than embed.\n"
 	case "status":
 		return "Usage: imprint status\n\nRead-only snapshot of host, shelves, and external plugins.\n"
 	case "host":
