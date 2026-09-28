@@ -38,7 +38,6 @@ flowchart LR
 
   subgraph reverse [读 chunk · 不改文档]
     G["get chunk"] --> RR[referenced_rules]
-    G --> CR[cited_rules 可选]
   end
 
   V --> RR
@@ -102,7 +101,6 @@ shelves:
 | ---------------- | ----- | -------------------------------------------------------- | --------------- |
 | imprint → 文档     | **是** | vault `sources`                                          | **否**           |
 | 文档 → imprint（反查） | **是** | **同上** — 读 chunk 时扫 vault `sources` 得 `referenced_rules` | **否**           |
-| 文档正文 @ imprint   | 可选    | `[[r-…]]` → shelves `rule_refs` → `cited_rules`          | 是（**可选**，非默认）   |
 | 一次 find 内的关系     | **否** | 响应 `links`                                               | **否**           |
 
 
@@ -143,7 +141,7 @@ Handler 默认 **30 秒**超时（`503` + `{"error":"timeout"}`），请求不�
 | GET  | `/health`           | 含 `shelves: { enabled, indexed, chunk_count, … }`         |
 | GET  | `/find`             | 与 MCP 类似；带 query 且 shelves 开时返回 rules + documents + links |
 | POST | `/docs/search`      | `{ query, top_k? }` → `{ hits: [...] }`                   |
-| GET  | `/docs/chunks/{id}` | chunk 全文 + `referenced_rules` + 可选 `cited_rules`          |
+| GET  | `/docs/chunks/{id}` | chunk 全文 + `referenced_rules`          |
 | GET  | `/docs/graph`       | 文档结构图                                                     |
 | GET  | `/docs/stats`       | 索引元数据                                                     |
 | POST | `/docs/rebuild`     | enabled 时强制 rebuild                                       |
@@ -181,14 +179,16 @@ Handler 默认 **30 秒**超时（`503` + `{"error":"timeout"}`），请求不�
     { "id", "path", "heading", "score", "snippet" }
   ],
   "links": [
-    { "rule_id", "chunk_id", "kind": "sources|cited_by|co_search", "score" }
+    { "rule_id", "chunk_id", "kind": "sources|co_search", "score" }
   ]
 }
 ```
 
 - 默认 MCP `find` 为紧凑形状：规则只返回 claim/计数，不内联 evidence；文档用 `find_top_k`（默认 2）、每 path 一条、查询窗口 snippet（`snippet_runes` 默认 80）。`full:true` 仅审计，才可能带 source 正文。
 - **无 query** 或 shelves 禁用：仅紧凑 **rules**。
-- `get`：规则默认折叠 evidence 与来源正文，只给指针和 `evidence_count`。`include_evidence:true` 展开最近证据（`evidence_limit` 默认 3）；`full:true` 仅审计。chunk id → 文档 chunk + `referenced_rules`（+ `cited_rules` 若正文含 `[[r-…]]`）。
+- `get`：规则默认折叠 evidence 与来源正文，只给指针和 `evidence_count`。`include_evidence:true` 展开最近证据（`evidence_limit` 默认 3）；`full:true` 仅审计。chunk id → 文档 chunk + `referenced_rules`。
+
+MCP/CLI **`find`** 可选 **`paths`** 仅收窄 shelves 文档 BM25（规则不变）。grep 后已索引命中超过 **`find_top_k`** 时，同一轮一次 find 带 **`paths`**，再 Read **grep ∩ documents**（空则回退 grep、上限 k）。
 
 Agent 约定见 `imprint init` 写入的编辑器规则与 [correction.zh.md](correction.zh.md)。
 
@@ -198,7 +198,7 @@ Agent 约定见 `imprint init` 写入的编辑器规则与 [correction.zh.md](co
 
 ## Desk UI
 
-desk 将 `/api/docs/*`、`/api/graph/unified` 代理到 host。三个独立路由 — `/`（规则图）、 `/docs`（shelves 搜索）、 `/unified`（规则 + 文件/chunk + `sources` / `cited_by` 边）— **各自维护 URL 查询参数**，切换标签不会把筛选条件带过去。规则详情展示 `resolved_sources`；文档 chunk 展示 `referenced_rules` / `cited_rules`。**Agent 主路径仍是 MCP** `find` **/** `get`。
+desk 将 `/api/docs/*`、`/api/graph/unified` 代理到 host。三个独立路由 — `/`（规则图）、 `/docs`（shelves 搜索）、 `/unified`（规则 + 文件/chunk + **`sources`** 边）— **各自维护 URL 查询参数**，切换标签不会把筛选条件带过去。规则详情展示 `resolved_sources`；文档 chunk 展示 `referenced_rules`。**Agent 主路径仍是 MCP** `find` **/** `get`。
 
 ---
 

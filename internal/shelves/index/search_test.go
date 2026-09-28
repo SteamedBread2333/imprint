@@ -9,7 +9,7 @@ func TestSearchStoreMergedCapsAndDedupsPath(t *testing.T) {
 		{ID: "b1", Path: "docs/b.md", Heading: "B", Text: "alpha in b"},
 		{ID: "c1", Path: "docs/c.md", Heading: "C", Text: "alpha in c"},
 	}}
-	hits := SearchStoreMergedSized(st, "alpha", "", 2, 80)
+	hits := SearchStoreMergedSized(st, "alpha", "", 2, 80, nil)
 	if len(hits) != 2 {
 		t.Fatalf("hits = %+v", hits)
 	}

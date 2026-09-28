@@ -43,7 +43,7 @@ type UnifiedGraph struct {
 	Edges       []UnifiedEdge `json:"edges"`
 }
 
-// BuildUnifiedGraph composes rule graph, document graph, and sources / cited_by edges.
+// BuildUnifiedGraph composes rule graph, document graph, and sources edges.
 func BuildUnifiedGraph(v *imprint.Vault, st *index.Store, includeArchived bool) (UnifiedGraph, error) {
 	out := UnifiedGraph{
 		GeneratedAt: time.Now().UTC().Format(time.RFC3339),
@@ -155,11 +155,6 @@ func BuildUnifiedGraph(v *imprint.Vault, st *index.Store, includeArchived bool) 
 				fileID := "file:" + res.Path
 				addEdge(rec.ID, fileID, "sources")
 			}
-		}
-	}
-	if st != nil {
-		for _, ref := range st.RuleRefs {
-			addEdge(ref.ChunkID, ref.RuleID, "cited_by")
 		}
 	}
 	return out, nil

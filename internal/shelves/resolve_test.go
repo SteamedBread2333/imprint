@@ -100,20 +100,24 @@ func TestBuildFindLinksVaultReverse(t *testing.T) {
 	}
 }
 
-func TestBuildFindLinks(t *testing.T) {
+func TestBuildFindLinksCoSearch(t *testing.T) {
 	st := &index.Store{
 		Chunks: []index.Chunk{
-			{ID: "doc1", Path: "docs/a.md", Heading: "A", Text: "see [[r-2026-09-11-001]]", LineStart: 1, LineEnd: 1},
+			{ID: "doc1", Path: "docs/a.md", Heading: "A", Text: "policy text", LineStart: 1, LineEnd: 1},
 		},
-		RuleRefs: []index.RuleRef{{ChunkID: "doc1", RuleID: "r-2026-09-11-001", LineNo: 1}},
 	}
 	rules := []imprint.EnrichedFindHit{{
-		FindHit:         imprint.FindHit{ID: "r-2026-09-16-001", Score: 0.9},
-		ResolvedSources: []imprint.ResolvedSource{{ChunkID: "doc1", Path: "docs/a.md"}},
+		FindHit: imprint.FindHit{ID: "r-2026-09-16-001", Score: 0.9},
 	}}
 	docs := []index.SearchHit{{ID: "doc1", Score: 0.8}}
 	links := BuildFindLinks(nil, st, rules, docs)
-	if len(links) < 2 {
+	hasCo := false
+	for _, l := range links {
+		if l.Kind == "co_search" {
+			hasCo = true
+		}
+	}
+	if !hasCo {
 		t.Fatalf("links = %+v", links)
 	}
 }

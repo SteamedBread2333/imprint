@@ -309,7 +309,7 @@ func commandHelp(cmd string) string {
 	case "add":
 		return "Usage: imprint add CLAIM --scope tag,tag --text ORIG [--confidence 0.6] [--query-local TERMS] [--conflicts id,id]\n"
 	case "find":
-		return "Usage: imprint find [--scope tag,tag] [--query TEXT] [--query-local TERMS] [--top-k 5]\n"
+		return "Usage: imprint find [--scope tag,tag] [--query TEXT] [--query-local TERMS] [--paths path,path] [--top-k 5]\n"
 	case "reinforce":
 		return "Usage: imprint reinforce ID --evidence TEXT [--query-local TERMS]\n"
 	case "supersede":

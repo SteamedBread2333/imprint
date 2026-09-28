@@ -10,9 +10,9 @@
 | Capability | MCP (shelves on) | CLI `imprint --json` |
 | --- | --- | --- |
 | Write rules + `sources` | `add` / `supersede` | same |
-| Pre-coding recall | `find(scope, query[, query_local])` → rules + **documents** + **links** | `find` → **vault rules only** |
+| Pre-coding recall | `find(scope, query[, query_local][, paths])` → rules + **documents** + **links** | `find --json` → vault rules; with shelves + query → enriched JSON; optional `--paths` |
 | Rule doc basis | `get r-…` → compact source pointers; `full:true` → excerpts | `get r-…` → vault only |
-| Chunk → rules | `get <chunk-id>` → **referenced_rules** + **cited_rules** | not supported |
+| Chunk → rules | `get <chunk-id>` → **referenced_rules** | not supported |
 | Rule graph | desk `/` | host `GET /graph` |
 
 **CLI** `find` / `get`: vault fields (table above). **Agents** pre-coding recall: MCP.
@@ -34,14 +34,12 @@
 | --- | --- | --- | --- |
 | **`sources`** | rule → doc | `add` / `supersede` with `[{path, heading?, chunk?}]` — vault only | `get r-…` → **`resolved_sources`** |
 | **`referenced_rules`** | doc → rule | automatic vault reverse scan | **`get <chunk-id>`** |
-| **`cited_rules`** | doc → rule | `[[r-…]]` / `[imprint:r-…]` in text; rebuild | **`get <chunk-id>`**; desk `/unified` **`cited_by`** |
 
 ### `find` `links` (session-only, not persisted)
 
 | `kind` | Meaning |
 | --- | --- |
 | `sources` | vault `sources` point at a hit chunk |
-| `cited_by` | chunk text cites a rule |
 | `co_search` | same-query BM25 co-occurrence — aids judgment, **not written back** |
 
 See [imprint-shelves-linking.md](imprint-shelves-linking.md).
@@ -109,7 +107,7 @@ Every tool returns **pretty-printed JSON** in the tool result text. On failure, 
 
 | Tool | CLI equivalent | Notes |
 | --- | --- | --- |
-| `find` | `imprint find` | Compact by default: rule claims/counts plus `{rules,documents,links,conflict_set}`. Optional `query`, `query_local`, `top_k` (rules). Document hits use `shelves.config.find_top_k` (default 2) and query-window snippets (`snippet_runes`, default 80). `full:true` is audit-only. A query may return at most one penalized dormant `wake_candidate`; only explicit `reinforce` wakes it. When the embed sidecar is on, rules with zero lexical overlap are still recalled semantically (cosine ≥ 0.55 lifts them off the floor); lexical hits always outrank them. |
+| `find` | `imprint find` | Compact by default: rule claims/counts plus `{rules,documents,links,conflict_set}`. Optional `query`, `query_local`, `paths` (indexed doc paths from grep — filters shelves documents only), `top_k` (rules). Document hits use `shelves.config.find_top_k` (default 2) and query-window snippets (`snippet_runes`, default 80). `full:true` is audit-only. A query may return at most one penalized dormant `wake_candidate`; only explicit `reinforce` wakes it. When the embed sidecar is on, rules with zero lexical overlap are still recalled semantically (cosine ≥ 0.55 lifts them off the floor); lexical hits always outrank them. |
 | `add` | `imprint add` | `claim`, `scope`, `text` required; optional `confidence`, `query_local`, `conflicts`, `sources`. Rejects sensitive data, denied source paths, and high-similarity active duplicates. When the embed sidecar is on, `similar` in the result lists advisory neighbours (same topic, opposite polarity) — confirm with the user, then either keep both and record the opposition via `link`/`conflicts`, or `supersede`. |
 | `reinforce` | `imprint reinforce` | `id` and required non-empty `evidence`; optional `query_local`. Find hits never raise confidence. |
 | `supersede` | `imprint supersede` | `old_id`, `claim`, `scope`; optional `reason`, `text`, `query_local` (omit to inherit), `sources` (omit to inherit). New-rule **confidence** decays the gap above 0.6 by `supersede.inheritance_alpha` in `imprint.yaml` (default 0.20). |
@@ -124,8 +122,8 @@ Every tool returns **pretty-printed JSON** in the tool result text. On failure, 
 ### Agent workflow
 
 1. **Confirm MCP is mounted** (shelves on) — otherwise only vault, no documents / links / resolved_sources.
-2. Before coding or style answers → **`find`** with narrow `scope` + **`query`**; when local-language terms differ from `query`, also pass **`query_local`** (both run BM25; same-turn **`add`/`supersede`/`reinforce`** may persist `query_local`).
-3. Analyse; classify **ADD / REINFORCE / SUPERSEDE / IGNORE**.
+2. **Source code:** Grep → Read; find does not filter. **Shelves docs:** Grep first; when indexed grep hits exceed **`find_top_k`** (default 2), call **`find`** once with **`scope`**, **`query`**, **`query_local`**, and **`paths`** (indexed grep paths), then Read **grep ∩ documents** (fallback: grep list capped at k). **Policy-only:** one **`find`** without paths. At most **one find per user message** — never find → grep → find.
+3. Analyse; classify **ADD / REINFORCE / SUPERSEDE / IGNORE** from that find.
 4. On **ADD** when a document hit matches → same-turn **`add`** with **`sources`** (vault only — no markdown edits).
 5. Never duplicate an imprint; record only what the user **said**. The vault independently rejects duplicate or sensitive writes.
 6. User says forget / don't record → **`forget`** or skip.

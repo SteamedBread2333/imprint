@@ -8,13 +8,6 @@ import (
 	"github.com/SteamedBread2333/imprint/pkg/imprint"
 )
 
-// CitedRule is a vault rule referenced from document text.
-type CitedRule struct {
-	ID     string `json:"id"`
-	Kind   string `json:"kind"`
-	LineNo int    `json:"line_no,omitempty"`
-}
-
 // ResolveSources maps vault DocRefs to shelves excerpts for agent recall.
 func ResolveSources(st *index.Store, refs []imprint.DocRef) []imprint.ResolvedSource {
 	if len(refs) == 0 {
@@ -101,17 +94,3 @@ func resolveByPathHeading(st *index.Store, path, want string) imprint.ResolvedSo
 	return imprint.ResolvedSource{Path: path, Heading: want, HeadingUnresolved: true}
 }
 
-// CitedRules returns rules referenced from a chunk via [[r-…]] or [imprint:r-…].
-func CitedRules(st *index.Store, chunkID string) []CitedRule {
-	if st == nil {
-		return nil
-	}
-	var out []CitedRule
-	for _, ref := range st.RuleRefs {
-		if ref.ChunkID != chunkID {
-			continue
-		}
-		out = append(out, CitedRule{ID: ref.RuleID, Kind: "cited_by", LineNo: ref.LineNo})
-	}
-	return out
-}

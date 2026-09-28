@@ -31,7 +31,7 @@ func Rebuild(workspace string, roots []string, stateDir string, maxChunkLines in
 		BuiltAt:     time.Now().UTC(),
 		FileCount:   fileCount,
 		Chunks:      chunks,
-		RuleRefs:    ExtractAllRuleRefs(chunks),
+		RuleRefs:    nil,
 	}
 	if err := SaveStore(stateDir, s); err != nil {
 		return nil, false, err

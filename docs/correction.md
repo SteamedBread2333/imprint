@@ -217,13 +217,15 @@ Reply in normal language — do not ask the user to confirm a rule id or pick a 
 
 **User:** Add an exported method on `UserService`.
 
-**Agent (before editing)**
+**Agent (before editing)** — vault policy, no wide doc grep:
 
 ```bash
 imprint --json --vault ./.imprint find --scope go,naming --query export
 ```
 
 Hit `[r-2026-09-14-002]` → name the method `GetProfile`, not `get_profile`; cite `[r-…]` when it shapes the change.
+
+When searching shelves markdown, **Grep first**. If indexed grep hits exceed **`find_top_k`**, the same turn’s only **`find`** includes **`paths`** from that grep list; then Read the intersection with `documents` (or grep fallback). Source files still use Grep → Read without find.
 
 ---
 

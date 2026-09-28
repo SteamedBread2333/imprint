@@ -17,7 +17,7 @@ Each turn, project markdown is available on demand — grep and file reads lack 
 | **With imprint** | Multiple tool calls | One `find` → rules + documents + links |
 | **Shape** | Whole files or raw lines | **Chunks** with path, heading, lines, snippet |
 | **Ranking** | None unified | BM25 on the same query as vault rules |
-| **Durable links** | None | vault `sources` (rule→doc); optional `[[r-…]]` in docs |
+| **Durable links** | None | vault `sources` (rule→doc) |
 | **Cost** | More tokens | Local SQLite index, no embedding API |
 
 Shelves uses **local BM25** over chunked markdown. The win is **integration, structure, locality, and workflow**.
@@ -38,7 +38,6 @@ flowchart LR
 
   subgraph reverse [get chunk · no doc edits]
     G["get chunk"] --> RR[referenced_rules]
-    G --> CR[cited_rules optional]
   end
 
   V --> RR
@@ -89,7 +88,6 @@ After changing `roots`, `enabled`, or `max_chunk_lines`, run `imprint up` (or re
 | --- | --- | --- | --- |
 | imprint → doc | **Yes** | vault `sources` | **No** |
 | doc → imprint (reverse) | **Yes** | **Same** — `get chunk` scans vault `sources` → `referenced_rules` | **No** |
-| Explicit @ in doc body | Optional | `[[r-…]]` → `cited_rules` | Yes (**optional**) |
 | Same-turn `find` | **No** | Response `links` | **No** |
 
 **Default durable bidirectional link: write vault `sources` once.**
@@ -120,9 +118,9 @@ Handlers time out after **30 seconds** (`503` + `{"error":"timeout"}`) so reques
 | Method | Path | Notes |
 | --- | --- | --- |
 | GET | `/health` | Includes `shelves: { enabled, indexed, chunk_count, … }` |
-| GET | `/find` | With query + shelves on → rules + documents + links |
+| GET | `/find` | With query + shelves on → rules + documents + links; optional `paths` query (repeat or CSV) filters documents |
 | POST | `/docs/search` | `{ query, top_k? }` → `{ hits: [...] }` |
-| GET | `/docs/chunks/{id}` | Full chunk + `referenced_rules` + optional `cited_rules` |
+| GET | `/docs/chunks/{id}` | Full chunk + `referenced_rules` |
 | GET | `/docs/graph` | Document structure graph |
 | GET | `/docs/stats` | Index metadata |
 | POST | `/docs/rebuild` | Force rebuild when enabled |
@@ -146,13 +144,15 @@ Default MCP `find` is compact: rule claims and counts, no evidence text. Documen
 
 Without query, or shelves off: compact **rules** only.
 
-`get`: compact rule by default (source pointers, `evidence_count`; no `evidence_log`). `include_evidence:true` expands the newest evidence (`evidence_limit` default 3). `full:true` is audit-only. Chunk id → chunk + **`referenced_rules`** (+ `cited_rules` if markdown cites rules).
+`get`: compact rule by default (source pointers, `evidence_count`; no `evidence_log`). `include_evidence:true` expands the newest evidence (`evidence_limit` default 3). `full:true` is audit-only. Chunk id → chunk + **`referenced_rules`**.
+
+Optional MCP/CLI **`paths`** on **`find`** restricts document BM25 to indexed grep hits (rules unchanged). After grep, when indexed hits exceed **`find_top_k`**, agents use one find with **`paths`**, then Read **grep ∩ documents** (fallback: grep list capped at k).
 
 ---
 
 ## Desk UI
 
-Desk proxies `/api/docs/*` and `/api/graph/unified` to the host. Three routes — **`/`** (rules graph), **`/docs`** (shelves search), **`/unified`** (rules + files/chunks + `sources` / `cited_by` edges) — each with **its own URL query state** (switching tabs does not carry filters across). Rule detail shows `resolved_sources`; doc chunks show `referenced_rules` / `cited_rules`. **Agents** recall via MCP `find` / `get`; **desk** is for human audit.
+Desk proxies `/api/docs/*` and `/api/graph/unified` to the host. Three routes — **`/`** (rules graph), **`/docs`** (shelves search), **`/unified`** (rules + files/chunks + **`sources`** edges) — each with **its own URL query state** (switching tabs does not carry filters across). Rule detail shows `resolved_sources`; doc chunks show `referenced_rules`. **Agents** recall via MCP `find` / `get`; **desk** is for human audit.
 
 ---
 

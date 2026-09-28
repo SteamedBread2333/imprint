@@ -5,7 +5,7 @@ import (
 	"github.com/SteamedBread2333/imprint/pkg/imprint"
 )
 
-// BuildFindLinks joins top-K rule and document hits with persisted sources and doc citations.
+// BuildFindLinks joins top-K rule and document hits with persisted sources.
 func BuildFindLinks(v *imprint.Vault, st *index.Store, rules []imprint.EnrichedFindHit, docs []index.SearchHit) []imprint.FindLink {
 	if st == nil {
 		return nil
@@ -53,9 +53,6 @@ func BuildFindLinks(v *imprint.Vault, st *index.Store, rules []imprint.EnrichedF
 				}
 			}
 		}
-		for _, cited := range CitedRules(st, d.ID) {
-			add(cited.ID, d.ID, "cited_by", 1.0)
-		}
 	}
 
 	topDoc := 0.0
@@ -73,9 +70,6 @@ func BuildFindLinks(v *imprint.Vault, st *index.Store, rules []imprint.EnrichedF
 	for ruleID, rScore := range ruleIDs {
 		for chunkID, dScore := range docScore {
 			if _, ok := seen[ruleID+"\x00"+chunkID+"\x00sources"]; ok {
-				continue
-			}
-			if _, ok := seen[ruleID+"\x00"+chunkID+"\x00cited_by"]; ok {
 				continue
 			}
 			if topDoc > 0 && dScore < coMin {

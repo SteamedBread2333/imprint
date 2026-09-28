@@ -11,6 +11,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/SteamedBread2333/imprint/internal/linking"
+	"github.com/SteamedBread2333/imprint/internal/plugin"
+	"github.com/SteamedBread2333/imprint/internal/shelves"
 	"github.com/SteamedBread2333/imprint/internal/telemetry"
 	"github.com/SteamedBread2333/imprint/pkg/imprint"
 )
@@ -171,6 +174,7 @@ func (a *App) cmdFind(g globals, args []string) int {
 	scope := fs.String("scope", "")
 	query := fs.String("query", "")
 	queryLocal := fs.String("query-local", "")
+	pathsFlag := fs.String("paths", "")
 	topK := fs.Int("top-k", imprint.DefaultTopK)
 	pos, err := fs.parse(args)
 	if err != nil {
@@ -183,9 +187,17 @@ func (a *App) cmdFind(g globals, args []string) int {
 	if *query == "" && len(pos) > 0 {
 		*query = strings.Join(pos, " ")
 	}
+	paths := splitCSV(*pathsFlag)
 	v, err := a.openVault(g)
 	if err != nil {
 		return a.fail(g.json, err)
+	}
+	if g.json {
+		if enriched, ok, err := a.findWithShelves(v, splitCSV(*scope), *query, *queryLocal, *topK, paths); err != nil {
+			return a.fail(g.json, err)
+		} else if ok {
+			return a.fail(false, a.writeJSON(enriched))
+		}
 	}
 	hits, err := v.FindMerged(splitCSV(*scope), *query, *queryLocal, *topK)
 	if err != nil {
@@ -206,6 +218,39 @@ func (a *App) cmdFind(g globals, args []string) int {
 	}
 	c.blank()
 	return 0
+}
+
+func (a *App) findWithShelves(v *imprint.Vault, scope []string, query, queryLocal string, topK int, paths []string) (*linking.FindResult, bool, error) {
+	cfgPath, ok := plugin.ResolveConfigPathForVault(v.Dir)
+	if !ok {
+		return nil, false, nil
+	}
+	pcfg, err := plugin.Load(cfgPath)
+	if err != nil {
+		return nil, false, err
+	}
+	scfg := shelves.ConfigFrom(pcfg)
+	if !scfg.Enabled {
+		return nil, false, nil
+	}
+	if !shelves.MatchFindQuery(scfg, query, queryLocal) {
+		return nil, false, nil
+	}
+	svc, err := shelves.New(scfg)
+	if err != nil {
+		return nil, false, err
+	}
+	st := svc.IndexStore()
+	if st == nil {
+		return nil, false, nil
+	}
+	enriched, _, err := linking.EnrichFindDocs(v, st, scope, query, queryLocal, topK, linking.FindDocs{
+		TopK: scfg.FindTopK, SnippetRunes: scfg.SnippetRunes, Paths: paths,
+	})
+	if err != nil {
+		return nil, false, err
+	}
+	return enriched, true, nil
 }
 
 func (a *App) cmdReinforce(g globals, args []string) int {

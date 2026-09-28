@@ -171,10 +171,14 @@ func Serve(ctx context.Context, cfg Config) error {
 		query := r.URL.Query().Get("query")
 		queryLocal := r.URL.Query().Get("query_local")
 		scope := splitCSV(r.URL.Query().Get("scope"))
+		paths := r.URL.Query()["paths"]
+		if len(paths) == 1 && strings.Contains(paths[0], ",") {
+			paths = splitCSV(paths[0])
+		}
 		if cfg.Shelves != nil && shelves.MatchFindQuery(cfg.Shelves.Config(), query, queryLocal) {
 			scfg := cfg.Shelves.Config()
 			enriched, _, err := linking.EnrichFindDocs(cfg.Vault, cfg.Shelves.IndexStore(), scope, query, queryLocal, topK, linking.FindDocs{
-				TopK: scfg.FindTopK, SnippetRunes: scfg.SnippetRunes,
+				TopK: scfg.FindTopK, SnippetRunes: scfg.SnippetRunes, Paths: paths,
 			})
 			if err != nil {
 				writeErr(w, http.StatusInternalServerError, err)

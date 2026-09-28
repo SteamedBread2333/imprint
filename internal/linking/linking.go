@@ -18,7 +18,6 @@ type RuleGet struct {
 type ChunkGet struct {
 	index.Chunk
 	ReferencedRules []imprint.ReferencedRule `json:"referenced_rules,omitempty"`
-	CitedRules      []shelves.CitedRule      `json:"cited_rules,omitempty"`
 }
 
 // FindResult is the enriched find payload when shelves participates.
@@ -110,7 +109,7 @@ func CompactRule(rec *imprint.Record, resolved []imprint.ResolvedSource, evidenc
 	return out
 }
 
-// EnrichChunkGet attaches imprints linked via vault sources (and optional markdown cites).
+// EnrichChunkGet attaches imprints linked via vault sources.
 func EnrichChunkGet(v *imprint.Vault, st *index.Store, c index.Chunk) (ChunkGet, error) {
 	ref, err := shelves.ReferencedRules(v, c)
 	if err != nil {
@@ -119,7 +118,6 @@ func EnrichChunkGet(v *imprint.Vault, st *index.Store, c index.Chunk) (ChunkGet,
 	return ChunkGet{
 		Chunk:           c,
 		ReferencedRules: ref,
-		CitedRules:      shelves.CitedRules(st, c.ID),
 	}, nil
 }
 
@@ -128,6 +126,7 @@ func EnrichChunkGet(v *imprint.Vault, st *index.Store, c index.Chunk) (ChunkGet,
 type FindDocs struct {
 	TopK         int
 	SnippetRunes int
+	Paths        []string
 }
 
 // EnrichFind builds agent-oriented find results with sources, excerpts, and links.
@@ -162,7 +161,7 @@ func EnrichFindDocs(v *imprint.Vault, st *index.Store, scope []string, query, qu
 	if snippetRunes <= 0 {
 		snippetRunes = index.DefaultSnippetRunes
 	}
-	found := index.SearchStoreMergedSized(st, query, localQ, docTopK, snippetRunes)
+	found := index.SearchStoreMergedSized(st, query, localQ, docTopK, snippetRunes, docs.Paths)
 	found = shelves.FilterFindDocuments(found, shelves.FindDocMinRelativeScore)
 	links := shelves.BuildFindLinks(v, st, enriched, found)
 	return &FindResult{

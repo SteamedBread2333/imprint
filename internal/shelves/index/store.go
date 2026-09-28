@@ -35,6 +35,13 @@ CREATE TABLE IF NOT EXISTS rule_refs (
 CREATE INDEX IF NOT EXISTS idx_rule_refs_rule ON rule_refs(rule_id);
 `
 
+// RuleRef is a legacy markdown citation row (no longer populated on rebuild).
+type RuleRef struct {
+	ChunkID string `json:"chunk_id"`
+	RuleID  string `json:"rule_id"`
+	LineNo  int    `json:"line_no,omitempty"`
+}
+
 // Store is the persisted index on disk.
 type Store struct {
 	Fingerprint string    `json:"fingerprint"`
@@ -269,10 +276,14 @@ func (s *Store) SearchStore(query string, topK int) []SearchHit {
 
 // SearchStoreSized runs BM25 with a query-window snippet cap.
 func (s *Store) SearchStoreSized(query string, topK, snippetRunes int) []SearchHit {
+	return searchStoreSizedOnChunks(s.Chunks, query, topK, snippetRunes)
+}
+
+func searchStoreSizedOnChunks(chunks []Chunk, query string, topK, snippetRunes int) []SearchHit {
 	if snippetRunes <= 0 {
 		snippetRunes = DefaultSnippetRunes
 	}
-	raw := Search(s.Chunks, query, topK)
+	raw := Search(chunks, query, topK)
 	out := make([]SearchHit, 0, len(raw))
 	for _, r := range raw {
 		out = append(out, SearchHit{
@@ -288,11 +299,12 @@ func (s *Store) SearchStoreSized(query string, topK, snippetRunes int) []SearchH
 
 // SearchStoreMerged runs BM25 for query and queryLocal, deduping chunk ids by max score.
 func SearchStoreMerged(st *Store, query, queryLocal string, topK int) []SearchHit {
-	return SearchStoreMergedSized(st, query, queryLocal, topK, DefaultSnippetRunes)
+	return SearchStoreMergedSized(st, query, queryLocal, topK, DefaultSnippetRunes, nil)
 }
 
 // SearchStoreMergedSized merges dual-query hits, keeps one chunk per path, then caps at topK.
-func SearchStoreMergedSized(st *Store, query, queryLocal string, topK, snippetRunes int) []SearchHit {
+// When paths is non-empty, BM25 runs only on indexed chunks whose path matches (rules are unaffected).
+func SearchStoreMergedSized(st *Store, query, queryLocal string, topK, snippetRunes int, paths []string) []SearchHit {
 	if st == nil {
 		return nil
 	}
@@ -307,6 +319,7 @@ func SearchStoreMergedSized(st *Store, query, queryLocal string, topK, snippetRu
 	if q == "" && localQ == "" {
 		return nil
 	}
+	chunks := FilterChunksByPaths(st.Chunks, paths)
 	pool := topK * 3
 	if pool < 6 {
 		pool = 6
@@ -314,10 +327,10 @@ func SearchStoreMergedSized(st *Store, query, queryLocal string, topK, snippetRu
 	combined := strings.TrimSpace(q + " " + localQ)
 	var merged []SearchHit
 	if q != "" {
-		merged = mergeSearchHits(merged, st.SearchStoreSized(q, pool, snippetRunes))
+		merged = mergeSearchHits(merged, searchStoreSizedOnChunks(chunks, q, pool, snippetRunes))
 	}
 	if localQ != "" && localQ != q {
-		merged = mergeSearchHits(merged, st.SearchStoreSized(localQ, pool, snippetRunes))
+		merged = mergeSearchHits(merged, searchStoreSizedOnChunks(chunks, localQ, pool, snippetRunes))
 	}
 	for i := range merged {
 		merged[i].Snippet = QuerySnippet(chunkText(st, merged[i].ID, merged[i].Snippet), combined, snippetRunes)

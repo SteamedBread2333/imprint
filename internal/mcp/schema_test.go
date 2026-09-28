@@ -49,8 +49,8 @@ func TestFindToolSchemaIncludesQueryLocal(t *testing.T) {
 			t.Fatal(err)
 		}
 		props, _ := m["properties"].(map[string]any)
-		if props["query_local"] == nil || props["full"] == nil {
-			t.Fatalf("find schema missing query_local or full: %s", string(raw))
+		if props["query_local"] == nil || props["full"] == nil || props["paths"] == nil {
+			t.Fatalf("find schema missing query_local, paths, or full: %s", string(raw))
 		}
 		return
 	}

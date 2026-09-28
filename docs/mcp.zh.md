@@ -10,9 +10,9 @@
 | 能力 | MCP（shelves 开） | CLI `imprint --json` |
 | --- | --- | --- |
 | 写规则 + `sources` | `add` / `supersede` | 同左 |
-| 写代码前召回 | `find(scope, query[, query_local])` → rules + **documents** + **links** | `find` → **vault rules only** |
+| 写代码前召回 | `find(scope, query[, query_local][, paths])` → rules + **documents** + **links** | `find --json` → vault rules；shelves 开且有 query →  enriched JSON；可选 `--paths` |
 | 查规则文档依据 | `get r-…` → 紧凑来源指针；`full:true` → 正文 | `get r-…` → vault only |
-| 查 chunk 被哪些规则引用 | `get <chunk-id>` → **referenced_rules** + **cited_rules** | 不支持 |
+| 查 chunk 被哪些规则引用 | `get <chunk-id>` → **referenced_rules** | 不支持 |
 | 规则关系图 | desk `/` | host `GET /graph` |
 
 **CLI** `find` / `get`：vault 字段（见上表）。**智能体**写代码前召回：MCP。
@@ -34,14 +34,12 @@
 | --- | --- | --- | --- |
 | **`sources`** | rule → doc | `add` / `supersede` 传 `[{path, heading?, chunk?}]` — 只写 vault | `get r-…` → **`resolved_sources`** |
 | **`referenced_rules`** | doc → rule | 自动（vault `sources` 反查） | **`get <chunk-id>`** |
-| **`cited_rules`** | doc → rule | 正文 `[[r-…]]` / `[imprint:r-…]`；rebuild 扫描 | **`get <chunk-id>`**；desk `/unified` **`cited_by`** |
 
 ### `find` 的 `links`（当次有效，不持久）
 
 | `kind` | 含义 |
 | --- | --- |
 | `sources` | vault `sources` 指向本次命中的 chunk |
-| `cited_by` | chunk 正文引用规则 |
 | `co_search` | 同 query 下 rules 与 documents BM25 共现 — 辅助判断，**不写回 vault** |
 
 详见 [imprint-shelves-linking.zh.md](imprint-shelves-linking.zh.md)。
@@ -133,8 +131,8 @@ go install github.com/SteamedBread2333/imprint/cmd/imprint-mcp@latest
 ### 智能体流程
 
 1. **确认 MCP 已挂载**（shelves 开）— 否则只有 vault，无 documents / links / resolved_sources。
-2. 写代码或答风格问题前 → **窄** `scope` + **`query`** 调 **`find`**；本地语言检索词与 `query` 不同时追加 **`query_local`** → rules、`documents`、`links`。
-3. 分析需求；分类 **新增 / 强化 / 替换 / 忽略**。
+2. **源码：** Grep → Read，find 不过滤。**shelves 文档：** 先 Grep；已索引命中数超过 **`find_top_k`**（默认 2）时，**同一轮唯一一次** **`find`** 带 **`paths`**（已索引 grep 路径）及 **`scope`/`query`/`query_local`**，再 Read **grep ∩ documents**（否则回退 grep 名单、上限 k）。**只对政策：** 无 paths 的一次 find。每用户消息至多一次 find。
+3. 基于该 find 分析；分类 **新增 / 强化 / 替换 / 忽略**。
 4. **新增** 且 document 命中 → 同轮 `add` 带 **`sources`**；若已提炼本地检索词，同轮写入 **`query_local`**（落库）。
 5. 不重复已有 imprint；只记录用户**原话**。vault 还会独立拒绝重复或敏感写入。
 6. 用户说忘记 / 不要记 → `forget` 或跳过。

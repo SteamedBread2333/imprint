@@ -58,14 +58,13 @@ Typical gaps:
 
 ## 3.1 Recommended: vault sources by default
 
-Most projects link via vault `sources`; `[[r-…]]` in doc bodies is optional.
+Projects link via vault `sources` only (no markdown `@` rules).
 
 | Need | Approach | Edit docs? |
 | --- | --- | --- |
 | “Which doc supports this imprint?” | vault `sources` + `resolved_sources` | **No** |
 | “Which imprints reference this chunk?” (**durable**) | **`referenced_rules`** on `get chunk` (vault reverse scan) | **No** |
 | “What matches this task right now?” | `find` `links` (session-only) | **No** |
-| Maintainer @ in doc body | Optional `[[r-…]]` → `cited_rules` | Yes (**optional**) |
 
 **Default agent path:** user speaks → `find` → document hit → ADD with `sources`. Bidirectional read; links live in vault.
 
@@ -78,7 +77,6 @@ Most projects link via vault `sources`; `[[r-…]]` in doc bodies is optional.
 | Kind | Direction | Persisted in | Created by |
 | --- | --- | --- | --- |
 | `sources` | rule → doc | vault YAML `sources` | agent `add` / `supersede` / future `link` |
-| `cited_by` | doc → rule | shelves SQLite `rule_refs` | rebuild scans markdown |
 | `scope_match` | rule ↔ doc | **not persisted** | **P4** — runtime in `find` (scope vs path prefix; not implemented) |
 | `co_search` | rule ↔ doc | **not persisted** | BM25 co-occurrence in one `find` call |
 
@@ -194,13 +192,13 @@ flowchart TB
     I --> J[ResolveSources → resolved_sources]
     K[get chunk id] --> L[load Chunk]
     L --> M[vault reverse → referenced_rules]
-    L --> N[rule_refs → cited_rules optional]
+    L --> N[referenced_rules from vault]
     F --> N
   end
 
   subgraph find_path [find + query]
     P[rules topK + documents topK] --> Q[BuildFindLinks]
-    Q --> R[sources · vault reverse · cited_by · co_search]
+    Q --> R[sources · vault reverse · co_search]
   end
 
   B -.->|stable path| J
@@ -237,7 +235,7 @@ imprint add "..." --scope python,naming --text "..." \
 
 **Rule:** compact MCP `get` returns resolved source pointers without text. `full:true` adds `resolved_sources` snippets from the shelves index for audit.
 
-**Chunk:** adds `referenced_rules` (vault `sources` pointing here) and `cited_rules` (from `rule_refs`).
+**Chunk:** adds `referenced_rules` (vault `sources` pointing here).
 
 ### 7.3 `find` — optional `links` array
 
@@ -245,14 +243,13 @@ Keeps `{ rules, documents }`; adds edges among top-K hits:
 
 1. rule `sources` → chunk (`kind=sources`, score=1)
 2. vault `sources` reverse on each document hit (`kind=sources`, even if rule not in rules topK)
-3. markdown `[[r-…]]` on chunk (`kind=cited_by`)
 4. co-search boost in same query (`kind=co_search`, not persisted)
 
 Without query: may attach `resolved_sources` for scope-matched rules only.
 
 ### 7.4 New endpoint: `GET /graph/unified`
 
-Merges vault `/graph` and shelves `/docs/graph` with cross edges (`sources`, `cited_by`, existing rule-rule edges). Desk can offer rule / document / unified views.
+Merges vault `/graph` and shelves `/docs/graph` with cross edges (`sources`, existing rule-rule edges). Desk can offer rule / document / unified views.
 
 ### 7.5 Optional: `link` / `unlink`
 
@@ -306,11 +303,10 @@ See the Chinese doc §8 for full scenarios (user points at `STYLE.md`, CONTRIBUT
 | Case | Assert |
 | --- | --- |
 | add with sources | compact get returns pointers; full get returns resolved_sources snippets |
-| markdown with `[[r-…]]` | rebuild → get chunk.cited_rules |
 | stale chunk id | stale_chunk=true, path fallback |
 | heading `协议层…query_local` vs indexed `5.2 … \`query_local\`` | resolved chunk is that section, not H1 |
 | heading miss on an indexed file | `heading_unresolved: true`, no snippet |
-| forget rule | cited_rules gone after rebuild |
+| forget rule | sources edges gone |
 | shelves disabled | no resolved_sources/links from index; vault sources still readable |
 
 ---
@@ -321,7 +317,7 @@ See the Chinese doc §8 for full scenarios (user points at `STYLE.md`, CONTRIBUT
 2. **Auto-write `[[r-…]]` into docs?** — **No**; vault→doc edges live in `sources` and unified graph only.
 3. **Unified graph include archived rules?** — `include_archived` query param, default false.
 4. **scope_match by default?** — Only with query, low weight.
-5. **Cross-doc conflicts?** — Out of scope; explicit `sources` + `cited_by` only.
+5. **Cross-doc conflicts?** — Out of scope; explicit `sources` only.
 
 ---
 

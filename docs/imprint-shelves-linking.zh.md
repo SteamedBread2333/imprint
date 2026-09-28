@@ -63,8 +63,6 @@ imprint（vault 规则）和 shelves（工作区文档索引）目前是**两套
 | 「这条 imprint 依据哪段文档？」 | vault `sources` + `resolved_sources` | **否** |
 | 「这段文档被哪些 imprint 引用？」（**持久**） | 同上 — `get chunk` 的 **`referenced_rules`**（扫 vault 反查） | **否** |
 | 「写这个任务时 imprint 和文档怎么对上？」 | `find` 的 `links`（当次有效） | **否** |
-| 维护者在正文里显式 @ imprint | 可选 `[[r-…]]` → `cited_rules` | 是（**可选**） |
-
 **Agent 默认路径：** 用户说话 → `find` → document 命中 → 新增 带 `sources`。一次写入，双向可读；`sources` 写在 vault。
 
 ---
@@ -76,7 +74,6 @@ imprint（vault 规则）和 shelves（工作区文档索引）目前是**两套
 | Kind | 方向 | 持久化位置 | 谁建立 |
 | --- | --- | --- | --- |
 | `sources` | rule → doc | vault YAML `sources` | 智能体 `add` / `supersede` / 后续 `link` |
-| `cited_by` | doc → rule | shelves SQLite `rule_refs` | rebuild 扫描 markdown |
 | `scope_match` | rule ↔ doc | **不持久化** | **P4** — `find` 运行时（scope vs path 前缀，未实现） |
 | `co_search` | rule ↔ doc | **不持久化** | 同一次 `find` query 的 BM25 共现 boost |
 
@@ -194,13 +191,13 @@ flowchart TB
     I --> J[ResolveSources → resolved_sources]
     K[get chunk id] --> L[加载 Chunk]
     L --> M[vault 反查 → referenced_rules]
-    L --> N[rule_refs → cited_rules 可选]
+    L --> N[vault 反查 referenced_rules]
     F --> N
   end
 
   subgraph find_path [find + query]
     P[rules topK + documents topK] --> Q[BuildFindLinks]
-    Q --> R[sources · vault 反查 · cited_by · co_search]
+    Q --> R[sources · vault 反查 · co_search]
   end
 
   B -.->|path 稳定| J
@@ -276,15 +273,11 @@ imprint add "..." --scope python,naming --text "..." \
   "text": "...",
   "referenced_rules": [
     { "id": "r-2026-09-16-001", "kind": "sources", "claim": "..." }
-  ],
-  "cited_rules": [
-    { "id": "r-2026-09-11-002", "kind": "cited_by", "line_no": 15 }
   ]
 }
 ```
 
 - `referenced_rules`：vault `sources` 指向此 chunk/path 的规则（反向查 vault，带缓存）。
-- `cited_rules`：`rule_refs` 表中文档主动引用规则。
 
 ### 7.3 `find` — 关联扩展
 
@@ -315,8 +308,7 @@ imprint add "..." --scope python,naming --text "..." \
 
 1. 命中规则上的 `sources` 解析到 chunk（kind=`sources`，score=1）
 2. 命中 chunk 上 vault `sources` 反查（kind=`sources`，即使规则未进 rules topK）
-3. 命中 chunk 的 markdown `[[r-…]]`（kind=`cited_by`）
-4. 同一 query 下 rules 与 documents 共现（kind=`co_search`，不持久化）
+3. 同一 query 下 rules 与 documents 共现（kind=`co_search`，不持久化）
 
 `find` 无 query 时：若 `--scope` 命中规则，可附带这些规则的 `resolved_sources`（不跑文档 BM25）。
 

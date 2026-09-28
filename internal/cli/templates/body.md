@@ -9,9 +9,9 @@ Mount **imprint MCP** for full shelves (document BM25 + rule↔doc links). CLI `
 | Capability | MCP (shelves on) | CLI |
 | --- | --- | --- |
 | Write rules + link docs | `add` / `supersede` + `sources` | same (vault write) |
-| Pre-coding recall | `find(scope, query[, query_local])` → rules + **documents** + **links** | `find` → vault rules only (`--query-local` dual merge) |
+| Pre-coding recall | `find(scope, query[, query_local][, paths])` → rules + **documents** + **links** | `find --json` → vault rules; with shelves + query → same enriched shape; optional `--paths` |
 | Rule provenance | compact `get r-…` → source pointers; `full:true` → excerpts | `get r-…` → vault only |
-| Doc inbound refs | `get <chunk-id>` → **referenced_rules** + **cited_rules** | chunk `get` not supported |
+| Doc inbound refs | `get <chunk-id>` → **referenced_rules** | chunk `get` not supported |
 | Rule graph | desk `/` | host `GET /graph` |
 | Human review rule↔doc | `imprint desk open` → `/unified` | — |
 
@@ -40,27 +40,25 @@ Mount: `docs/mcp.md`, `docs/examples/cursor-mcp.json`. Write loop: `docs/correct
 | --- | --- | --- | --- |
 | **`sources`** | rule → doc | **`add` / `supersede` with `[{path, heading?, chunk?}]`** — vault only, **default: no project markdown edits** | `get r-…` → **`resolved_sources`**; MCP `find`+`query` on rules also includes |
 | **`referenced_rules`** | doc → rule | **automatic** — reverse of vault `sources` | **`get <chunk-id>`** (MCP) |
-| **`cited_rules`** | doc → rule | maintainer writes `[[r-…]]` / `[imprint:r-…]` in markdown; shelves rebuild | **`get <chunk-id>`** (MCP); desk unified **`cited_by`** edges |
 
-Default path: user speaks → MCP **`find(scope, query[, query_local])`** → document hit → same-turn **`add`/`supersede` + `sources`** (persist distilled **`query_local`** when local-language terms differ from `query`). `sources` / `query_local` live in vault; optional `[[r-…]]` in markdown body.
+Default path: user speaks → MCP **`find(scope, query[, query_local])`** → document hit → same-turn **`add`/`supersede` + `sources`** (persist distilled **`query_local`** when local-language terms differ from `query`). `sources` / `query_local` live in vault.
 
 ### `find.links` (session recall, not persisted)
 
 | `kind` | Meaning |
 | --- | --- |
 | `sources` | vault `sources` already point at a chunk hit in this find |
-| `cited_by` | chunk body `[[r-…]]` points at a rule |
 | `co_search` | rules and documents co-occur in the same query BM25 pass — **assist only, not written back** |
 
 ### Human review (desk, not agent recall)
 
-`imprint desk open` → **`/`** rule graph (`supersedes` / `related` / `conflicts_with`) · **`/docs`** shelves · **`/unified`** rules + docs + **`sources` / `cited_by`** cross-edges.
+`imprint desk open` → **`/`** rule graph (`supersedes` / `related` / `conflicts_with`) · **`/docs`** shelves · **`/unified`** rules + docs + **`sources`** cross-edges.
 
 ## Writes & filters
 
-- `find` scope tags = **AND**; optional BM25 **`query`** and **`query_local`** (dual pass, merge by rule id max score; not embeddings).
+- `find` scope tags = **AND**; optional BM25 **`query`** and **`query_local`** (dual pass, merge by rule id max score; not embeddings). Optional **`paths`** filters **shelves documents only** (indexed paths from grep; non-index paths are ignored silently).
 - **`claim`**: English imperative (for agents to read and follow); user verbatim → **`text`**; local-language search terms → **`query_local`**.
-- **`query_local`**: LLM local-language search terms (**not** verbatim); on write, vault **merges gse tokens from CJK evidence** so terms like `30秒` are not dropped.
+- **`query_local`**: LLM local-language search terms (**not** verbatim); on write, vault **merges gse tokens from CJK evidence** so terms like `30秒` are not dropped. When distilling, keep compound proper terms (e.g. `灰度发布`, not shortened to `灰度` alone).
 - **`confidence` on add**: omit → **0.6**; **0.85** when user corrects; **never 0.9 on add** (tier 0.9 via `reinforce` over time).
 - **`sources`**: only when a document **excerpt substantively supports** the rule—not topical overlap (same section title without matching content).
 - `add` after ADD only: `claim`, `scope`, `text` required; optional **`sources`** / **`query_local`** as above; **`conflicts`** (CSV of existing rule ids) when the new rule is the opposite of another rule that must stay active.
@@ -79,7 +77,7 @@ Default path: user speaks → MCP **`find(scope, query[, query_local])`** → do
 
 ```bash
 # CLI — vault read/write; find/get see CLI column above
-imprint --json --vault ./.imprint find --scope go,naming --query PascalCase [--query-local LOCAL_TERMS]
+imprint --json --vault ./.imprint find --scope go,naming --query PascalCase [--query-local LOCAL_TERMS] [--paths path1,path2]
 imprint --json --vault ./.imprint add "CLAIM" --scope tag,tag --text "user's original words" [--query-local TERMS]
 imprint --json --vault ./.imprint reinforce ID --evidence "..." [--query-local TERMS]
 imprint --json --vault ./.imprint supersede ID --claim "NEW" --scope tag,tag --reason "..." [--query-local TERMS]
@@ -92,20 +90,27 @@ imprint --json --vault ./.imprint report --days 30
 imprint --vault ./.imprint export --format jsonl
 ```
 
-## Recall model (async, reference-only)
+## Recall model
 
-- **Imprint is核对和参考**, not the primary research path. **Do not block** coding, grep, or file reads waiting on find results.
-- **Critical path:** user task → read/write code or docs → answer. **Side path:** one find to check stored policy; adjust only if a rule claim conflicts.
-- Find hits **confirm or constrain** — they do not replace reading `server.go`, tests, or project docs for implementation.
+**k** = `shelves.config.find_top_k` (default **2**). Same k caps find document hits, triggers wide-doc `paths` find after grep, and limits Read (intersection or grep fallback).
+
+- **Source code** (`.go`, yaml, files outside shelves `roots`): **Grep → Read**; find does **not** filter source reads.
+- **Shelves markdown** (indexed under `roots`): **Grep first** → count **indexed** hits in the grep `-l` list → then at most **one** find:
+  - Indexed grep hits **≤ k**: Read grep list (cap k). If you still need vault rules this turn, that may be the same message’s only find (no `paths`) when policy is in scope.
+  - Indexed grep hits **> k**: **one** `find(scope, query, query_local, paths=<indexed grep paths>)` — rules + BM25-narrowed documents — then Read **grep ∩ find.documents**; if intersection empty, Read grep list capped at k. Fill remaining Read slots with grep hits not in the index (unindexed paths) after the intersection.
+- **Vault / policy only** (no shelves doc search): one find without `paths`.
+- **Never** open with find, then grep shelves docs, then find again with `paths` — that is two finds.
+
+Find snippets choose sections; **Read** is the full file evidence. Do not treat snippet + full Read of the same file as duplicate primary evidence.
 
 ## Must do
 
-1. **At most one `find` per user message** (per agent turn). Before calling, prepare **all** parameters in one pass: `scope` + `query` + `query_local` (when CJK/local terms differ). **Never** chain finds (`find` → grep → `find` → `find`); merge keywords up front (e.g. `query`: `host debug route timeout`, `query_local`: `调试 慢接口 debug 路由`).
-2. **Reuse that same find** for write classification (ADD / REINFORCE / SUPERSEDE / IGNORE) — do **not** run a second find before `add` / `supersede`.
-3. When shelves is on: **answer from rule claims first**; documents are supplemental (weak hits filtered). Cite `[r-id]` only when a rule shapes behavior. CLI fallback = vault rules only.
-4. **Same-turn write:** durable preference → classify from the **single find above** → **write in this turn**. Document hit → pass **`sources`** on `add` / `supersede`; distilled local search terms → **`query_local`** on `add` / `supersede` / `reinforce`.
+1. **At most one `find` per user message**. Prepare **scope + query + query_local + paths (when needed)** in one call. **Never** chain finds (`find` → grep → `find`).
+2. **Reuse that same find** for write classification (ADD / REINFORCE / SUPERSEDE / IGNORE) — no second find before `add` / `supersede`.
+3. When shelves is on: **answer from rule claims first**; documents are supplemental (weak hits filtered). Cite `[r-id]` only when a rule shapes behavior.
+4. **Same-turn write:** durable preference → classify from the **single find above** → **write in this turn**. Document hit → pass **`sources`** on `add` / `supersede`; distilled local search terms → **`query_local`** on write tools.
 5. **IGNORE** one-off tasks and session-only steps. **ADD / REINFORCE / SUPERSEDE** only for cross-session policy in the user's words.
-6. Analyse the requirement before modifying code. **Implementation requests:** code/docs on the critical path; imprint find is optional核对 unless policy is unclear.
+6. **Implementation:** read/write code on the critical path; grep/read source without waiting on find. **Wide indexed doc grep (> k):** complete grep, then the single find with `paths`, then Read as above.
 7. Before every write, classify again from existing find results; no duplicates. Add confidence: default 0.6, corrections 0.85, never 0.9.
 8. User negates in plain speech → use the **one** find (or `list` if no find yet) then `forget` or `supersede`.
 9. User asks what's recorded → `show` or **`imprint desk open`** (`/`, `/docs`, `/unified`).
@@ -113,8 +118,9 @@ imprint --vault ./.imprint export --format jsonl
 
 ## Must not
 
-- **Multiple `find` calls in one turn** to “refine” scope/query — widen parameters once instead.
-- **Pre-find codebase archaeology** (many greps/files) whose only goal is tuning find args — parse the user message, call find once, then read code if implementing.
+- **Multiple `find` calls in one turn** to refine scope/query/paths — merge parameters once.
+- **Turn-start find** before grep when shelves doc search will need `paths` — grep indexed hits first, then the only find.
+- **Pre-find codebase archaeology** whose only goal is tuning find args — parse the message, grep/read code, call find once when policy or wide doc narrowing needs it.
 - Pre-coding recall with documents/links — use **MCP** `find`/`get` (see table).
 - Assume vault updates from chat. Don't backfill from history unless asked.
 - Infer preferences. Don't store secrets. Don't hand-edit `vault.db` (`sweep` only).

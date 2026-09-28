@@ -69,6 +69,28 @@ func TestEditorRuleMatchesBody(t *testing.T) {
 	}
 }
 
+func TestRecallProtocolInBody(t *testing.T) {
+	root := repoRoot(t)
+	body, err := os.ReadFile(filepath.Join(root, "internal/cli/templates/body.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(body)
+	for _, sub := range []string{
+		"grep ∩ find.documents",
+		"find_top_k",
+		"Optional **`paths`**",
+		"Never** open with find",
+	} {
+		if !strings.Contains(text, sub) {
+			t.Fatalf("body.md missing recall protocol phrase %q", sub)
+		}
+	}
+	if strings.Contains(text, "cited_rules") {
+		t.Fatal("body.md should not document cited_rules")
+	}
+}
+
 func TestDocsHaveNoLegacyTerms(t *testing.T) {
 	root := repoRoot(t)
 	paths := []string{
@@ -80,7 +102,7 @@ func TestDocsHaveNoLegacyTerms(t *testing.T) {
 		"internal/cli/templates/body.md",
 		".cursor/rules/imprint-memory.mdc",
 	}
-	legacy := []string{"last_touched_at", "+0.1 (cap", "confidence +0.1", "schema_version', '3'", "scopes.aliases"}
+	legacy := []string{"last_touched_at", "+0.1 (cap", "confidence +0.1", "schema_version', '3'", "scopes.aliases", "cited_rules", "cited_by"}
 	for _, rel := range paths {
 		raw, err := os.ReadFile(filepath.Join(root, rel))
 		if err != nil {
