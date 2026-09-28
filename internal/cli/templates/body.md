@@ -92,16 +92,17 @@ imprint --vault ./.imprint export --format jsonl
 
 ## Recall model
 
-**k** = `shelves.config.find_top_k` (default **2**). Same k caps find document hits, triggers wide-doc `paths` find after grep, and limits Read (intersection or grep fallback).
+**k** = `shelves.config.find_top_k` (default **2**). **k caps `find` document hits** (BM25 snippets, one chunk per path) and **triggers** shelves `find(..., paths=…)` when indexed grep `-l` hits exceed **k**. **k does not cap how many files you Read in full**—Read breadth follows narrowing or the **host agent’s default** search→read behavior.
 
-- **Source code** (`.go`, yaml, files outside shelves `roots`): **Grep → Read**; find does **not** filter source reads.
-- **Shelves markdown** (indexed under `roots`): **Grep first** → count **indexed** hits in the grep `-l` list → then at most **one** find:
-  - Indexed grep hits **≤ k**: Read grep list (cap k). If you still need vault rules this turn, that may be the same message’s only find (no `paths`) when policy is in scope.
-  - Indexed grep hits **> k**: **one** `find(scope, query, query_local, paths=<indexed grep paths>)` — rules + BM25-narrowed documents — then Read **grep ∩ find.documents**; if intersection empty, Read grep list capped at k. Fill remaining Read slots with grep hits not in the index (unindexed paths) after the intersection.
+- **Source code** (outside shelves `roots`): **Grep → Read**; imprint `find` does **not** filter source reads.
+- **Shelves markdown** (indexed under `roots`): **Grep first** (full `-l` list; grep is not truncated by k) → at most **one** imprint find for docs/rules:
+  - **Indexed hits ≤ k:** no `paths` on find. **Documents:** **host agent default** grep/search then read matched files (full-file Read per that environment’s normal rules). **Vault rules:** if policy is in scope, the same turn’s find omits `paths`.
+  - **Indexed hits > k:** **one** `find(scope, query, query_local, paths=<indexed grep paths>)`. **Narrowing holds** when `grep ∩ find.documents` is non-empty: **Read every distinct path in that intersection** (full file each; count follows the intersection, not k). Find snippets locate sections; do not treat snippet + full Read of the same file as duplicate primary evidence.
+  - **Narrowing does not apply** (no `paths` find, empty intersection, or find unusable): **documents** use **host agent default** grep/search→read on the grep hit list—imprint does **not** impose a Read file cap or imprint-specific pick heuristic. Do **not** chain find → grep → find in one message.
 - **Vault / policy only** (no shelves doc search): one find without `paths`.
 - **Never** open with find, then grep shelves docs, then find again with `paths` — that is two finds.
 
-Find snippets choose sections; **Read** is the full file evidence. Do not treat snippet + full Read of the same file as duplicate primary evidence.
+Unindexed grep-only paths: follow host agent default read policy; imprint does not assign a numeric Read cap.
 
 ## Must do
 
@@ -110,7 +111,7 @@ Find snippets choose sections; **Read** is the full file evidence. Do not treat 
 3. When shelves is on: **answer from rule claims first**; documents are supplemental (weak hits filtered). Cite `[r-id]` only when a rule shapes behavior.
 4. **Same-turn write:** durable preference → classify from the **single find above** → **write in this turn**. Document hit → pass **`sources`** on `add` / `supersede`; distilled local search terms → **`query_local`** on write tools.
 5. **IGNORE** one-off tasks and session-only steps. **ADD / REINFORCE / SUPERSEDE** only for cross-session policy in the user's words.
-6. **Implementation:** read/write code on the critical path; grep/read source without waiting on find. **Wide indexed doc grep (> k):** complete grep, then the single find with `paths`, then Read as above.
+6. **Implementation:** read/write code on the critical path; grep/read source without waiting on find. **Wide indexed doc grep (> k):** complete grep, then the single find with `paths`; if intersection non-empty, Read all intersected paths; otherwise document reads follow host agent default search→read.
 7. Before every write, classify again from existing find results; no duplicates. Add confidence: default 0.6, corrections 0.85, never 0.9.
 8. User negates in plain speech → use the **one** find (or `list` if no find yet) then `forget` or `supersede`.
 9. User asks what's recorded → `show` or **`imprint desk open`** (`/`, `/docs`, `/unified`).

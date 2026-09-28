@@ -131,7 +131,7 @@ go install github.com/SteamedBread2333/imprint/cmd/imprint-mcp@latest
 ### 智能体流程
 
 1. **确认 MCP 已挂载**（shelves 开）— 否则只有 vault，无 documents / links / resolved_sources。
-2. **源码：** Grep → Read，find 不过滤。**shelves 文档：** 先 Grep；已索引命中数超过 **`find_top_k`**（默认 2）时，**同一轮唯一一次** **`find`** 带 **`paths`**（已索引 grep 路径）及 **`scope`/`query`/`query_local`**，再 Read **grep ∩ documents**（否则回退 grep 名单、上限 k）。**只对政策：** 无 paths 的一次 find。每用户消息至多一次 find。
+2. **源码：** Grep → Read，find 不过滤。**shelves 文档：** 先 Grep（完整 `-l` 名单）。**`find_top_k`** 限制 **`find` 文档条数**并在已索引命中超过 k 时触发 **`paths`**；**不限制 Read 篇数**。**grep ∩ documents** 非空 → **全文 Read 交集中全部 path**；否则文档证据按 **宿主 agent 默认** search→read（imprint 不设 Read 上限）。**只对政策：** 无 paths 的一次 find。每用户消息至多一次 find。
 3. 基于该 find 分析；分类 **新增 / 强化 / 替换 / 忽略**。
 4. **新增** 且 document 命中 → 同轮 `add` 带 **`sources`**；若已提炼本地检索词，同轮写入 **`query_local`**（落库）。
 5. 不重复已有 imprint；只记录用户**原话**。vault 还会独立拒绝重复或敏感写入。

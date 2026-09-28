@@ -188,7 +188,7 @@ Handler 默认 **30 秒**超时（`503` + `{"error":"timeout"}`），请求不�
 - **无 query** 或 shelves 禁用：仅紧凑 **rules**。
 - `get`：规则默认折叠 evidence 与来源正文，只给指针和 `evidence_count`。`include_evidence:true` 展开最近证据（`evidence_limit` 默认 3）；`full:true` 仅审计。chunk id → 文档 chunk + `referenced_rules`。
 
-MCP/CLI **`find`** 可选 **`paths`** 仅收窄 shelves 文档 BM25（规则不变）。grep 后已索引命中超过 **`find_top_k`** 时，同一轮一次 find 带 **`paths`**，再 Read **grep ∩ documents**（空则回退 grep、上限 k）。
+MCP/CLI **`find`** 可选 **`paths`** 仅收窄 shelves 文档 BM25（规则不变）。已索引命中超过 **`find_top_k`** 时一次 find 带 **`paths`**。**grep ∩ documents** 非空 → 全文 Read 全部交集 path；否则按宿主 agent 默认 search→read（**`find_top_k` 不 cap Read 篇数**）。
 
 Agent 约定见 `imprint init` 写入的编辑器规则与 [correction.zh.md](correction.zh.md)。
 

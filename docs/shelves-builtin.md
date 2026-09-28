@@ -146,7 +146,7 @@ Without query, or shelves off: compact **rules** only.
 
 `get`: compact rule by default (source pointers, `evidence_count`; no `evidence_log`). `include_evidence:true` expands the newest evidence (`evidence_limit` default 3). `full:true` is audit-only. Chunk id → chunk + **`referenced_rules`**.
 
-Optional MCP/CLI **`paths`** on **`find`** restricts document BM25 to indexed grep hits (rules unchanged). After grep, when indexed hits exceed **`find_top_k`**, agents use one find with **`paths`**, then Read **grep ∩ documents** (fallback: grep list capped at k).
+Optional MCP/CLI **`paths`** on **`find`** restricts document BM25 to indexed grep hits (rules unchanged). When indexed hits exceed **`find_top_k`**, one find with **`paths`**. Non-empty **grep ∩ documents** → Read all intersected paths in full; otherwise document reads follow the host agent’s default search→read (**`find_top_k` does not cap Read count**).
 
 ---
 

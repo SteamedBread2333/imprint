@@ -32,7 +32,7 @@ var Now = time.Now
 
 const serverInstructions = `imprint stores durable user policy in vault.db; shelves adds document recall.
 
-Users speak normally: never ask them for commands or rule ids. At most once per user message, call find with scope, query, query_local, and optional paths prepared together. Source code: Grep then Read without find. Shelves docs: Grep first; when indexed grep hits exceed find_top_k (default 2), that single find must include paths from the indexed grep list, then Read grep intersect find.documents (fallback Read grep capped at k). Never find then grep then find again.
+Users speak normally: never ask them for commands or rule ids. At most once per user message, call find with scope, query, query_local, and optional paths prepared together. Source code: Grep then Read without find. Shelves docs: Grep first (full hit list); find_top_k caps find document hits and triggers paths find when indexed hits exceed k—it does not cap Read count. When paths find yields a non-empty grep∩documents intersection, Read every intersected path in full; otherwise document reads follow the host agent default search→read. Never find then grep then find again.
 
 Before writing, classify ADD / REINFORCE / SUPERSEDE / IGNORE and reuse that find result. Ignore one-off work. add uses an English imperative claim plus user-verbatim text; omit confidence for 0.6, use 0.85 for corrections, never add at 0.9. reinforce only when the user explicitly repeats the same policy. supersede when policy changes; successor confidence decays the gap above 0.6 by imprint.yaml supersede.inheritance_alpha (default 0.20). Use sources only when the cited excerpt substantively supports the rule. Server-side privacy and duplicate gates may reject writes.
 

@@ -122,7 +122,7 @@ Every tool returns **pretty-printed JSON** in the tool result text. On failure, 
 ### Agent workflow
 
 1. **Confirm MCP is mounted** (shelves on) — otherwise only vault, no documents / links / resolved_sources.
-2. **Source code:** Grep → Read; find does not filter. **Shelves docs:** Grep first; when indexed grep hits exceed **`find_top_k`** (default 2), call **`find`** once with **`scope`**, **`query`**, **`query_local`**, and **`paths`** (indexed grep paths), then Read **grep ∩ documents** (fallback: grep list capped at k). **Policy-only:** one **`find`** without paths. At most **one find per user message** — never find → grep → find.
+2. **Source code:** Grep → Read; find does not filter. **Shelves docs:** Grep first (full `-l` list). **`find_top_k`** caps **`find` document hits** and triggers **`paths`** when indexed hits exceed k; it does **not** cap Read file count. When **`paths`** find yields a non-empty **grep ∩ documents** intersection, Read **every intersected path** in full; otherwise document reads follow the **host agent’s default** search→read (no imprint Read cap). **Policy-only:** one **`find`** without paths. At most **one find per user message** — never find → grep → find.
 3. Analyse; classify **ADD / REINFORCE / SUPERSEDE / IGNORE** from that find.
 4. On **ADD** when a document hit matches → same-turn **`add`** with **`sources`** (vault only — no markdown edits).
 5. Never duplicate an imprint; record only what the user **said**. The vault independently rejects duplicate or sensitive writes.

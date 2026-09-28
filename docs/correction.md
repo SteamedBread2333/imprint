@@ -225,7 +225,7 @@ imprint --json --vault ./.imprint find --scope go,naming --query export
 
 Hit `[r-2026-09-14-002]` → name the method `GetProfile`, not `get_profile`; cite `[r-…]` when it shapes the change.
 
-When searching shelves markdown, **Grep first**. If indexed grep hits exceed **`find_top_k`**, the same turn’s only **`find`** includes **`paths`** from that grep list; then Read the intersection with `documents` (or grep fallback). Source files still use Grep → Read without find.
+When searching shelves markdown, **Grep first** (full hit list). If indexed hits exceed **`find_top_k`**, the same turn’s only **`find`** includes **`paths`**. Non-empty intersection with `documents` → Read all intersected files in full; otherwise document reads follow the host agent’s default search→read. Source files still use Grep → Read without find.
 
 ---
 
