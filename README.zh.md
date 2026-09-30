@@ -62,8 +62,8 @@ flowchart TB
 
   subgraph Store["imprint 存储"]
     direction LR
-    Vault[(".imprint/vault.db<br/>claim · evidence · sources")]
-    Shelves[(".imprint/state/shelves.db<br/>roots 文档 BM25")]
+    Vault[("~/.imprint/projects/…/vault.db<br/>claim · evidence · sources")]
+    Shelves[("<vault>/state/shelves.db<br/>roots 文档 BM25")]
   end
 
   subgraph FindOut["find 一次返回"]
@@ -163,7 +163,7 @@ Shelves 在 `roots` 下建文档索引（如 `docs/`、`.cursor/rules/`）。挂
 | `imprint supersede OLD --claim NEW --scope a,b` | 替换规则；旧规则标记 `superseded` |
 | `imprint forget ID` | 永久删除（生命周期事件保留） |
 | `imprint list` · `show` · `get ID` · `report` | 浏览、查看，以及生命周期 / 召回 / telemetry 审计 |
-| `imprint sweep` · `export` | 衰减陈旧规则 · 写入 `.imprint/export/vault.json`，或用 `--format jsonl` 写 `vault.jsonl` |
+| `imprint sweep` · `export` | 衰减陈旧规则 · 写入 `<vault>/export/vault.json`，或用 `--format jsonl` 写 `vault.jsonl` |
 
 ```bash
 imprint find --scope go,naming --query PascalCase
@@ -210,7 +210,7 @@ imprint down
 - **写入安全：** `add`、`reinforce`、`supersede` 会拒绝疑似 secret 和个人信息。source 必须位于工作区内，且不能指向 credentials、`.env*`、`*.pem` 或 `*.key`。`add` 还会拒绝高相似 active 重复。`reinforce` 必须带非空 evidence，confidence 用递减增益；find 命中只更新召回统计。
 - **替换置信度：** 新规则按 `imprint.yaml` 的 `supersede.inheritance_alpha` 对高出 0.6 的缺口衰减（默认 0.20；0=完全不衰减，1=跌到基线）。
 - **Scope：** 语言类标签（`ts`、`tsx`、`golang`）由 GitHub Linguist（go-enry）归一；非语言标签原样保留。
-- **审计：** `imprint report --days 30` 汇总生命周期事件、重复、冲突、零召回规则和 telemetry 延迟。telemetry 按日写入 `.imprint/state/telemetry/`，不存 query、claim、evidence 或 path 正文。
+- **审计：** `imprint report --days 30` 汇总生命周期事件、重复、冲突、零召回规则和 telemetry 延迟。telemetry 按日写入 `<vault>/state/telemetry/`，不存 query、claim、evidence 或 path 正文。
 - **关联：** vault 的 `sources` 指向文档 path 或 heading；紧凑 `get r-…` 返回来源指针，`full:true` 才解析正文。设计：[docs/imprint-shelves-linking.zh.md](docs/imprint-shelves-linking.zh.md)。
 
 ## 文档
@@ -238,7 +238,8 @@ make publish V=X.Y.Z  # 打 tag，CI 上传 Release + GHCR
 ```go
 import "github.com/SteamedBread2333/imprint/pkg/imprint"
 
-v, _ := imprint.Open("./.imprint")
+dir, _ := imprint.ResolveDir("", false, nil, nil, nil)
+v, _ := imprint.Open(imprint.OpenOptions{Dir: dir})
 v.Add("Use gofmt", []string{"go"}, "gofmt", 0.6)
 v.Find([]string{"go"}, "", 5)
 ```

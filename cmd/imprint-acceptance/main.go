@@ -39,7 +39,7 @@ type report struct {
 }
 
 func main() {
-	outPath := flag.String("report", ".imprint/export/acceptance-report.md", "Chinese Markdown report path")
+	outPath := flag.String("report", "acceptance-report.md", "Chinese Markdown report path")
 	flag.Parse()
 	os.Exit(run(*outPath))
 }
@@ -90,9 +90,9 @@ func runScenarios(rep *report, imprintBin, mcpBin, root, vault string) {
 	code, out, errw := runCmd(root, imprintBin, "init", "--cursor")
 	add(scenario{
 		Name: "初始化项目", Action: "运行 imprint init --cursor",
-		Expect: "生成 imprint.yaml、.cursor/rules 与 .imprint 运行目录",
-		Actual: fmt.Sprintf("exit=%d yaml=%v rule=%v", code, fileExists(filepath.Join(root, "imprint.yaml")), fileExists(filepath.Join(root, ".cursor/rules/imprint-memory.mdc"))),
-		OK:     code == 0 && fileExists(filepath.Join(root, "imprint.yaml")),
+		Expect: "生成 imprint.yaml 与 .cursor/rules；仓库内无 .imprint 运行目录",
+		Actual: fmt.Sprintf("exit=%d yaml=%v rule=%v repo_imprint=%v", code, fileExists(filepath.Join(root, "imprint.yaml")), fileExists(filepath.Join(root, ".cursor/rules/imprint-memory.mdc")), fileExists(filepath.Join(root, ".imprint"))),
+		OK:     code == 0 && fileExists(filepath.Join(root, "imprint.yaml")) && !fileExists(filepath.Join(root, ".imprint")),
 	})
 	_ = out
 	_ = errw

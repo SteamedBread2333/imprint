@@ -245,7 +245,7 @@ scenario 12 of `cmd/imprint-acceptance` also exercises this path.
 
 | Lives in                                | Contents                                                     |
 | --------------------------------------- | ------------------------------------------------------------ |
-| `~/.imprint/vault.db` (table `rule_vectors`) | (rule_id, model, dim, vec BLOB, updated_at)              |
+| `<vault>/vault.db` (table `rule_vectors`; default under `~/.imprint/projects/<hash>/`) | (rule_id, model, dim, vec BLOB, updated_at)              |
 | `~/.cache/imprint/models/`              | ONNX model weights, ~130MB for `BAAI/bge-small-zh-v1.5`      |
 | `~/.imprint/plugins/embed/venv`         | Python venv with fastembed + onnxruntime                     |
 
@@ -273,9 +273,10 @@ naming explicitly because it bounds what users can do with embed.
    never queries a rule, never carries per-project state. Two CLI calls
    from two different project directories both produce the same answer for
    the same text.
-2. Vectors are stored in `<project>/.imprint/vault.db` (table
-   `rule_vectors`). Different vaults are different SQLite files; there is
-   no shared vector database to leak across.
+2. Vectors are stored in the project vault SQLite file (table
+   `rule_vectors`; default `~/.imprint/projects/<hash>/vault.db`). Each
+   vault is a separate SQLite file; vectors do not share one cross-project
+   database.
 3. The Go code that consumes vectors (`mergeEmbedDuplicatesVec`,
    `rankScore`) reads only the calling process's own vault, so project A's
    `find` never sees project B's `rule_vectors`.

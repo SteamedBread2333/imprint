@@ -224,7 +224,7 @@ flowchart TB
 
 - 实现：[`internal/textseg`](../internal/textseg/seg.go)，[go-ego/gse](https://github.com/go-ego/gse) `CutSearch`，embed 词典 `zh` + `en`；
 - vault 与 shelves 共用同一切词，保证 query 与文档 term 对齐；
-- 可选：`imprint.yaml` 的 `glossary.path`（如 `.imprint/glossary.tsv`，`word` 或 `word<TAB>freq` 每行）→ 启动时 `LoadDictMap`，避免领域词被切碎。
+- 可选：`imprint.yaml` 的 `glossary.path`（如 `<vault>/glossary.tsv`，`word` 或 `word<TAB>freq` 每行）→ 启动时 `LoadDictMap`，避免领域词被切碎。
 
 **兜底**：query 子串命中时可给予部分匹配分，避免分词失败导致零召回；仅传中文 `query` 且未传 `query_local` 时，Host 用同一字符串作 local 路（`EffectiveQueryLocal`，非翻译）。
 

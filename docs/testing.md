@@ -23,7 +23,7 @@
 
 ```bash
 go install ./cmd/imprint ./cmd/imprint-mcp
-go run ./cmd/imprint-acceptance --report .imprint/export/acceptance-report.md
+go run ./cmd/imprint-acceptance --report acceptance-report.md
 ```
 
 The report is Chinese Markdown for humans. It never reprints claim, evidence, or secret text. A failing run still writes the report and exits non-zero.

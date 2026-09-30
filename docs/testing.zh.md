@@ -23,7 +23,7 @@
 
 ```bash
 go install ./cmd/imprint ./cmd/imprint-mcp
-go run ./cmd/imprint-acceptance --report .imprint/export/acceptance-report.md
+go run ./cmd/imprint-acceptance --report acceptance-report.md
 ```
 
 报告是给人看的中文 Markdown，不会回显 claim、evidence 或 secret 原文。失败时仍写报告并以非零状态退出。

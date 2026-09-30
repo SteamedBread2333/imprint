@@ -104,6 +104,11 @@ imprint export --format jsonl
 
 Unindexed grep-only paths: follow host agent default read policy; imprint does not assign a numeric Read cap.
 
+## Docs (maintainers)
+
+- Reference docs and README state **current** paths, APIs, and behavior in declarative present tense.
+- Do not stack negation or version contrast to explain a change (e.g. “unlike V1…”, “we kept XXX…”, “no longer…”). Write what the system **is** and **does** now.
+
 ## Must do
 
 1. **At most one `find` per user message**. Prepare **scope + query + query_local + paths (when needed)** in one call. **Never** chain finds (`find` → grep → `find`).

@@ -1,6 +1,6 @@
 # Imprint — LLM Agent System Prompt (v2.1)
 
-> **Deprecated for agents in this repo.** Use `.cursor/rules/imprint-memory.mdc`, `docs/mcp.md`, and MCP tools (`find` / `add` / … — no `viz`). Vault is SQLite at `.imprint/memory/vault.db`; rule graph via `imprint desk open` (host `GET /graph`).
+> **Deprecated for agents in this repo.** Use `.cursor/rules/imprint-memory.mdc`, `docs/mcp.md`, and MCP tools (`find` / `add` / … — no `viz`). Vault is SQLite at `~/.imprint/projects/<hash>/vault.db`; rule graph via `imprint desk open` (host `GET /graph`).
 
 > Audience: any LLM Agent that integrates `imprint` (Go static binary / Go module / CLI `--json`)
 > Protocol version: v2.1 · 2026-09-11

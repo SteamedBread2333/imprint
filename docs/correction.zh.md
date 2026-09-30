@@ -2,7 +2,7 @@
 
 > **上手：** [README.zh.md](../README.zh.md#快速开始)。**参考：**写入循环、分类表与场景示例。
 
-日常对话里的长期偏好写入 `.imprint/vault.db`，下次任务前召回。智能体 **`find` → 分类 → 写入**；用户正常说话，不维护规则 id。
+日常对话里的长期偏好写入项目 vault（默认 `~/.imprint/projects/<hash>/vault.db`），下次任务前召回。智能体 **`find` → 分类 → 写入**；用户正常说话，不维护规则 id。
 
 ## 谁维护 vault
 
@@ -107,7 +107,7 @@ sequenceDiagram
 
 ## 场景示例
 
-以下用 **`./.imprint`** vault；MCP 与 CLI 等价，各举一种写法。
+在仓库根执行；vault 由 `imprint.yaml` 解析（默认 `~/.imprint/projects/<hash>/`）。MCP 与 CLI 等价，各举一种写法。
 
 ### 场景 1：新偏好 — 新增
 
@@ -121,7 +121,7 @@ sequenceDiagram
 2. 分类：**新增**
 
 ```bash
-imprint --json --vault ./.imprint add \
+imprint --json add \
   "Go exported identifiers must use PascalCase" \
   --scope go,naming \
   --text "Go 里 exported 标识符一律 PascalCase，别用 snake_case export"
@@ -145,7 +145,7 @@ MCP `add`：`claim` / `scope` / `text` 同上，`confidence` 省略（0.6）。
 2. 分类：**强化**（policy 已存在）
 
 ```bash
-imprint --json --vault ./.imprint reinforce r-2026-09-14-001 \
+imprint --json reinforce r-2026-09-14-001 \
   --evidence "用户再次确认 exported 用 PascalCase"
 ```
 
@@ -167,7 +167,7 @@ MCP `reinforce`：`id` + `evidence`。
 2. 分类：**替换**（归档旧规则，写新 active）
 
 ```bash
-imprint --json --vault ./.imprint supersede r-2026-09-14-001 \
+imprint --json supersede r-2026-09-14-001 \
   --claim "Go identifiers exported across packages must use PascalCase; internal unexported names use camelCase" \
   --scope go,naming \
   --reason "narrowed to cross-package exports only" \
@@ -192,7 +192,7 @@ MCP `supersede`：`old_id`, `claim`, `scope`, `reason`, `text`。
 2. 分类：**替换**（scope 从 go → go + typescript）
 
 ```bash
-imprint --json --vault ./.imprint supersede r-2026-09-14-002 \
+imprint --json supersede r-2026-09-14-002 \
   --claim "Exported Go and TypeScript symbols follow PascalCase (TS functions/components aligned with Go exports)" \
   --scope go,typescript,naming \
   --reason "extended naming rule to frontend TS" \
@@ -232,7 +232,7 @@ imprint --json --vault ./.imprint supersede r-2026-09-14-002 \
 **首选 supersede**（可追溯）：
 
 ```bash
-imprint --json --vault ./.imprint supersede r-2026-09-14-003 \
+imprint --json supersede r-2026-09-14-003 \
   --claim "Follow STYLE.md for naming; imprint does not override the style guide" \
   --scope go,naming,docs \
   --reason "naming policy moved to STYLE.md" \
@@ -242,7 +242,7 @@ imprint --json --vault ./.imprint supersede r-2026-09-14-003 \
 **若用户是否定「不要再用 imprint 记命名」**（口语「别记这些了」）→ `forget`：
 
 ```bash
-imprint --json --vault ./.imprint forget r-2026-09-14-003
+imprint --json forget r-2026-09-14-003
 ```
 
 MCP：同上，`supersede` 或 `forget`，参数由智能体从对话解析。
@@ -260,7 +260,7 @@ MCP：同上，`supersede` 或 `forget`，参数由智能体从对话解析。
 **智能体（编码前）**
 
 ```bash
-imprint --json --vault ./.imprint find --scope go,naming --query export
+imprint --json find --scope go,naming --query export
 ```
 
 命中 `[r-2026-09-14-002]` → 新方法名 `GetProfile` 而非 `get_profile`。在回复或 commit 说明中可 cite `[r-2026-09-14-002]`。
@@ -283,16 +283,16 @@ imprint --json --vault ./.imprint find --scope go,naming --query export
 
 ```bash
 # 写前召回
-imprint --json --vault ./.imprint find --scope go,error-handling --query wrap
+imprint --json find --scope go,error-handling --query wrap
 
 # 看单条证据链
-imprint --json --vault ./.imprint get r-2026-09-14-002
+imprint --json get r-2026-09-14-002
 
 # 高置信 active 规则
-imprint --json --vault ./.imprint list --status active --scope go --min-confidence 0.85
+imprint --json list --status active --scope go --min-confidence 0.85
 
 # 全景
-imprint --json --vault ./.imprint show
+imprint --json show
 imprint desk open
 ```
 

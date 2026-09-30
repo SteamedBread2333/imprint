@@ -239,7 +239,7 @@ func (c *Config) ResolveVaultAbs() string {
 	return filepath.Join(c.Workspace(), filepath.FromSlash(v))
 }
 
-// DefaultShelvesStateDir is .imprint/state under the project root.
+// DefaultShelvesStateDir is the shelves cache directory under the vault state tree.
 func DefaultShelvesStateDir(projectRoot string) string {
 	return imprint.DefaultShelvesCacheDir(projectRoot)
 }

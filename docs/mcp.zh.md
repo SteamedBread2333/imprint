@@ -200,7 +200,7 @@ go install github.com/SteamedBread2333/imprint/cmd/imprint-mcp@latest
   "mcpServers": {
     "imprint": {
       "command": "go",
-      "args": ["run", "./cmd/imprint-mcp", "--vault", "./.imprint"],
+      "args": ["run", "./cmd/imprint-mcp", "--project", "${workspaceFolder}"],
       "cwd": "/absolute/path/to/imprint"
     }
   }

@@ -14,8 +14,8 @@
 
 | System | Storage | ID shape | Graph |
 | --- | --- | --- | --- |
-| **imprint** | `.imprint/vault.db` | `r-YYYY-MM-DD-NNN` | `/graph` — rule-to-rule `supersedes` / `related` / `conflicts_with` |
-| **shelves** | `.imprint/state/shelves.db` | 16-char hex chunk id | `/docs/graph` — file / directory / chunk hierarchy |
+| **imprint** | `<vault>/vault.db` (default `~/.imprint/projects/<hash>/vault.db`) | `r-YYYY-MM-DD-NNN` | `/graph` — rule-to-rule `supersedes` / `related` / `conflicts_with` |
+| **shelves** | `<vault>/state/shelves.db` | 16-char hex chunk id | `/docs/graph` — file / directory / chunk hierarchy |
 
 The only overlap: when `find` includes a `query`, MCP and host return `rules` and `documents` in parallel — **no cross-references, no unified graph, no durable links**.
 

@@ -1,4 +1,4 @@
-// Package telemetry writes privacy-safe operational metrics under .imprint/state.
+// Package telemetry writes privacy-safe operational metrics under <vault>/state.
 package telemetry
 
 import (

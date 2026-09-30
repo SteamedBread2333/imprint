@@ -203,7 +203,7 @@ flowchart LR
 
 | 落在                                | 内容                                                        |
 | ----------------------------------- | ----------------------------------------------------------- |
-| `~/.imprint/vault.db`（表 `rule_vectors`） | (rule_id, model, dim, vec BLOB, updated_at)              |
+| `<vault>/vault.db`（表 `rule_vectors`；默认在 `~/.imprint/projects/<hash>/`） | (rule_id, model, dim, vec BLOB, updated_at)              |
 | `~/.cache/imprint/models/`          | ONNX 模型权重，`BAAI/bge-small-zh-v1.5` 约 130MB           |
 | `~/.imprint/plugins/embed/venv`     | 含 fastembed + onnxruntime 的 Python venv                    |
 
@@ -222,7 +222,7 @@ embed sidecar 是**单例**——一个进程、一个模型、一个端口（41
 **为什么不会"项目间窜台"：**
 
 1. sidecar 是纯推理服务。**它不读任何 vault，不查任何规则，不带任何项目状态**。两个不同项目目录的 CLI 调用，对同一段文本返回相同的向量。
-2. 向量存在 `<project>/.imprint/vault.db`（表 `rule_vectors`）。不同 vault 是不同的 SQLite 文件，没有跨项目共享的向量库可泄露。
+2. 向量存在项目 vault 的 SQLite 文件中（表 `rule_vectors`；默认 `~/.imprint/projects/<hash>/vault.db`）。每个 vault 是独立的 SQLite 文件，向量不共用跨项目库。
 3. 消费向量的 Go 代码（`mergeEmbedDuplicatesVec`、`rankScore`）**只读调用进程自己的 vault**——项目 A 的 `find` 永远不会看到项目 B 的 `rule_vectors`。
 
 **单实例禁掉了什么 + 怎么绕：**

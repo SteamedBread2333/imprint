@@ -187,7 +187,7 @@ See [docs/examples/cursor-mcp-global.json](examples/cursor-mcp-global.json).
   "mcpServers": {
     "imprint": {
       "command": "go",
-      "args": ["run", "./cmd/imprint-mcp", "--vault", "./.imprint"],
+      "args": ["run", "./cmd/imprint-mcp", "--project", "${workspaceFolder}"],
       "cwd": "/absolute/path/to/imprint"
     }
   }

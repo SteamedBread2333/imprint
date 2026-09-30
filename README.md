@@ -166,7 +166,7 @@ Global flags: `--vault PATH` · `--global` · `--json` (machine-readable stdout 
 | `imprint supersede OLD --claim NEW --scope a,b` | Replace a rule; old → `superseded` |
 | `imprint forget ID` | Delete permanently (lifecycle event remains) |
 | `imprint list` · `show` · `get ID` · `report` | Browse, inspect, and audit lifecycle / recall / telemetry |
-| `imprint sweep` · `export` | Decay stale rules · write `.imprint/export/vault.json` or `vault.jsonl` (`--format jsonl`) |
+| `imprint sweep` · `export` | Decay stale rules · write `<vault>/export/vault.json` or `vault.jsonl` (`--format jsonl`) |
 
 ```bash
 imprint find --scope go,naming --query PascalCase
@@ -213,7 +213,7 @@ Run `imprint --help` or `imprint help <cmd>` for full flags.
 - **Write safety:** `add`, `reinforce`, and `supersede` reject likely secrets and personal data. Source paths must remain inside the workspace and may not target credentials, `.env*`, `*.pem`, or `*.key`. `add` also rejects high-similarity active duplicates. `reinforce` requires non-empty evidence and uses diminishing confidence gain; find hits only update recall stats.
 - **Supersede confidence:** successor decays the gap above 0.6 by `supersede.inheritance_alpha` in `imprint.yaml` (default 0.20; 0 copies old, 1 drops to baseline).
 - **Scopes:** language tags (`ts`, `tsx`, `golang`) canonicalize via GitHub Linguist (go-enry); non-language tags pass through.
-- **Audit:** `imprint report --days 30` summarizes lifecycle events, duplicates, conflicts, zero-recall rules, and telemetry latency. Telemetry is a daily JSONL under `.imprint/state/telemetry/` and never stores query, claim, evidence, or path text.
+- **Audit:** `imprint report --days 30` summarizes lifecycle events, duplicates, conflicts, zero-recall rules, and telemetry latency. Telemetry is a daily JSONL under `<vault>/state/telemetry/` and never stores query, claim, evidence, or path text.
 - **Linking:** vault `sources` point rules at doc paths or headings; compact `get r-…` returns pointers, `full:true` resolves excerpts. Design: [docs/imprint-shelves-linking.md](docs/imprint-shelves-linking.md).
 
 ## Documentation
@@ -241,7 +241,8 @@ Local builds without a tag print `devel`.
 ```go
 import "github.com/SteamedBread2333/imprint/pkg/imprint"
 
-v, _ := imprint.Open("./.imprint")
+dir, _ := imprint.ResolveDir("", false, nil, nil, nil)
+v, _ := imprint.Open(imprint.OpenOptions{Dir: dir})
 v.Add("Use gofmt", []string{"go"}, "gofmt", 0.6)
 v.Find([]string{"go"}, "", 5)
 ```
