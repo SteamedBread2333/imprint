@@ -42,6 +42,9 @@ func TestConfigPathIsRepoRoot(t *testing.T) {
 
 func TestHasProjectMarkerSkipsImprintDir(t *testing.T) {
 	dir := t.TempDir()
+	if err := os.WriteFile(ConfigPath(dir), []byte("host:\n  listen: 127.0.0.1:9470\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	imprintDir := ImprintDir(dir)
 	if err := os.MkdirAll(filepath.Join(imprintDir, "memory"), 0o755); err != nil {
 		t.Fatal(err)

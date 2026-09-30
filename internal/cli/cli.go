@@ -157,16 +157,19 @@ func (a *App) fail(asJSON bool, err error) int {
 }
 
 func (a *App) openVault(g globals) (*imprint.Vault, error) {
-	dir, err := imprint.ResolveDir(g.vault, g.global, a.Environ, a.Getwd, a.Home)
+	cfg, err := a.loadPluginConfig()
 	if err != nil {
 		return nil, err
 	}
+	dir, err := a.resolveHostVault(g, cfg)
+	if err != nil {
+		return nil, err
+	}
+	if cfg.FileExists() {
+		_ = imprint.EnsureProjectRootLink(dir, cfg.Workspace())
+	}
 	opts := imprint.OpenOptions{Dir: dir, Now: a.now}
-	if cfgPath, ok := plugin.ResolveConfigPathForVault(dir); ok {
-		cfg, err := plugin.Load(cfgPath)
-		if err != nil {
-			return nil, err
-		}
+	if cfg.FileExists() {
 		if cfg.Telemetry.Enabled {
 			opts.Telemetry = telemetry.New(
 				filepath.Join(dir, imprint.StateDirName, "telemetry"),
@@ -174,6 +177,16 @@ func (a *App) openVault(g globals) (*imprint.Vault, error) {
 			)
 		}
 		cfg.ApplyToOpenOptions(&opts)
+	} else if cfgPath, ok := plugin.ResolveConfigPathForVault(dir); ok {
+		if loaded, loadErr := plugin.Load(cfgPath); loadErr == nil {
+			if loaded.Telemetry.Enabled {
+				opts.Telemetry = telemetry.New(
+					filepath.Join(dir, imprint.StateDirName, "telemetry"),
+					loaded.Telemetry.RetentionDays, a.now, a.errw(),
+				)
+			}
+			loaded.ApplyToOpenOptions(&opts)
+		}
 	}
 	return imprint.Open(opts)
 }
@@ -262,12 +275,12 @@ Usage:
 Full reference: README.md (中文: README.zh.md)
 
 Global flags:
-  --vault PATH   Vault directory (default: ./.imprint, or walk-up)
-  --global       Use ~/.imprint
+  --vault PATH   Vault directory (override; default is ~/.imprint/projects/<hash> per repo)
+  --global       Per-project vault for cwd when walk-up finds no imprint.yaml
   --json         Machine-readable JSON on stdout
 
 Environment:
-  IMPRINT_VAULT  Default vault path when --vault is omitted
+  IMPRINT_VAULT  Vault path when --vault is omitted and walk-up finds no project
 
 Everyday — local stack:
   up          Start vault API, shelves, and enabled plugins except embed (then: desk open)
@@ -288,7 +301,7 @@ Everyday — vault (no local stack required):
   show        User-facing listing
   report      Lifecycle, recall, duplicate, conflict, and telemetry audit
   sweep       Decay stale rules and mark low-confidence ones dormant
-  export      Write JSON or JSONL under .imprint/export/
+  export      Write JSON or JSONL under <vault>/export/
   import      Replace the vault from an export file
 
 Debug & advanced:
@@ -300,8 +313,8 @@ Debug & advanced:
   version     Print version
 
 Vault:
-  .imprint/vault.db          Rule store (gitignore via .imprint/)
-  imprint desk open          Interactive graph (desk plugin)
+  ~/.imprint/projects/<hash>/vault.db   Default per-repo store (see README Storage)
+  imprint desk open                     Interactive graph (desk plugin)
 `
 
 func commandHelp(cmd string) string {
@@ -340,7 +353,7 @@ Writes imprint.yaml (if missing) and imprint memory rules for AI editors (defaul
 See docs/editors.md.
 `
 	case "export":
-		return "Usage: imprint export [--format json|jsonl]\n\nWrites vault.json (default) or vault.jsonl under .imprint/export/.\n"
+		return "Usage: imprint export [--format json|jsonl]\n\nWrites vault.json (default) or vault.jsonl under <vault>/export/.\n"
 	case "import":
 		return "Usage: imprint import [FILE]\n\nReplaces the vault with records from a JSON array or JSONL export. Default file: <vault>/export/vault.json (then vault.jsonl). Import never fails because the embed sidecar is down; the command prints a backfill hint when vectors were not encoded.\n"
 	case "report":

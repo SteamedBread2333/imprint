@@ -40,6 +40,7 @@ find/get are compact by default; paths filters shelves documents only. Request f
 
 // Run starts the MCP server on stdio using cfg for vault resolution.
 func Run(ctx context.Context, cfg Config) error {
+	imprint.EnsureHomeEnv()
 	dir, err := resolveVaultDir(cfg)
 	if err != nil {
 		return err

@@ -6,12 +6,13 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/SteamedBread2333/imprint/internal/plugin"
 	"github.com/SteamedBread2333/imprint/pkg/imprint"
 )
 
 // resolveVaultDir picks the vault directory for MCP startup.
-// --project pins the repo root (parent of .imprint/) so vault and plugins stay
-// correct even when the host spawns MCP with an unexpected cwd (multi-root workspaces).
+// --project pins the repo root so vault and plugins bind to this repo even when
+// the host spawns MCP with an unexpected cwd (multi-root workspaces).
 func resolveVaultDir(cfg Config) (string, error) {
 	if cfg.Global {
 		return imprint.ResolveDir("", true, Env, Getwd, Home)
@@ -25,15 +26,27 @@ func resolveVaultDir(cfg Config) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		vault := strings.TrimSpace(cfg.Vault)
-		if vault == "" {
-			_ = imprint.MigrateLegacyLayout(root)
-			return imprint.DefaultVaultDir(root), nil
+		vaultFlag := strings.TrimSpace(cfg.Vault)
+		if vaultFlag != "" {
+			if filepath.IsAbs(vaultFlag) {
+				dir := filepath.Clean(vaultFlag)
+				_ = imprint.MigrateLegacyLayout(dir)
+				_ = imprint.EnsureProjectRootLink(dir, root)
+				return dir, nil
+			}
+			dir := filepath.Join(root, filepath.FromSlash(vaultFlag))
+			_ = imprint.MigrateLegacyLayout(dir)
+			_ = imprint.EnsureProjectRootLink(dir, root)
+			return dir, nil
 		}
-		if filepath.IsAbs(vault) {
-			return vault, nil
+		cfgPath := imprint.ResolveConfigFile(root)
+		pcfg, err := plugin.Load(cfgPath)
+		if err != nil {
+			return "", err
 		}
-		return filepath.Join(root, filepath.FromSlash(vault)), nil
+		dir := pcfg.ResolveVaultAbs()
+		_ = imprint.EnsureProjectRootLink(dir, root)
+		return dir, nil
 	}
 	return imprint.ResolveDir(cfg.Vault, false, Env, Getwd, Home)
 }

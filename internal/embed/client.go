@@ -9,6 +9,8 @@ package embed
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,12 +18,15 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
 
 	"github.com/SteamedBread2333/imprint/pkg/imprint"
 )
+
+const embedCacheMaxEntries = 512
 
 // DefaultPort is the imprint-embed sidecar port.
 const DefaultPort = imprint.DefaultEmbedPort
@@ -40,6 +45,9 @@ type Client struct {
 	http    *http.Client
 
 	warned atomic.Bool
+
+	cacheMu sync.Mutex
+	cache   map[string][]float32
 }
 
 // NewClient returns a client for a sidecar listening on port.
@@ -53,6 +61,7 @@ func NewClient(port int, model string, timeout time.Duration) *Client {
 	return &Client{
 		baseURL: imprint.LocalURL(port),
 		model:   model,
+		cache:   make(map[string][]float32),
 		http: &http.Client{
 			Timeout: timeout,
 			Transport: &http.Transport{
@@ -100,6 +109,63 @@ func (c *Client) Embed(ctx context.Context, texts []string) ([][]float32, error)
 	if len(texts) == 0 {
 		return nil, nil
 	}
+	out := make([][]float32, len(texts))
+	var missIdx []int
+	var missTexts []string
+	for i, text := range texts {
+		if vec, ok := c.cacheGet(text); ok {
+			out[i] = vec
+			continue
+		}
+		missIdx = append(missIdx, i)
+		missTexts = append(missTexts, text)
+	}
+	if len(missTexts) == 0 {
+		return out, nil
+	}
+	fetched, err := c.embedRemote(ctx, missTexts)
+	if err != nil {
+		return nil, err
+	}
+	for j, vec := range fetched {
+		out[missIdx[j]] = vec
+		c.cachePut(missTexts[j], vec)
+	}
+	return out, nil
+}
+
+func (c *Client) cacheKey(text string) string {
+	sum := sha256.Sum256([]byte(c.Model() + "\x00" + text))
+	return hex.EncodeToString(sum[:])
+}
+
+func (c *Client) cacheGet(text string) ([]float32, bool) {
+	c.cacheMu.Lock()
+	defer c.cacheMu.Unlock()
+	vec, ok := c.cache[c.cacheKey(text)]
+	if !ok {
+		return nil, false
+	}
+	cp := append([]float32(nil), vec...)
+	return cp, true
+}
+
+func (c *Client) cachePut(text string, vec []float32) {
+	if len(vec) == 0 {
+		return
+	}
+	c.cacheMu.Lock()
+	defer c.cacheMu.Unlock()
+	if len(c.cache) >= embedCacheMaxEntries {
+		for k := range c.cache {
+			delete(c.cache, k)
+			break
+		}
+	}
+	c.cache[c.cacheKey(text)] = append([]float32(nil), vec...)
+}
+
+func (c *Client) embedRemote(ctx context.Context, texts []string) ([][]float32, error) {
 	body, err := json.Marshal(embedRequest{Texts: texts, Model: c.Model()})
 	if err != nil {
 		return nil, fmt.Errorf("encode embed request: %w", err)

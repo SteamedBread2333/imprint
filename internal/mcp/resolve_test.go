@@ -10,7 +10,7 @@ import (
 
 func TestResolveVaultDirFromProject(t *testing.T) {
 	root := t.TempDir()
-	if err := os.MkdirAll(imprint.DefaultVaultDir(root), 0o755); err != nil {
+	if err := os.WriteFile(imprint.ConfigPath(root), []byte("host:\n  listen: 127.0.0.1:9470\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	oldGetwd := Getwd
@@ -23,7 +23,10 @@ func TestResolveVaultDirFromProject(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := imprint.DefaultVaultDir(root)
+	want, err := imprint.ProjectVaultDir(root, os.UserHomeDir)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if got != want {
 		t.Fatalf("got %q want %q", got, want)
 	}
@@ -74,7 +77,7 @@ func TestResolvePluginConfigFromProjectIgnoresCwd(t *testing.T) {
 
 func TestResolveVaultDirFromIMPRINTProjectEnv(t *testing.T) {
 	root := t.TempDir()
-	if err := os.MkdirAll(imprint.DefaultVaultDir(root), 0o755); err != nil {
+	if err := os.WriteFile(imprint.ConfigPath(root), []byte("host:\n  listen: 127.0.0.1:9470\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	oldEnv := Env
@@ -90,7 +93,11 @@ func TestResolveVaultDirFromIMPRINTProjectEnv(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != imprint.DefaultVaultDir(root) {
-		t.Fatalf("got %q", got)
+	want, err := imprint.ProjectVaultDir(root, os.UserHomeDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("got %q want %q", got, want)
 	}
 }

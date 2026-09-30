@@ -33,7 +33,7 @@ flowchart LR
 
   subgraph persist [写入时 · 只写 vault]
     A[add / supersede] --> S[sources path/heading]
-    S --> V[(.imprint/vault.db)]
+    S --> V[(vault.db)]
   end
 
   subgraph reverse [读 chunk · 不改文档]
@@ -72,7 +72,7 @@ shelves:
 | ----------------- | ----------------------------------------------------------- |
 | `enabled`         | `true` 时扫描 `roots` 并提供搜索；`false` 时停止索引与搜索，缓存只读保留            |
 | `config.roots`    | **要纳入索引的目录**（`.md`、`.mdc`、`.txt`），路径相对仓库根 — **shelves 搜什么** |
-| `config.stateDir` | SQLite 缓存目录。默认 `.imprint/state`（`shelves.db`）                   |
+| `config.stateDir` | SQLite 缓存目录。默认 `<vault>/state`（`shelves.db`）                   |
 | `config.find_top_k` | `find` 文档条数上限（默认 **2**），与规则 `top_k` 无关；每 path 一条 |
 | `config.snippet_runes` | snippet 字数上限（默认 **80**），对准查询词 |
 | `config.max_chunk_lines` | 同 section 分块行数（默认 **12**）。改后需 `imprint up` 重建 |

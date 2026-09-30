@@ -33,7 +33,7 @@ flowchart LR
 
   subgraph persist [On write · vault only]
     A[add / supersede] --> S[sources path/heading]
-    S --> V[(.imprint/vault.db)]
+    S --> V[(vault.db)]
   end
 
   subgraph reverse [get chunk · no doc edits]
@@ -67,7 +67,7 @@ shelves:
 | --- | --- |
 | `enabled` | When `true`, scan `roots` and serve search. When `false`, stop indexing; cache stays readable. |
 | `config.roots` | **Directories to index** (`.md`, `.mdc`, `.txt`), relative to repo root — what shelves **searches** |
-| `config.stateDir` | SQLite cache directory. Default: `.imprint/state` (`shelves.db`). |
+| `config.stateDir` | SQLite cache directory. Default: `<vault>/state` (`shelves.db`). |
 | `config.find_top_k` | Max document hits on `find` (default **2**). Independent of rule `top_k`. One chunk per path. |
 | `config.snippet_runes` | Snippet rune cap (default **80**), centered on the query term. |
 | `config.max_chunk_lines` | Same-section chunk flush (default **12**). Changing it requires `imprint up` to rebuild. |

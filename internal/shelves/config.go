@@ -37,7 +37,7 @@ func ConfigFrom(cfg *plugin.Config) Config {
 		return out
 	}
 	out.Workspace = cfg.Workspace()
-	out.StateDir = plugin.DefaultShelvesStateDir(out.Workspace)
+	out.StateDir = filepath.Join(cfg.ResolveVaultAbs(), imprint.StateDirName)
 	out.Enabled = cfg.Shelves.Enabled
 	if roots := parseRoots(cfg.Shelves.Config); len(roots) > 0 {
 		out.Roots = roots

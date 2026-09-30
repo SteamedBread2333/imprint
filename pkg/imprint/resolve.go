@@ -7,8 +7,8 @@ import (
 
 // ResolveDir picks the vault directory (the folder that contains vault.db).
 //
-// Order: flagVault, --global (~/.imprint), walk-up .imprint,
-// IMPRINT_VAULT, otherwise ./.imprint under cwd.
+// Order: flagVault, walk-up imprint.yaml → global per-project vault,
+// --global (cwd per-project vault), IMPRINT_VAULT, else cwd per-project vault.
 func ResolveDir(flagVault string, global bool, getenv func(string) string, getwd func() (string, error), home func() (string, error)) (string, error) {
 	if getenv == nil {
 		getenv = os.Getenv
@@ -20,24 +20,28 @@ func ResolveDir(flagVault string, global bool, getenv func(string) string, getwd
 		home = os.UserHomeDir
 	}
 	if flagVault != "" {
-		return flagVault, nil
-	}
-	if global {
-		h, err := home()
+		if filepath.IsAbs(flagVault) {
+			return filepath.Clean(flagVault), nil
+		}
+		cwd, err := getwd()
 		if err != nil {
 			return "", err
 		}
-		root := filepath.Join(h, ImprintDirName)
-		_ = MigrateLegacyLayout(h)
-		return root, nil
+		return filepath.Join(cwd, filepath.FromSlash(flagVault)), nil
 	}
 	root, found, err := FindProjectRoot(getwd)
 	if err != nil {
 		return "", err
 	}
 	if found {
-		_ = MigrateLegacyLayout(root)
-		return DefaultVaultDir(root), nil
+		return ResolveVaultDirForWorkspace(root, "", home)
+	}
+	if global {
+		cwd, err := getwd()
+		if err != nil {
+			return "", err
+		}
+		return ResolveVaultDirForWorkspace(cwd, "", home)
 	}
 	if env := getenv("IMPRINT_VAULT"); env != "" {
 		return env, nil
@@ -46,5 +50,5 @@ func ResolveDir(flagVault string, global bool, getenv func(string) string, getwd
 	if err != nil {
 		return "", err
 	}
-	return DefaultVaultDir(cwd), nil
+	return ResolveVaultDirForWorkspace(cwd, "", home)
 }

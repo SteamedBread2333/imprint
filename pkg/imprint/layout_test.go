@@ -16,8 +16,8 @@ func TestNormalizeVaultRel(t *testing.T) {
 }
 
 func TestMigrateLegacyVaultDB(t *testing.T) {
-	root := t.TempDir()
-	oldDir := filepath.Join(root, ".imprint", "memory")
+	vaultDir := t.TempDir()
+	oldDir := filepath.Join(vaultDir, "memory")
 	if err := os.MkdirAll(oldDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -25,10 +25,10 @@ func TestMigrateLegacyVaultDB(t *testing.T) {
 	if err := os.WriteFile(oldDB, []byte("sqlite-bytes"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := MigrateLegacyLayout(root); err != nil {
+	if err := MigrateLegacyLayout(vaultDir); err != nil {
 		t.Fatal(err)
 	}
-	newDB := filepath.Join(root, ".imprint", "vault.db")
+	newDB := filepath.Join(vaultDir, "vault.db")
 	raw, err := os.ReadFile(newDB)
 	if err != nil {
 		t.Fatal(err)
@@ -42,18 +42,18 @@ func TestMigrateLegacyVaultDB(t *testing.T) {
 }
 
 func TestMigrateLegacyShelvesDB(t *testing.T) {
-	root := t.TempDir()
-	old := filepath.Join(root, ".imprint", ".shelves", ".cache")
+	vaultDir := t.TempDir()
+	old := filepath.Join(vaultDir, ".shelves", ".cache")
 	if err := os.MkdirAll(old, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(old, "index.db"), []byte("idx"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := MigrateLegacyLayout(root); err != nil {
+	if err := MigrateLegacyLayout(vaultDir); err != nil {
 		t.Fatal(err)
 	}
-	got, err := os.ReadFile(filepath.Join(root, ".imprint", "state", "shelves.db"))
+	got, err := os.ReadFile(filepath.Join(vaultDir, "state", "shelves.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

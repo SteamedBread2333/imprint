@@ -94,12 +94,15 @@ func DefaultExportDir(projectRoot string) string {
 	return filepath.Join(ImprintDir(projectRoot), ExportDirName)
 }
 
-// FindProjectRootFromVault walks up from vaultDir for imprint.yaml (root or legacy).
+// FindProjectRootFromVault resolves the workspace for a vault directory.
 func FindProjectRootFromVault(vaultDir string) (string, bool) {
 	dir := filepath.Clean(vaultDir)
 	if filepath.Base(dir) == ImprintDirName {
 		parent := filepath.Dir(dir)
 		return parent, true
+	}
+	if root, ok := ReadLinkedProjectRoot(dir); ok {
+		return root, true
 	}
 	for {
 		if hasProjectMarker(dir) {
@@ -114,7 +117,7 @@ func FindProjectRootFromVault(vaultDir string) (string, bool) {
 	return "", false
 }
 
-// FindProjectRoot walks up from cwd for imprint.yaml or .imprint/.
+// FindProjectRoot walks up from cwd for imprint.yaml.
 func FindProjectRoot(getwd func() (string, error)) (string, bool, error) {
 	if getwd == nil {
 		getwd = os.Getwd
@@ -141,13 +144,7 @@ func hasProjectMarker(dir string) bool {
 	if filepath.Base(dir) == ImprintDirName {
 		return false
 	}
-	if fileExists(ConfigPath(dir)) || fileExists(LegacyConfigPath(dir)) {
-		return true
-	}
-	if st, err := os.Stat(ImprintDir(dir)); err == nil && st.IsDir() {
-		return true
-	}
-	return false
+	return fileExists(ConfigPath(dir)) || fileExists(LegacyConfigPath(dir))
 }
 
 func fileExists(path string) bool {

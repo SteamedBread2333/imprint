@@ -16,34 +16,33 @@ func NormalizeVaultRel(v string) string {
 	return v
 }
 
-// MigrateLegacyLayout moves pre-flatten files into the current layout.
+// MigrateLegacyLayout moves pre-flatten files into the current layout under vaultDir.
 // Missing sources are skipped; existing destinations are left untouched.
-func MigrateLegacyLayout(projectRoot string) error {
-	if strings.TrimSpace(projectRoot) == "" {
+func MigrateLegacyLayout(vaultDir string) error {
+	if strings.TrimSpace(vaultDir) == "" {
 		return nil
 	}
-	root := filepath.Clean(projectRoot)
+	root := filepath.Clean(vaultDir)
 	if err := migrateLegacyVaultDB(root); err != nil {
 		return err
 	}
 	if err := migrateLegacyShelvesDB(root); err != nil {
 		return err
 	}
-	return os.MkdirAll(DefaultPluginsStateDir(root), 0o755)
+	return os.MkdirAll(filepath.Join(VaultStateDir(root), PluginsStateDirName), 0o755)
 }
 
-func migrateLegacyVaultDB(root string) error {
-	destDir := DefaultVaultDir(root)
-	dest := filepath.Join(destDir, VaultFileName)
+func migrateLegacyVaultDB(vaultDir string) error {
+	dest := filepath.Join(vaultDir, VaultFileName)
 	if fileExists(dest) {
 		return nil
 	}
-	srcDir := filepath.Join(ImprintDir(root), LegacyVaultDirName)
+	srcDir := filepath.Join(vaultDir, LegacyVaultDirName)
 	src := filepath.Join(srcDir, VaultFileName)
 	if !fileExists(src) {
 		return nil
 	}
-	if err := os.MkdirAll(destDir, 0o755); err != nil {
+	if err := os.MkdirAll(vaultDir, 0o755); err != nil {
 		return err
 	}
 	if err := moveSQLite(src, dest); err != nil {
@@ -53,13 +52,13 @@ func migrateLegacyVaultDB(root string) error {
 	return nil
 }
 
-func migrateLegacyShelvesDB(root string) error {
-	destDir := DefaultStateDir(root)
+func migrateLegacyShelvesDB(vaultDir string) error {
+	destDir := VaultStateDir(vaultDir)
 	dest := filepath.Join(destDir, ShelvesDBName)
 	if fileExists(dest) {
 		return nil
 	}
-	legacyDir := filepath.Join(ImprintDir(root), ".shelves", ".cache")
+	legacyDir := filepath.Join(vaultDir, ".shelves", ".cache")
 	src := filepath.Join(legacyDir, "index.db")
 	if !fileExists(src) {
 		src = filepath.Join(legacyDir, ShelvesDBName)

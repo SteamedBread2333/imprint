@@ -59,8 +59,8 @@ flowchart LR
     MCP --> Shelves
   end
   subgraph disk [On disk]
-    Memory[".imprint/vault.db"]
-    Cache[".imprint/state/shelves.db"]
+    Memory["~/.imprint/projects/…/vault.db"]
+    Cache["…/state/shelves.db"]
     Roots["markdown under roots"]
   end
   Agent <-->|find · add · get| MCP
@@ -73,7 +73,7 @@ flowchart LR
 | --- | --- |
 | **Host** | Cursor, Claude Desktop, etc. spawns `imprint-mcp` and talks over stdin/stdout. |
 | **Tools** | One MCP tool per vault command (`find`, `add`, …). **MCP** enriches `find`/`get` when shelves is on; **CLI** `find`/`get` are vault-only. |
-| **Vault** | `.imprint/vault.db` (SQLite); `find` / `get` / `add` read and write claim, evidence, **sources**. |
+| **Vault** | `~/.imprint/projects/<hash>/vault.db` by default (SQLite); `find` / `get` / `add` read and write claim, evidence, **sources**. |
 | **Shelves** | Reads `roots` from `imprint.yaml`; `find`+query adds BM25 **documents** (capped by `find_top_k`, query-window snippets) and **links**; chunk `get` adds **referenced_rules**. |
 | **Judgment** | ADD / REINFORCE / SUPERSEDE / IGNORE and whether to set **sources** stay on the agent. |
 
@@ -93,9 +93,9 @@ Parsed before the process enters MCP mode (unknown flags are rejected):
 
 | Flag | Effect |
 | --- | --- |
-| `--project PATH` | Repo root (parent of `.imprint/`). Vault defaults to `.imprint`; plugin config from `imprint.yaml`. **Use this in Cursor multi-root workspaces.** Alias: `--root`. |
+| `--project PATH` | Repo root. Vault defaults to `~/.imprint/projects/<hash>`; plugin config from `imprint.yaml`. **Use this in Cursor multi-root workspaces.** Alias: `--root`. |
 | `--vault PATH` | Vault directory. With `--project`, relative paths join under the project root. |
-| `--global` | Use `~/.imprint` (overrides walk-up / `./.imprint` unless `--vault` is set). |
+| `--global` | Per-project vault for cwd when walk-up finds no `imprint.yaml` (same `~/.imprint/projects/<hash>` layout). |
 | `--version` | Print version and exit. |
 | `-h`, `--help` | Print usage and exit. |
 
@@ -146,9 +146,9 @@ Copy or merge into **`.cursor/mcp.json`** (project root). Prefer **`--project ${
 }
 ```
 
-See [docs/examples/cursor-mcp.json](examples/cursor-mcp.json). After `go install`, **Cmd+Q** and reopen (Reload alone may keep a stale spawn command). stderr should show `imprint-mcp: project`, vault under **this** repo, and `imprint-mcp: shelves enabled=…`. See [shelves-builtin.md](shelves-builtin.md).
+See [docs/examples/cursor-mcp.json](examples/cursor-mcp.json). After `go install`, **Cmd+Q** and reopen (Reload alone may keep a stale spawn command). stderr should show `imprint-mcp: project`, vault under `~/.imprint/projects/…`, and `imprint-mcp: shelves enabled=…`. See [shelves-builtin.md](shelves-builtin.md).
 
-### Cursor — global vault
+### Cursor — cwd-only (no imprint.yaml)
 
 ```json
 {
@@ -160,6 +160,8 @@ See [docs/examples/cursor-mcp.json](examples/cursor-mcp.json). After `go install
   }
 }
 ```
+
+Uses the same per-project directory layout keyed off spawn cwd. Prefer **`--project ${workspaceFolder}`** when the repo has `imprint.yaml`.
 
 See [docs/examples/cursor-mcp-global.json](examples/cursor-mcp-global.json).
 

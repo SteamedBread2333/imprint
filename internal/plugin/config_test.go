@@ -59,8 +59,8 @@ func TestLoadDefaultsMissingFile(t *testing.T) {
 	if cfg.Host.Listen != imprint.DefaultHostListen {
 		t.Fatalf("listen = %q", cfg.Host.Listen)
 	}
-	if cfg.Vault != imprint.DefaultVaultRel() {
-		t.Fatalf("vault = %q want %q", cfg.Vault, imprint.DefaultVaultRel())
+	if cfg.Vault != "" {
+		t.Fatalf("vault = %q want empty default", cfg.Vault)
 	}
 }
 

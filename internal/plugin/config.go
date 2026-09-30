@@ -132,7 +132,6 @@ func Load(path string) (*Config, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			cfg.Vault = defaultVaultRel(cfg.workspace)
 			return cfg, nil
 		}
 		return nil, err
@@ -151,9 +150,6 @@ func Load(path string) (*Config, error) {
 	}
 	normalizeLegacyShelves(cfg)
 	cfg.Vault = imprint.NormalizeVaultRel(cfg.Vault)
-	if strings.TrimSpace(cfg.Vault) == "" {
-		cfg.Vault = defaultVaultRel(cfg.workspace)
-	}
 	return cfg, nil
 }
 
@@ -174,10 +170,6 @@ func normalizeLegacyShelves(cfg *Config) {
 	}
 }
 
-func defaultVaultRel(workspace string) string {
-	_ = workspace
-	return imprint.DefaultVaultRel()
-}
 
 // FileExists reports whether imprint.yaml was loaded from an on-disk file.
 func (c *Config) FileExists() bool {
@@ -229,9 +221,17 @@ func (c *Config) Workspace() string {
 
 // ResolveVaultAbs returns the absolute vault directory for this config.
 func (c *Config) ResolveVaultAbs() string {
+	imprint.EnsureHomeEnv()
+	dir, err := imprint.ResolveVaultDirForWorkspace(c.Workspace(), c.Vault, os.UserHomeDir)
+	if err == nil {
+		return dir
+	}
 	v := imprint.NormalizeVaultRel(c.Vault)
 	if v == "" {
-		v = defaultVaultRel(c.Workspace())
+		if d, e2 := imprint.ProjectVaultDir(c.Workspace(), os.UserHomeDir); e2 == nil {
+			return d
+		}
+		return imprint.DefaultVaultDir(c.Workspace())
 	}
 	if filepath.IsAbs(v) {
 		return v

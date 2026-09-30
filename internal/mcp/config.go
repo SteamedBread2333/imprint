@@ -57,13 +57,13 @@ Usage:
   imprint-mcp [--project PATH] [--vault PATH] [--global] [--version]
 
 Project + vault (recommended for Cursor multi-root workspaces):
-  --project PATH   repo root (parent of .imprint/); vault defaults to .imprint
+  --project PATH   repo root; vault defaults to ~/.imprint/projects/<hash>
   --vault PATH     vault directory (relative paths join under --project)
   IMPRINT_PROJECT  same as --project when the flag is omitted
 
 Otherwise (same as imprint CLI):
-  --global         ~/.imprint
-  walk-up / IMPRINT_VAULT / ./.imprint under cwd
+  --global         per-project vault for cwd (no imprint.yaml walk-up)
+  walk-up imprint.yaml / IMPRINT_VAULT
 
 Logs go to stderr. Tool results are JSON (same shapes as imprint --json).
 

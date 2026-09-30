@@ -307,20 +307,24 @@ func TestJSONContracts(t *testing.T) {
 
 func TestResolveDir(t *testing.T) {
 	root := t.TempDir()
-	proj := filepath.Join(root, "proj", "nested")
+	projRoot := filepath.Join(root, "proj")
+	proj := filepath.Join(projRoot, "nested")
 	if err := os.MkdirAll(proj, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	imprintDir := filepath.Join(root, "proj", ".imprint")
-	if err := os.MkdirAll(imprintDir, 0o755); err != nil {
+	if err := os.WriteFile(ConfigPath(projRoot), []byte("host:\n  listen: 127.0.0.1:9470\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	want, err := ProjectVaultDir(projRoot, func() (string, error) { return root, nil })
+	if err != nil {
 		t.Fatal(err)
 	}
 	got, err := ResolveDir("", false, func(string) string { return "" }, func() (string, error) { return proj, nil }, func() (string, error) { return root, nil })
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != imprintDir {
-		t.Fatalf("walk-up got %s want %s", got, imprintDir)
+	if got != want {
+		t.Fatalf("walk-up got %s want %s", got, want)
 	}
 }
 

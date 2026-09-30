@@ -62,8 +62,8 @@ flowchart TB
 
   subgraph Store["imprint storage"]
     direction LR
-    Vault[(".imprint/vault.db<br/>claim · evidence · sources")]
-    Shelves[(".imprint/state/shelves.db<br/>roots doc BM25")]
+    Vault[("~/.imprint/projects/…/vault.db<br/>claim · evidence · sources")]
+    Shelves[("…/state/shelves.db<br/>roots doc BM25")]
   end
 
   subgraph FindOut["one find call"]
@@ -118,25 +118,26 @@ sequenceDiagram
 
 ## Storage
 
-Commit `imprint.yaml` (roots, plugin switches, tunables). Private runtime is gitignored under `.imprint/`.
+Commit `imprint.yaml` (roots, plugin switches, tunables). Private runtime lives under **`~/.imprint/projects/<hash>/`** (hash of the repo absolute path). Nothing under that tree belongs in git.
 
-Default vault directory: `./.imprint/` (walk up for `imprint.yaml` or `.imprint/`). `--global` → `~/.imprint`. Override with `--vault` or `IMPRINT_VAULT`.
+Default vault: walk up for `imprint.yaml`, then `~/.imprint/projects/<hash>/`. Override with `vault:` in yaml, `--vault`, or `IMPRINT_VAULT`. `--global` uses the same layout keyed off cwd when no project is found.
 
 ```
 imprint.yaml            # git: host + shelves.roots + plugins + supersede.inheritance_alpha
-.imprint/               # gitignore: private runtime
-  vault.db              # SQLite vault (rules, evidence, edges, sources)
-  vault.db-wal          # WAL journal; created while a process has the vault open
-  vault.db-shm          # WAL shared-memory index (same lifetime)
-  state/
-    shelves.db          # rebuildable doc index (also uses WAL; may show -wal/-shm)
-    plugins/            # plugin derived state
-  export/               # optional md/json projections
 docs/                   # typical shelves root
 .cursor/rules/          # typical shelves root
+
+~/.imprint/projects/<hash>/   # private runtime (outside the repo)
+  project.root          # links back to this repo (for sources / MCP)
+  vault.db              # SQLite vault (rules, evidence, edges, sources)
+  state/
+    shelves.db          # rebuildable doc index
+    telemetry/          # optional metrics
+    plugins/            # plugin derived state
+  export/               # optional json/jsonl projections
 ```
 
-Vault and shelves open SQLite in WAL mode so CLI, MCP, and host can read and write across processes. `-wal` / `-shm` next to a `*.db` are normal; they stay under `.imprint/` (gitignored). Do not commit them, and do not delete them while imprint is running.
+Vault and shelves open SQLite in WAL mode so CLI, MCP, and host can read and write across processes. `-wal` / `-shm` next to a `*.db` are normal; do not delete them while imprint is running.
 
 Rules live in `vault.db`. IDs: `r-YYYY-MM-DD-NNN`. Status: `active` | `dormant` | `superseded`. `supersede` marks old rules superseded; `sweep` decays stale rules to dormant; `forget` deletes. Interactive graph: **`imprint desk open`** (host `GET /graph`).
 

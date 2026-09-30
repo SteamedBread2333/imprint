@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -171,7 +172,7 @@ func (m *Manager) startOne(ctx context.Context, id string, entry PluginEntry) er
 	}
 	cmd.Dir = pkgDir
 	vaultDir := m.cfg.ResolveVaultAbs()
-	pluginState := imprint.PluginStateDir(m.cfg.Workspace(), id)
+	pluginState := filepath.Join(imprint.VaultStateDir(vaultDir), imprint.PluginsStateDirName, id)
 	_ = os.MkdirAll(pluginState, 0o755)
 	// Embed (and any daemon-style plugin) is not bound to this process:
 	// DetachProcess (setsid) lets it outlive the CLI, and the sidecar does

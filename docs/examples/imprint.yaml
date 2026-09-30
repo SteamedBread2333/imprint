@@ -1,6 +1,6 @@
 # Copy to imprint.yaml at your project root (commit this file).
-# Paths are relative to the repo root unless absolute.
-# Private runtime lives in gitignored .imprint/.
+# Paths in this file are relative to the repo root unless absolute.
+# Private runtime defaults to ~/.imprint/projects/<hash>/ (outside the repo).
 
 host:
   listen: 127.0.0.1:9470

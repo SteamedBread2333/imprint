@@ -26,9 +26,11 @@ func (a *App) resolveHostVault(g globals, pcfg *plugin.Config) (string, error) {
 		return imprint.ResolveDir("", true, a.Environ, a.Getwd, a.Home)
 	}
 	if pcfg != nil && pcfg.FileExists() {
-		return pcfg.ResolveVaultAbs(), nil
+		dir := pcfg.ResolveVaultAbs()
+		_ = imprint.EnsureProjectRootLink(dir, pcfg.Workspace())
+		return dir, nil
 	}
-	return imprint.ResolveDir("", false, a.Environ, a.Getwd, a.Home)
+	return imprint.ResolveDir(g.vault, false, a.Environ, a.Getwd, a.Home)
 }
 
 type hostRuntime struct {

@@ -1,2 +1,2 @@
-// Package imprint stores agent-recalled rules in SQLite at .imprint/vault.db.
+// Package imprint stores agent-recalled rules in SQLite (default ~/.imprint/projects/<hash>/vault.db).
 package imprint

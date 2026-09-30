@@ -40,6 +40,9 @@ func TestInitAllEditors(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, ".cursor", "mcp.json")); !os.IsNotExist(err) {
 		t.Fatal("init must not write mcp.json")
 	}
+	if _, err := os.Stat(filepath.Join(dir, ".imprint")); !os.IsNotExist(err) {
+		t.Fatal("init must not create repo .imprint")
+	}
 	_ = out
 }
 

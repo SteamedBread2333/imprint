@@ -21,7 +21,7 @@ Mount: `docs/mcp.md`, `docs/examples/cursor-mcp.json`. Write loop: `docs/correct
 - **Users never maintain the vault.** They speak normally; you run `find` / `add` / `reinforce` / `supersede` / `forget` — never ask for imprint commands or rule ids.
 - **You maintain the vault, not the chat.** A durable preference stays unwritten until you call a write tool in the same turn.
 - **Review and prune is fine.** `show` / `get` (or `imprint desk open`); explain in plain language; then `supersede` / `forget` / `sweep` after they agree.
-- Vault: `.imprint/vault.db` (`IMPRINT_VAULT`, `--vault`, `--global`). `path` on add/get = `vault.db`.
+- Vault: default `~/.imprint/projects/<hash>/vault.db` per repo (`--vault`, `IMPRINT_VAULT`, or `vault:` in yaml). `path` on add/get = `vault.db`.
 
 ## Link model (all types)
 
@@ -66,7 +66,7 @@ Default path: user speaks → MCP **`find(scope, query[, query_local])`** → do
 - `reinforce` requires non-empty user reaffirmation evidence; confidence uses diminishing gain `min(0.95, old + (0.95-old)*0.25)`. Find hits never change confidence. `supersede` decays successor confidence by `supersede.inheritance_alpha` of the gap above 0.6 (default 0.20; 0 copies old, 1 drops to baseline) and inherits **`sources`** / **`query_local`** unless overridden; `forget` strips inbound links and keeps a lifecycle event.
 - Server-side guards reject likely secrets/personal data, denied source paths, and high-similarity active duplicates.
 - `list`: `--scope`, `--query`, `--min-confidence`, `--since`.
-- Language scope tags are canonicalized via GitHub Linguist aliases (go-enry) on add/find/list/supersede; unknown tags pass through. Telemetry writes privacy-safe daily JSONL under `.imprint/state/telemetry/` when enabled. `imprint report --days 30` is CLI audit-only.
+- Language scope tags are canonicalized via GitHub Linguist aliases (go-enry) on add/find/list/supersede; unknown tags pass through. Telemetry writes privacy-safe daily JSONL under `<vault>/state/telemetry/` when enabled. `imprint report --days 30` is CLI audit-only.
 
 ## Retrieval (maintainers)
 
@@ -76,18 +76,18 @@ Default path: user speaks → MCP **`find(scope, query[, query_local])`** → do
 - MCP `find`/rule `get` are compact by default. Document hits use `shelves.config.find_top_k` (default 2, one chunk per path), not rule `top_k`; snippets are a query-window of `snippet_runes` (default 80). A query may return one penalized dormant `wake_candidate`; only explicit user confirmation followed by `reinforce` wakes it.
 
 ```bash
-# CLI — vault read/write; find/get see CLI column above
-imprint --json --vault ./.imprint find --scope go,naming --query PascalCase [--query-local LOCAL_TERMS] [--paths path1,path2]
-imprint --json --vault ./.imprint add "CLAIM" --scope tag,tag --text "user's original words" [--query-local TERMS]
-imprint --json --vault ./.imprint reinforce ID --evidence "..." [--query-local TERMS]
-imprint --json --vault ./.imprint supersede ID --claim "NEW" --scope tag,tag --reason "..." [--query-local TERMS]
-imprint --json --vault ./.imprint get ID
-imprint --json --vault ./.imprint forget ID
-imprint --json --vault ./.imprint list --status active --scope go --min-confidence 0.85
-imprint --json --vault ./.imprint show
-imprint --json --vault ./.imprint sweep
-imprint --json --vault ./.imprint report --days 30
-imprint --vault ./.imprint export --format jsonl
+# CLI — vault read/write from repo root (walk-up imprint.yaml); find/get see CLI column above
+imprint --json find --scope go,naming --query PascalCase [--query-local LOCAL_TERMS] [--paths path1,path2]
+imprint --json add "CLAIM" --scope tag,tag --text "user's original words" [--query-local TERMS]
+imprint --json reinforce ID --evidence "..." [--query-local TERMS]
+imprint --json supersede ID --claim "NEW" --scope tag,tag --reason "..." [--query-local TERMS]
+imprint --json get ID
+imprint --json forget ID
+imprint --json list --status active --scope go --min-confidence 0.85
+imprint --json show
+imprint --json sweep
+imprint --json report --days 30
+imprint export --format jsonl
 ```
 
 ## Recall model
