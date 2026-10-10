@@ -40,6 +40,12 @@ const DefaultRelateContradictionMin = 0.40
 // DefaultRelateEntailmentMin: with low contradiction → duplicate block.
 const DefaultRelateEntailmentMin = 0.35
 
+// DefaultDuplicateHighCosineBlock is 0 (disabled). When > 0, cosine at or above
+// this value blocks even if entailment is below RelateEntailmentMin, unless
+// contradiction is at or above RelateContradictionMin (advisory). Set via yaml
+// duplicate_high_cosine_block; calibrate.py sweeps it on the sample set.
+const DefaultDuplicateHighCosineBlock = 0
+
 // DefaultEmbedTimeout bounds one embedding call. On timeout or error the
 // caller must degrade silently back to the lexical (Jaccard) path.
 const DefaultEmbedTimeoutSeconds = 2

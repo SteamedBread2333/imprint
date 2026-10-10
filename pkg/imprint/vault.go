@@ -26,8 +26,10 @@ type Vault struct {
 	embedTimeout    time.Duration
 	embedThresh     float64
 	embedCrossScope string
-	relateConMin    float64
-	relateEntMin    float64
+	relateConMin           float64
+	relateEntMin           float64
+	duplicateHighCosBlock  float64
+	relateBidirectional  bool
 }
 
 // OpenOptions configures a vault. Construction is immutable after Open.
@@ -55,6 +57,11 @@ type OpenOptions struct {
 	RelateContradictionMin float64
 	// RelateEntailmentMin: with contradiction below min → duplicate block.
 	RelateEntailmentMin float64
+	// DuplicateHighCosineBlock: when > 0, cosine at or above blocks without entail.
+	// <= 0 disables. See DefaultDuplicateHighCosineBlock.
+	DuplicateHighCosineBlock float64
+	// RelateBidirectional scores (existing, new) and (new, existing) and merges.
+	RelateBidirectional bool
 }
 
 // TelemetryEvent contains content-free operational measurements.
@@ -117,6 +124,10 @@ func Open(opts OpenOptions) (*Vault, error) {
 	if relateEnt <= 0 || relateEnt >= 1 {
 		relateEnt = DefaultRelateEntailmentMin
 	}
+	highCos := opts.DuplicateHighCosineBlock
+	if highCos < 0 || highCos >= 1 {
+		highCos = DefaultDuplicateHighCosineBlock
+	}
 	st, err := sqlite.Open(abs, opts.Now)
 	if err != nil {
 		return nil, err
@@ -131,8 +142,10 @@ func Open(opts OpenOptions) (*Vault, error) {
 		embedTimeout:    timeout,
 		embedThresh:     thresh,
 		embedCrossScope: crossScope,
-		relateConMin:    relateCon,
-		relateEntMin:    relateEnt,
+		relateConMin:          relateCon,
+		relateEntMin:          relateEnt,
+		duplicateHighCosBlock: highCos,
+		relateBidirectional:   opts.RelateBidirectional,
 	}, nil
 }
 

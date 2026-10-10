@@ -77,6 +77,8 @@ def main() -> int:
                       duplicate_threshold: 0.65
                       relate_contradiction_min: 0.40
                       relate_entailment_min: 0.35
+                      relate_bidirectional: true
+                      duplicate_high_cosine_block: 0.80
                       timeout_seconds: 8
                 """
             )

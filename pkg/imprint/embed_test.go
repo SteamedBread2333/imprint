@@ -400,6 +400,15 @@ func TestClassifyRelateScores(t *testing.T) {
 	if !block || adv {
 		t.Fatalf("high entailment should block")
 	}
+	v.duplicateHighCosBlock = 0.88
+	block, adv = v.classifyDuplicateCandidate(0.91, RelateScores{Contradiction: 0.05, Entailment: 0.1})
+	if !block || adv {
+		t.Fatalf("high cosine fallback should block when enabled")
+	}
+	block, adv = v.classifyDuplicateCandidate(0.91, RelateScores{Contradiction: 0.5, Entailment: 0.1})
+	if block || !adv {
+		t.Fatalf("contradiction still wins over high cosine")
+	}
 }
 
 // Backfill: rules that pre-date embed enablement (no vector row) must get

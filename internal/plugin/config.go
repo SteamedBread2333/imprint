@@ -291,6 +291,10 @@ func (c *Config) ApplyToOpenOptions(opts *imprint.OpenOptions) {
 	if cfg.RelateEntailmentMin > 0 {
 		opts.RelateEntailmentMin = cfg.RelateEntailmentMin
 	}
+	if cfg.DuplicateHighCosineBlock > 0 {
+		opts.DuplicateHighCosineBlock = cfg.DuplicateHighCosineBlock
+	}
+	opts.RelateBidirectional = cfg.RelateBidirectional
 	opts.EmbedCrossScopePolicy = cfg.CrossScopePolicy
 }
 
@@ -301,7 +305,9 @@ type EmbedConfig struct {
 	TimeoutSeconds     int
 	DuplicateThreshold float64
 	RelateContradictionMin float64
-	RelateEntailmentMin    float64
+	RelateEntailmentMin       float64
+	DuplicateHighCosineBlock  float64
+	RelateBidirectional       bool
 	// CrossScopePolicy is advisory_only (default) or strict.
 	// advisory_only keeps the cross-project recall signal — a Chinese rule
 	// in one project can still surface as a paraphrase of an English rule
@@ -351,6 +357,12 @@ func EmbedConfigFrom(entry PluginEntry) EmbedConfig {
 	}
 	if v, ok := entry.Config["relate_entailment_min"].(float64); ok && v > 0 && v < 1 {
 		cfg.RelateEntailmentMin = v
+	}
+	if v, ok := entry.Config["duplicate_high_cosine_block"].(float64); ok && v > 0 && v < 1 {
+		cfg.DuplicateHighCosineBlock = v
+	}
+	if v, ok := entry.Config["relate_bidirectional"].(bool); ok {
+		cfg.RelateBidirectional = v
 	}
 	if v, ok := entry.Config["cross_scope_policy"].(string); ok {
 		v = strings.TrimSpace(v)

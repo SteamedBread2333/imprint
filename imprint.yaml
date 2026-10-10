@@ -37,6 +37,8 @@ plugins:
       relate_model: cross-encoder/nli-deberta-v3-base
       relate_contradiction_min: 0.40   # calibrate.py + nli-deberta-v3-base (2026-10)
       relate_entailment_min: 0.35
+      relate_bidirectional: true
+      duplicate_high_cosine_block: 0.80   # eval_gate sample set; 0 = off
       timeout_seconds: 5   # per embed/relate HTTP call; run.sh --warm loads models before listen
       duplicate_threshold: 0.65   # calibrate.py grid best; re-run after model change
       # cross_scope_policy: advisory_only   # advisory_only (default) | strict
