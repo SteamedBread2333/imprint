@@ -91,9 +91,9 @@ flowchart TD
     E --是--> F["embed.Embed(claim)<br/>store.RuleVectors(model)<br/>→ qvec, vectors"]
     F --> G{cosine >= 0.70?}
     G --否--> DEC
-    G --是--> H{PolarityConflict?}
-    H --是--> AD["advisory +=<br/>暴露给 LLM,<br/>不拒"]
-    H --否--> BLK["duplicates +=<br/>blocking 候选"]
+    G --是--> H["POST /relate<br/>contradiction / entailment"]
+    H --contradiction 高--> AD["advisory +=<br/>暴露给 LLM,<br/>不拒"]
+    H --entailment 高、contradiction 低--> BLK["duplicates +=<br/>blocking 候选"]
     AD --> DEC
     BLK --> DEC
     DUP --> DEC
@@ -109,10 +109,10 @@ flowchart TD
 | 1 | 隐私扫描 | 正则     | 是       | 否               | PII、密钥、凭据式数据         |
 | 2 | source 路径 | 白名单 | 是       | 否               | 禁用路径、vault 外的写入       |
 | 3 | Jaccard   | 0.82     | 是       | 否               | 词面高度重合                  |
-| 4 | 余弦      | 0.70     | 是（仅当极性干净时） | 是 | 改述、句式重构               |
-| 5 | 极性      | —        | 把命中项路由到 advisory | 否 | 反义词、否定词不对称          |
+| 4 | 余弦      | 0.70     | 是（需 relate entail 高） | 是 | 改述、句式重构               |
+| 5 | relate    | yaml 阈值 | 高 contradiction → advisory | 是 | 对立政策（NLI 模型）          |
 
-**关键规则**：闸 4 只在闸 5 干净时才拒。**余弦 + 极性合一道逻辑闸；极性就是阻止余弦闸误拒反义对的那道闸**。
+**关键规则**：闸 4 硬拒需闸 5 报告高 entailment 且低 contradiction（`imprint.yaml` 的 `relate_*_min`）。分数来自 sidecar `POST /relate`，无词典反义词表。
 
 ### 余弦阈值为什么是 0.70
 
@@ -127,19 +127,16 @@ flowchart TD
 
 **未经重跑 `calibrate.py` 不要调这个值。**
 
-### 极性闸 —— `pkg/imprint/polarity.go`
+### Relate 闸 —— sidecar `POST /relate`
 
-纯字符串判定、零网络、亚毫秒。两路 OR：
+余弦（或高 Jaccard）之后，Go 把 claim 对 batch 到 sidecar；返回 cross-encoder 的
+contradiction / entailment 等概率。**阈值只在 imprint.yaml**，sidecar 不做裁决。
 
-- **否定词不对称**：`"Use X"` vs `"Never use X"` —— 两边 `hasNegation` 不同
-- **已知反义词对**：`tabs ↔ spaces`、`wrap ↔ bare`、`snake_case ↔ camelcase`、`composition ↔ inheritance`、`add ↔ skip`、`explicit ↔ ignore`、`pin ↔ floating`、`english ↔ chinese`
-- **词序反演**：同词集合但顺序不同（`"Prefer tabs over spaces"` vs `"Prefer spaces over tabs"`——余弦 1.0）
-
-**`hasNegation` 标记都是多字**。故意不带单字 `"别"`，因为 `strings.Contains(s, "别")` 会同时命中 分别 / 别人 / 特别 / 性别——都不是否定。英文里 `"no "` 和 `"not "` 带尾空格，避免命中 notify / notation。
+安装：`pip install imprint-embed-sidecar`，`imprint-embed-sidecar --print-plugin-dir` 填 `package:`。改模型后重跑 `calibrate.py`。
 
 ## Advisory 旁路 —— `AddResult.Similar`
 
-余弦命中但极性判定为冲突时，候选落进 `AddResult.Similar` 而不是 `duplicates`。**写入成功**，期待 LLM 把冲突暴露给用户，再调 `link --conflicts`（或 `supersede` / `forget`）。
+相似度高但 `/relate` contradiction ≥ `relate_contradiction_min` 时，候选进 `AddResult.Similar` 而非 `duplicates`。**写入成功**，期待 LLM 暴露冲突并调 `link --conflicts`（或 `supersede` / `forget`）。
 
 ```json
 {

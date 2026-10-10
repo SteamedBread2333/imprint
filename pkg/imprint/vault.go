@@ -26,6 +26,8 @@ type Vault struct {
 	embedTimeout    time.Duration
 	embedThresh     float64
 	embedCrossScope string
+	relateConMin    float64
+	relateEntMin    float64
 }
 
 // OpenOptions configures a vault. Construction is immutable after Open.
@@ -49,6 +51,10 @@ type OpenOptions struct {
 	// strict: existing rule must have every tag of the new claim (AND / subset),
 	//   not mere tag overlap. Cross-scope hits are invisible.
 	EmbedCrossScopePolicy string
+	// RelateContradictionMin: sidecar contradiction score at or above → advisory.
+	RelateContradictionMin float64
+	// RelateEntailmentMin: with contradiction below min → duplicate block.
+	RelateEntailmentMin float64
 }
 
 // TelemetryEvent contains content-free operational measurements.
@@ -103,6 +109,14 @@ func Open(opts OpenOptions) (*Vault, error) {
 	if crossScope != EmbedCrossScopeAdvisoryOnly && crossScope != EmbedCrossScopeStrict {
 		crossScope = EmbedCrossScopeAdvisoryOnly
 	}
+	relateCon := opts.RelateContradictionMin
+	if relateCon <= 0 || relateCon >= 1 {
+		relateCon = DefaultRelateContradictionMin
+	}
+	relateEnt := opts.RelateEntailmentMin
+	if relateEnt <= 0 || relateEnt >= 1 {
+		relateEnt = DefaultRelateEntailmentMin
+	}
 	st, err := sqlite.Open(abs, opts.Now)
 	if err != nil {
 		return nil, err
@@ -117,6 +131,8 @@ func Open(opts OpenOptions) (*Vault, error) {
 		embedTimeout:    timeout,
 		embedThresh:     thresh,
 		embedCrossScope: crossScope,
+		relateConMin:    relateCon,
+		relateEntMin:    relateEnt,
 	}, nil
 }
 
@@ -292,7 +308,7 @@ func (v *Vault) AddRecord(claim string, scope []string, text string, confidence 
 	// duplicate check and the vector store — two ONNX round-trips per write
 	// would double write latency for zero benefit. Blocking candidates reject
 	// the write; advisory ones only ride along in the result so the caller
-	// can arbitrate polarity conflicts. The candidate scope is passed so
+	// can arbitrate relate advisory conflicts. The candidate scope is passed so
 	// strict cross-scope mode can filter the rule pool correctly.
 	var advisory []DuplicateCandidate
 	qvec, vecOK := v.embedClaim(claim, trace)
@@ -300,9 +316,7 @@ func (v *Vault) AddRecord(claim string, scope []string, text string, confidence 
 	if err != nil {
 		return nil, err
 	}
-	// Lexical polarity-conflicting candidates are advisory too — Jaccard
-	// cannot see "always wrap" vs "never wrap" any more than cosine can.
-	// Merge by id so a pair that trips both gates is listed once.
+	// Lexical high-Jaccard advisories merge with semantic advisories by id.
 	advisory = mergeAdvisoryCandidates(advisory, advLexical)
 	if len(duplicates) > 0 {
 		v.emit(TelemetryEvent{Op: "write_rejected", Code: "duplicate"}, trace)

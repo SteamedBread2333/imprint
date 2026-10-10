@@ -106,9 +106,9 @@ flowchart TD
     E --yes--> F["embed.Embed(claim)<br/>store.RuleVectors(model)<br/>→ qvec, vectors"]
     F --> G{cosine >= 0.70?}
     G --no--> DEC
-    G --yes--> H{PolarityConflict?}
-    H --yes--> AD["advisory +=<br/>surface to LLM,<br/>do NOT reject"]
-    H --no--> BLK["duplicates +=<br/>blocking candidate"]
+    G --yes--> H["POST /relate<br/>contradiction / entailment"]
+    H --contradiction high--> AD["advisory +=<br/>surface to LLM,<br/>do NOT reject"]
+    H --entailment high, contradiction low--> BLK["duplicates +=<br/>blocking candidate"]
     AD --> DEC
     BLK --> DEC
     DUP --> DEC
@@ -124,12 +124,13 @@ flowchart TD
 | 1 | privacy check   | regex     | yes          | no           | PII, secrets, credential-like data |
 | 2 | source paths    | allowlist | yes          | no           | denied paths / non-vault writes     |
 |  3 | Jaccard         | 0.82      | yes          | no           | near-identical wording        |
-|  4 | cosine          | 0.70      | yes (only when polarity clean) | yes     | paraphrases, restructured sentences |
-|  5 | polarity        | n/a       | routes 0B+ to advisory | no  | antonyms, negation asymmetry  |
+|  4 | cosine          | 0.70      | yes (with relate entailment) | yes     | paraphrases, restructured sentences |
+|  5 | relate (NLI)    | yaml mins | routes high contradiction to advisory | yes  | opposite policy pairs  |
 
-**Critical rule**: gate 4 only rejects when polarity gate 5 is clean.
-Cosine + polarity form one logical gate; polarity is what keeps the cosine
-gate from rejecting antonyms.
+**Critical rule**: gate 4 hard-rejects only when gate 5 reports high
+entailment and low contradiction (`relate_entailment_min` /
+`relate_contradiction_min` in `imprint.yaml`). Scores come from the embed
+sidecar `POST /relate` (local cross-encoder, no lexical antonym lists).
 
 ### Why the cosine threshold is 0.70
 
@@ -147,28 +148,24 @@ acceptance pair and stays below the conflict group's 75th percentile.**
 
 **Do not raise this without re-running `calibrate.py`.**
 
-### Polarity gate — `pkg/imprint/polarity.go`
+### Relate gate — embed sidecar `POST /relate`
 
-Pure-string check, zero network, sub-millisecond. Two OR-ed signals:
+After cosine (or high Jaccard) similarity, Go batches claim pairs to the
+sidecar. The sidecar returns softmax probabilities (typically
+`contradiction`, `neutral`, `entailment`) from a configurable cross-encoder
+(`relate_model` in `imprint.yaml`, e.g. `cross-encoder/nli-deberta-v3-small`).
+**Thresholds live only in imprint.yaml** — the sidecar does not decide
+duplicate vs advisory.
 
-- **Antisymmetric negation**: `"Use X"` vs `"Never use X"` — `hasNegation`
-  on the two sides disagrees
-- **Known antonym pairs**: `tabs ↔ spaces`, `wrap ↔ bare`,
-  `snake_case ↔ camelcase`, `composition ↔ inheritance`,
-  `add ↔ skip`, `explicit ↔ ignore`, `pin ↔ floating`, `english ↔ chinese`
-- **Token-set swap**: same words, swapped order
-  (`"Prefer tabs over spaces"` vs `"Prefer spaces over tabs"` — cosine 1.0)
-
-**`hasNegation` markers** are multi-character on purpose. The bare
-single-character `"别"` is excluded because `strings.Contains(s, "别")`
-would also fire inside 分别 / 别人 / 特别 / 性别 — none of which negate.
-The English set keeps trailing spaces on `"no "` and `"not "` to avoid
-matching inside `notify` / `notation`.
+Install: `pip install imprint-embed-sidecar` into
+`~/.imprint/plugins/embed/venv`, then `imprint-embed-sidecar --print-plugin-dir`
+for `plugins.embed.package`. Run `calibrate.py` after model changes.
 
 ## Advisory path — `AddResult.Similar`
 
-When the cosine hit is at level ≥ threshold but polarity marks the pair as
-conflict, the candidate lands in `AddResult.Similar` instead of `duplicates`.
+When cosine/Jaccard is high but `/relate` contradiction ≥
+`relate_contradiction_min`, the candidate lands in `AddResult.Similar` instead
+of `duplicates`.
 **The write succeeds**, the LLM is expected to surface the conflict to the
 user and call `link --conflicts` (or `supersede` / `forget`).
 
@@ -189,7 +186,7 @@ user and call `link --conflicts` (or `supersede` / `forget`).
 | `find` / `rankScore`  | Ignores it — advisories are write-only                |
 | Telemetry             | Emits `Op: "embed_advisory"` with the rule-hit count  |
 
-**There is no automatic resolution.** The polarity gate's job is to
+**There is no automatic resolution.** The relate gate's job is to
 prevent a hard reject, not to decide for the user.
 
 ## Read-time semantic recall
@@ -228,7 +225,7 @@ Every embed call is bounded by `embedTimeout = 2s`. The semantics:
 
 | sidecar state                | write gate behavior                                  |
 | ---------------------------- | ---------------------------------------------------- |
-| enabled, healthy             | full Jaccard + cosine + polarity stack               |
+| enabled, healthy             | full Jaccard + cosine + relate stack               |
 | enabled, call times out      | Jaccard only; telemetry `Op: "embed_unavailable"`     |
 | enabled, sidecar crashed     | Jaccard only (the next call reconnects or fails)     |
 | disabled (`enabled: false`)  | Jaccard only; no telemetry                           |
@@ -313,7 +310,7 @@ crypto/rand). One `add` call produces a trace like:
 ```
 add  trace=873d4cb1895d
 ├─ embed_unavailable     (skipped if sidecar healthy)
-├─ embed_advisory        (only if polarity conflicts)
+├─ embed_advisory        (relate contradiction advisory)
 ├─ embed                 (always, on healthy path)
 └─ add                   (final event)
 ```

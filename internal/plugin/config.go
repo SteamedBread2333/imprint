@@ -285,6 +285,12 @@ func (c *Config) ApplyToOpenOptions(opts *imprint.OpenOptions) {
 	if cfg.DuplicateThreshold > 0 {
 		opts.EmbedDuplicateThreshold = cfg.DuplicateThreshold
 	}
+	if cfg.RelateContradictionMin > 0 {
+		opts.RelateContradictionMin = cfg.RelateContradictionMin
+	}
+	if cfg.RelateEntailmentMin > 0 {
+		opts.RelateEntailmentMin = cfg.RelateEntailmentMin
+	}
 	opts.EmbedCrossScopePolicy = cfg.CrossScopePolicy
 }
 
@@ -294,6 +300,8 @@ type EmbedConfig struct {
 	Model              string
 	TimeoutSeconds     int
 	DuplicateThreshold float64
+	RelateContradictionMin float64
+	RelateEntailmentMin    float64
 	// CrossScopePolicy is advisory_only (default) or strict.
 	// advisory_only keeps the cross-project recall signal — a Chinese rule
 	// in one project can still surface as a paraphrase of an English rule
@@ -314,8 +322,10 @@ func EmbedConfigFrom(entry PluginEntry) EmbedConfig {
 		Port:               imprint.DefaultEmbedPort,
 		Model:              imprint.EmbedModel,
 		TimeoutSeconds:     imprint.DefaultEmbedTimeoutSeconds,
-		DuplicateThreshold: imprint.DefaultEmbedDuplicateThreshold,
-		CrossScopePolicy:   EmbedCrossScopeAdvisoryOnly,
+		DuplicateThreshold:     imprint.DefaultEmbedDuplicateThreshold,
+		RelateContradictionMin: imprint.DefaultRelateContradictionMin,
+		RelateEntailmentMin:    imprint.DefaultRelateEntailmentMin,
+		CrossScopePolicy:       EmbedCrossScopeAdvisoryOnly,
 	}
 	if entry.Config == nil {
 		return cfg
@@ -335,6 +345,12 @@ func EmbedConfigFrom(entry PluginEntry) EmbedConfig {
 	}
 	if v, ok := entry.Config["duplicate_threshold"].(float64); ok && v > 0 && v < 1 {
 		cfg.DuplicateThreshold = v
+	}
+	if v, ok := entry.Config["relate_contradiction_min"].(float64); ok && v > 0 && v < 1 {
+		cfg.RelateContradictionMin = v
+	}
+	if v, ok := entry.Config["relate_entailment_min"].(float64); ok && v > 0 && v < 1 {
+		cfg.RelateEntailmentMin = v
 	}
 	if v, ok := entry.Config["cross_scope_policy"].(string); ok {
 		v = strings.TrimSpace(v)

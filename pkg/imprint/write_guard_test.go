@@ -3,6 +3,7 @@ package imprint
 import (
 	"errors"
 	"testing"
+	"time"
 )
 
 func TestAddRejectsDuplicateActiveClaim(t *testing.T) {
@@ -84,15 +85,21 @@ func TestJaccardReorderIsDuplicate(t *testing.T) {
 	}
 }
 
-// Longer claims where the antonym pair lands in the high-Jaccard band
-// must downgrade to advisory. Short "Always X / Never X" pairs fall
-// under the Jaccard threshold — the embed semantic layer catches those
-// (see TestEmbedAdvisoryOnPolarityConflict).
-func TestJaccardPolarityConflictLongClaim(t *testing.T) {
-	v, err := Open(OpenOptions{Dir: t.TempDir()})
+func TestJaccardRelateConflictLongClaim(t *testing.T) {
+	stub := newStub(64)
+	stub.setRelate(
+		"Prefer spaces over tabs for Go code", "Prefer tabs over spaces for Go code",
+		RelateScores{Contradiction: 0.9, Entailment: 0.05},
+	)
+	v, err := Open(OpenOptions{
+		Dir:   t.TempDir(),
+		Now:   func() time.Time { return day(0) },
+		Embed: stub,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = v.Close() })
 	if _, err := v.Add("Prefer tabs over spaces for Go code", []string{"go"}, "tabs", 0.6); err != nil {
 		t.Fatal(err)
 	}

@@ -18,6 +18,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -100,6 +101,17 @@ type healthResponse struct {
 	OK    bool   `json:"ok"`
 	Model string `json:"model"`
 	Dim   int    `json:"dim"`
+}
+
+type relateRequest struct {
+	Pairs [][2]string `json:"pairs"`
+}
+
+type relateResponse struct {
+	Model   string             `json:"model"`
+	Labels  []string           `json:"labels"`
+	Results []map[string]float64 `json:"results"`
+	Error   string             `json:"error,omitempty"`
 }
 
 // Embed returns one vector per text. It honors ctx and the client timeout; a
@@ -195,6 +207,61 @@ func (c *Client) embedRemote(ctx context.Context, texts []string) ([][]float32, 
 		return nil, fmt.Errorf("embed plugin returned %d vectors for %d texts", len(out.Vectors), len(texts))
 	}
 	return out.Vectors, nil
+}
+
+// Relate returns NLI-style scores for each claim pair via POST /relate.
+func (c *Client) Relate(ctx context.Context, pairs [][2]string) ([]imprint.RelateScores, error) {
+	if len(pairs) == 0 {
+		return nil, nil
+	}
+	body, err := json.Marshal(relateRequest{Pairs: pairs})
+	if err != nil {
+		return nil, fmt.Errorf("encode relate request: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/relate", bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("build relate request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		c.maybeWarnSidecarDown(err)
+		return nil, fmt.Errorf("call relate plugin: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("relate plugin returned HTTP %d", resp.StatusCode)
+	}
+	var out relateResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, fmt.Errorf("decode relate response: %w", err)
+	}
+	if out.Error != "" {
+		return nil, errors.New("relate plugin: " + out.Error)
+	}
+	if len(out.Results) != len(pairs) {
+		return nil, fmt.Errorf("relate plugin returned %d scores for %d pairs", len(out.Results), len(pairs))
+	}
+	scores := make([]imprint.RelateScores, len(out.Results))
+	for i, m := range out.Results {
+		scores[i] = parseRelateMap(m)
+	}
+	return scores, nil
+}
+
+func parseRelateMap(m map[string]float64) imprint.RelateScores {
+	var s imprint.RelateScores
+	for k, v := range m {
+		switch strings.ToLower(k) {
+		case "contradiction":
+			s.Contradiction = v
+		case "entailment":
+			s.Entailment = v
+		case "neutral":
+			s.Neutral = v
+		}
+	}
+	return s
 }
 
 // maybeWarnSidecarDown emits a single-shot stderr hint when the connection

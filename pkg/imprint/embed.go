@@ -32,14 +32,22 @@ const (
 // 0.70 is the highest value that still catches the acceptance pair
 // ("Go exported identifiers must use PascalCase" vs
 // "Exported things use Pascal Case naming", cosine 0.711) while keeping
-// unrelated false positives at 0%. Conflict pairs are additionally filtered by
-// PolarityConflict, which drops their false-positive rate from 70% to 10% here.
+// unrelated false positives at 0%. Conflict pairs are filtered by the embed
+// sidecar POST /relate NLI scores (see relate_contradiction_min in yaml).
 // Do not raise this without re-running the calibration.
 const DefaultEmbedDuplicateThreshold = 0.70
+
+// DefaultRelateContradictionMin: at or above → advisory (opposite policy).
+const DefaultRelateContradictionMin = 0.50
+
+// DefaultRelateEntailmentMin: with low contradiction → duplicate block.
+const DefaultRelateEntailmentMin = 0.50
 
 // DefaultEmbedTimeout bounds one embedding call. On timeout or error the
 // caller must degrade silently back to the lexical (Jaccard) path.
 const DefaultEmbedTimeoutSeconds = 2
+
+const maxRelatePairsPerCall = 10
 
 // Embedder produces dense vectors for semantic duplicate detection.
 // Implementations must be safe for concurrent use; failures must surface as
@@ -50,4 +58,16 @@ type Embedder interface {
 	// Model identifies the vector space; vectors from different models are
 	// not comparable and are ignored by consumers.
 	Model() string
+}
+
+// RelateScores are pairwise NLI-style probabilities from the embed sidecar.
+type RelateScores struct {
+	Contradiction float64 `json:"contradiction"`
+	Entailment    float64 `json:"entailment"`
+	Neutral       float64 `json:"neutral"`
+}
+
+// Relater scores claim pairs (optional embed plugin capability).
+type Relater interface {
+	Relate(ctx context.Context, pairs [][2]string) ([]RelateScores, error)
 }

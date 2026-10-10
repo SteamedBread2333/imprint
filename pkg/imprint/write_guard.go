@@ -1,6 +1,7 @@
 package imprint
 
 import (
+	"context"
 	"math"
 	"sort"
 	"strings"
@@ -47,10 +48,8 @@ func (v *Vault) checkSourcePaths(sources []DocRef) error {
 }
 
 // duplicateCandidates runs the lexical (Jaccard) duplicate gate and splits
-// matches into blocking and advisory lists, mirroring the semantic gate in
-// mergeEmbedDuplicatesVec. A high-Jaccard hit only blocks when its claim is
-// not polarity-conflicting — otherwise it is demoted to advisory, because
-// Jaccard (like cosine) cannot see "always wrap" vs "never wrap".
+// matches into blocking and advisory lists using the embed sidecar /relate
+// scores when available.
 //
 // scopeOverlap is required so a Chinese/English claim pair in different
 // projects does not bleed into a third project's hard-reject path.
@@ -63,6 +62,7 @@ func (v *Vault) duplicateCandidates(claim string, scope []string) (blocking []Du
 	if err != nil {
 		return nil, nil, err
 	}
+	var high []DuplicateCandidate
 	for _, rec := range records {
 		if !scopesOverlap(scope, rec.Scope) {
 			continue
@@ -82,13 +82,11 @@ func (v *Vault) duplicateCandidates(claim string, scope []string) (blocking []Du
 		if score < duplicateClaimThreshold {
 			continue
 		}
-		cand := DuplicateCandidate{ID: rec.ID, Score: score, Claim: rec.Claim}
-		if PolarityConflict(claim, rec.Claim) {
-			advisory = append(advisory, cand)
-			continue
-		}
-		blocking = append(blocking, cand)
+		high = append(high, DuplicateCandidate{ID: rec.ID, Score: score, Claim: rec.Claim})
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), v.embedTimeout)
+	defer cancel()
+	blocking, advisory = v.splitCandidatesByRelate(ctx, claim, high, "")
 	sort.Slice(blocking, func(i, j int) bool {
 		if blocking[i].Score == blocking[j].Score {
 			return blocking[i].ID < blocking[j].ID
@@ -188,6 +186,7 @@ func (v *Vault) mergeEmbedDuplicatesScope(claim string, query []float32, ok bool
 
 	q := query
 	var blocking, advisory []DuplicateCandidate
+	var pending []DuplicateCandidate
 	seen := map[string]struct{}{}
 	for _, c := range lexical {
 		seen[c.ID] = struct{}{}
@@ -213,13 +212,13 @@ func (v *Vault) mergeEmbedDuplicatesScope(claim string, query []float32, ok bool
 			advisory = append(advisory, cand)
 			continue
 		}
-		if PolarityConflict(claim, rec.Claim) {
-			// Same topic, likely opposite policy: surface it, do not reject.
-			advisory = append(advisory, cand)
-			continue
-		}
-		blocking = append(blocking, cand)
+		pending = append(pending, cand)
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), v.embedTimeout)
+	defer cancel()
+	relBlock, relAdv := v.splitCandidatesByRelate(ctx, claim, pending, trace)
+	blocking = append(blocking, relBlock...)
+	advisory = append(advisory, relAdv...)
 	sort.Slice(blocking, func(i, j int) bool { return blocking[i].Score > blocking[j].Score })
 	sort.Slice(advisory, func(i, j int) bool { return advisory[i].Score > advisory[j].Score })
 	if len(blocking) > 3 {

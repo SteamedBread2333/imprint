@@ -13,13 +13,41 @@ import (
 type stubEmbedder struct {
 	model  string
 	vecs   map[string][]float32
+	relate map[string]RelateScores
 	fail   bool
+	relateFail bool
 	dim    int
 	called int
 }
 
 func newStub(dim int) *stubEmbedder {
-	return &stubEmbedder{model: "stub-model", vecs: map[string][]float32{}, dim: dim}
+	return &stubEmbedder{
+		model:  "stub-model",
+		vecs:   map[string][]float32{},
+		relate: map[string]RelateScores{},
+		dim:    dim,
+	}
+}
+
+func relateKey(a, b string) string { return a + "\x00" + b }
+
+func (s *stubEmbedder) setRelate(a, b string, sc RelateScores) {
+	s.relate[relateKey(a, b)] = sc
+}
+
+func (s *stubEmbedder) Relate(ctx context.Context, pairs [][2]string) ([]RelateScores, error) {
+	if s.relateFail {
+		return nil, errors.New("relate down")
+	}
+	out := make([]RelateScores, len(pairs))
+	for i, p := range pairs {
+		if sc, ok := s.relate[relateKey(p[0], p[1])]; ok {
+			out[i] = sc
+			continue
+		}
+		out[i] = RelateScores{Entailment: 0.9, Contradiction: 0.05}
+	}
+	return out, nil
 }
 
 func (s *stubEmbedder) Embed(ctx context.Context, texts []string) ([][]float32, error) {
@@ -150,6 +178,7 @@ func TestSimilarDedupesWhenBothGatesFire(t *testing.T) {
 	const b = "Prefer spaces over tabs for Go code"
 	stub := newStub(64)
 	stub.makeSimilar(a, b, 0.95)
+	stub.setRelate(b, a, RelateScores{Contradiction: 0.88, Entailment: 0.05})
 	v := embedVault(t, stub, 0.70)
 
 	if _, err := v.Add(a, []string{"go"}, "tabs", 0.8); err != nil {
@@ -168,17 +197,19 @@ func TestSimilarDedupesWhenBothGatesFire(t *testing.T) {
 }
 
 // Polarity must flip a blocking candidate into an advisory one.
-func TestEmbedAdvisoryOnPolarityConflict(t *testing.T) {
+func TestEmbedAdvisoryOnRelateConflict(t *testing.T) {
 	stub := newStub(64)
 	stub.makeSimilar("Use tabs for indentation", "Never use tabs for indentation", 0.98)
+	stub.setRelate(
+		"Never use tabs for indentation", "Use tabs for indentation",
+		RelateScores{Contradiction: 0.92, Entailment: 0.03},
+	)
 	v := embedVault(t, stub, 0.70)
 
 	if _, err := v.Add("Use tabs for indentation", []string{"go", "style"}, "tabs", 0.8); err != nil {
 		t.Fatal(err)
 	}
 
-	// Opposite policy: same topic, polarity differs. It must be written, but
-	// flagged so the caller can decide.
 	res, err := v.Add("Never use tabs for indentation", []string{"go", "style"}, "no tabs", 0.8)
 	if err != nil {
 		t.Fatalf("opposite policy was rejected: %v", err)
@@ -356,28 +387,18 @@ func containsAll(s string, subs ...string) bool {
 	return true
 }
 
-func TestPolarityConflictDetection(t *testing.T) {
-	cases := []struct {
-		a, b string
-		want bool
-	}{
-		{"Use tabs for indentation", "Use spaces for indentation", true},
-		{"Always wrap errors with %w", "Return bare errors without wrapping", true},
-		{"Commit directly to main", "Never commit directly to main", true},
-		{"Go exported identifiers must use PascalCase", "Exported things use Pascal Case naming", false},
-		{"Wrap errors with fmt.Errorf", "Always wrap errors using fmt.Errorf", false},
-		{"Use table-driven tests", "Deploy to staging before release", false},
-		// Chinese: the bare "别" must not fire inside 分别/别人/特别/性别.
-		{"不要提交到主分支", "直接提交到主分支", true},
-		{"请分别处理这两种情况", "统一处理所有情况", false},
-		{"特别要求代码审查", "要求代码审查", false},
-		{"性别字段必须脱敏", "性别字段必须脱敏保存", false},
-		{"别用全局变量", "使用全局变量", true},
+func TestClassifyRelateScores(t *testing.T) {
+	v, err := Open(OpenOptions{Dir: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
 	}
-	for _, c := range cases {
-		if got := PolarityConflict(c.a, c.b); got != c.want {
-			t.Errorf("PolarityConflict(%q, %q) = %v, want %v", c.a, c.b, got, c.want)
-		}
+	block, adv := v.classifyRelate(RelateScores{Contradiction: 0.8, Entailment: 0.1})
+	if block || !adv {
+		t.Fatalf("high contradiction should be advisory")
+	}
+	block, adv = v.classifyRelate(RelateScores{Contradiction: 0.1, Entailment: 0.8})
+	if !block || adv {
+		t.Fatalf("high entailment should block")
 	}
 }
 
@@ -612,6 +633,10 @@ func TestEmbedCrossScopeStrictNestedTags(t *testing.T) {
 func TestEmbedCrossScopeAdvisoryOnlyKeepsRecall(t *testing.T) {
 	stub := newStub(64)
 	stub.makeSimilar("Use tabs for indentation", "Use spaces for indentation", 0.95)
+	stub.setRelate(
+		"Use spaces for indentation", "Use tabs for indentation",
+		RelateScores{Contradiction: 0.88, Entailment: 0.05},
+	)
 	v := embedVault(t, stub, 0.70)
 	// v.embedCrossScope stays at default (advisory_only).
 
