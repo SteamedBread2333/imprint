@@ -89,6 +89,8 @@ flowchart LR
 go install github.com/SteamedBread2333/imprint/cmd/imprint-mcp@latest
 ```
 
+可执行文件在 **`$(go env GOPATH)/bin`**（常见 `~/go/bin`）。终端 CLI 需把该目录加入 shell 的 `PATH`。**Cursor  spawn MCP 时不读 `.zshrc`**，若 `command` 写 `"imprint-mcp"` 常会 **`spawn imprint-mcp ENOENT`**。解决：在 `.cursor/mcp.json` 里写 **绝对路径**（如 `/Users/you/go/bin/imprint-mcp`），或在条目上加 `"env": { "PATH": "/Users/you/go/bin:…" }`。
+
 发行包中 `imprint-mcp` 与 `imprint` 并列。从源码构建需要 **Go 1.25+**（MCP SDK 依赖）。
 
 ## 服务参数

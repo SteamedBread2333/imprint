@@ -85,6 +85,8 @@ Logging goes to **stderr** only so stdout stays clean for MCP framing.
 go install github.com/SteamedBread2333/imprint/cmd/imprint-mcp@latest
 ```
 
+Binaries land in **`$(go env GOPATH)/bin`** (often `~/go/bin`). Add that directory to your **shell** `PATH` for the CLI. **Cursor does not load your shell rc when it spawns MCP**, so `command: "imprint-mcp"` fails with **`spawn imprint-mcp ENOENT`** unless Cursor itself was launched with `~/go/bin` on `PATH`. Fix: use the **full path** in `.cursor/mcp.json`, or set `"env": { "PATH": "/Users/you/go/bin:…" }` on the server entry.
+
 Release archives include `imprint-mcp` next to `imprint`. Requires **Go 1.25+** to build from source (MCP SDK dependency).
 
 ## Server flags
@@ -146,7 +148,7 @@ Copy or merge into **`.cursor/mcp.json`** (project root). Prefer **`--project ${
 }
 ```
 
-See [docs/examples/cursor-mcp.json](examples/cursor-mcp.json). After `go install`, **Cmd+Q** and reopen (Reload alone may keep a stale spawn command). stderr should show `imprint-mcp: project`, vault under `~/.imprint/projects/…`, and `imprint-mcp: shelves enabled=…`. See [shelves-builtin.md](shelves-builtin.md).
+See [docs/examples/cursor-mcp.json](examples/cursor-mcp.json). Replace `imprint-mcp` with **`$(go env GOPATH)/bin/imprint-mcp`** if the editor cannot find it on `PATH`. After `go install`, **Cmd+Q** and reopen Cursor (Reload alone may keep a stale spawn command). stderr should show `imprint-mcp: project`, vault under `~/.imprint/projects/…`, and `imprint-mcp: shelves enabled=…`. See [shelves-builtin.md](shelves-builtin.md).
 
 ### Cursor — cwd-only (no imprint.yaml)
 

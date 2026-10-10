@@ -308,6 +308,7 @@ Debug & advanced:
   host start | host stop | host serve   Split host control (prefer up/down)
   plugin list | enable | disable | start | stop   Split plugin control (prefer up/down)
   host serve  Foreground vault + shelves API (Ctrl+C)
+  embed prepare    Download/load embed + relate models (foreground progress)
   embed backfill   Encode rules that pre-date embed enablement
   clear       Delete every rule (requires --confirm --yes)
   version     Print version

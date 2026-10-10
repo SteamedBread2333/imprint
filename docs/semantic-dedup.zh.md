@@ -64,13 +64,15 @@ embed 是**单例 daemon**。`imprint up` / `down` 既不起也不停。进程�
 | 阶段 | 发生了什么 |
 | --- | --- |
 | `imprint-mcp` | `plugins.embed` 启用时：对配置端口 `GET /health`。不健康 → MCP 启动时 fork 一次。已健康 → 复用，不拉第二个进程。关编辑器**不会**停 sidecar（没有 parent watch）；下次 MCP 启动时若仍健康就复用。 |
-| `plugin start embed` | **每次先 stop 再 fork**（端口上无论谁在听都会被杀）。CLI 退出后新进程继续活着。 |
+| `embed prepare` | **前台**下载并加载 embed + relate 权重（终端可见 HF/tqdm 进度），不起 HTTP。新机或换模型后跑一次。 |
+| `plugin start embed` | **每次先 stop 再 fork**（端口上无论谁在听都会被杀）。等待 `ready` 期间把 **sidecar.log** 流到 stderr。CLI 退出后新进程继续活着。 |
 | `plugin stop embed` | 清掉配置端口上的 LISTEN 进程。 |
 | CLI `add` / `find` | 只打 HTTP，不 fork。连接拒绝 → Jaccard。 |
 | `up` | 起 host / shelves / desk。**不起也不停** embed。探测端口：在跑就报 running，否则给 start 提示。 |
 | `down` | 停 host / desk。embed 继续跑。提示：`imprint plugin stop embed`。 |
-| 稳态 | Go 客户端复用 HTTP keep-alive；sidecar 在内存缓存 ONNX session |
-| 冷启动 | 首次 `POST /embed` 可能下载模型（~130MB）落 `~/.cache/` |
+| 稳态 | Go 客户端复用 keep-alive；`run.sh` warm 后 sidecar 在内存缓存 embed + relate |
+| 冷启动 | 新机首次可能把权重下到 `~/.cache/imprint/models`。建议先 **`imprint embed prepare`** 看全下载进度；`plugin start` 时 `run.sh` 仍会 **--warm**。`GET /health` 的 **`ready: true`** 表示可接 write。未 ready 时按降级（仅 Jaccard）。国内网络：CLI 在访问不了 huggingface.co 时会自动设 `HF_ENDPOINT=https://hf-mirror.com`，并关闭 HF XET（否则大文件会 401/假死）；也可手动 `export IMPRINT_HF_ENDPOINT=https://hf-mirror.com` |
+| plugin start / MCP | 最多等 **180s** 直到 embed **`ready`**（不是只看 HTTP 200） |
 
 无崩溃恢复。MCP 只在进程启动时 probe 一次，之后被杀掉不会自动再起。中途挂掉写路径直接降级回 Jaccard。
 
@@ -132,7 +134,7 @@ flowchart TD
 余弦（或高 Jaccard）之后，Go 把 claim 对 batch 到 sidecar；返回 cross-encoder 的
 contradiction / entailment 等概率。**阈值只在 imprint.yaml**，sidecar 不做裁决。
 
-安装：`pip install imprint-embed-sidecar`，`imprint-embed-sidecar --print-plugin-dir` 填 `package:`。改模型后重跑 `calibrate.py`。
+安装：clone [imprint-embed-sidecar](https://github.com/SteamedBread2333/imprint-embed-sidecar)，在本仓库跑 `./scripts/setup.sh`，`imprint.yaml` 里 `plugins.embed.package` 指向该目录（如 `../imprint-embed-sidecar`）。改模型后重跑 `calibrate.py`。
 
 ## Advisory 旁路 —— `AddResult.Similar`
 
@@ -256,8 +258,8 @@ add  trace=873d4cb1895d
 
 | 旋钮                                | 默认值 | 位置                          | 备注                                                       |
 | ----------------------------------- | ------ | ----------------------------- | ---------------------------------------------------------- |
-| `plugins.embed.duplicate_threshold` | 0.70   | `imprint.yaml`                | 不重跑 calibrate 不要调                       |
-| `plugins.embed.timeout_seconds`     | 2      | `imprint.yaml`                | 冷启动加载模型可能更慢                                       |
+| `plugins.embed.duplicate_threshold` | 0.65   | `imprint.yaml`                | 换模型后重跑 calibrate.py                     |
+| `plugins.embed.timeout_seconds`     | 5      | `imprint.yaml`                | 单次 HTTP 超时；sidecar 已 warm 后 5s 通常够                                       |
 | `plugins.embed.port`                | 4174   | `imprint.yaml`                | 与 `IMPRINT_PLUGIN_PORT` 一致（如果设了）                   |
 | `plugins.embed.model`               | `BAAI/bge-small-zh-v1.5` | `imprint.yaml`    | 模型名作 `rule_vectors` 的 key，换了会孤立旧向量            |
 | `pkg/imprint.embed.embedThresh`     | 0.70   | `OpenOptions.EmbedThresh`     | 镜像 yaml 值                                        |

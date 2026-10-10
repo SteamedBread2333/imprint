@@ -134,6 +134,10 @@ func (a *App) pluginStart(g globals, mgr *plugin.Manager, args []string) int {
 		if !ok || !entry.Enabled {
 			return a.fail(g.json, fmt.Errorf("plugin %q is not enabled in imprint.yaml", id))
 		}
+		if id == "embed" && !g.json {
+			mgr.StartProgress = a.errw()
+			fmt.Fprintln(a.errw(), "embed: starting sidecar (streaming sidecar.log; first install: imprint embed prepare)…")
+		}
 		if err := mgr.StartPlugin(context.Background(), id); err != nil {
 			return a.fail(g.json, err)
 		}

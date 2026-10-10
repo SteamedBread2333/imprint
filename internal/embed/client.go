@@ -66,6 +66,7 @@ func NewClient(port int, model string, timeout time.Duration) *Client {
 		http: &http.Client{
 			Timeout: timeout,
 			Transport: &http.Transport{
+				Proxy:               nil, // never HTTP_PROXY for 127.0.0.1 sidecar
 				MaxIdleConns:        8,
 				MaxIdleConnsPerHost: 4,
 				IdleConnTimeout:     60 * time.Second,

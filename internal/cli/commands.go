@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -807,6 +808,8 @@ func (a *App) cmdEmbed(g globals, rest []string) int {
 	}
 	sub := rest[0]
 	switch sub {
+	case "prepare":
+		return a.cmdEmbedPrepare(g)
 	case "backfill":
 		return a.cmdEmbedBackfill(g, rest[1:])
 	default:
@@ -817,15 +820,43 @@ func (a *App) cmdEmbed(g globals, rest []string) int {
 }
 
 const embedUsage = `Usage:
+  imprint embed prepare
   imprint embed backfill [--limit N] [--force] [--dry-run]
 
-Encodes every active+dormant rule whose claim has no vector for the embed
-plugin's model. Use after enabling embed, after importing a vault, or after a
-sidecar cold-restart that lost cache. --force re-encodes rules that already
-have a vector (e.g. after a model upgrade). --dry-run reports the scan
-without writing. The sidecar must be running. If it is down or the plugin is
-off, the command prints a hint to run imprint up && imprint embed backfill.
+prepare — download and load embed + relate weights in the foreground (Hugging
+Face / tqdm on your terminal). No HTTP server. Run once after setup or when
+changing relate_model / embed model. plugin start embed still warms on listen
+but reuses the cache.
+
+backfill — encodes every active+dormant rule whose claim has no vector for the
+embed plugin's model. Use after enabling embed, after importing a vault, or
+after a sidecar cold-restart that lost cache. --force re-encodes rules that
+already have a vector (e.g. after a model upgrade). --dry-run reports the
+scan without writing. The sidecar must be running. If it is down or the plugin
+is off, the command prints a hint to run imprint up && imprint embed backfill.
 `
+
+func (a *App) cmdEmbedPrepare(g globals) int {
+	cfg, err := plugin.ResolveConfigPath(a.Getwd)
+	if err != nil {
+		return a.fail(g.json, err)
+	}
+	pcfg, err := plugin.Load(cfg)
+	if err != nil {
+		return a.fail(g.json, err)
+	}
+	if err := plugin.RunEmbedPrepare(context.Background(), pcfg); err != nil {
+		return a.fail(g.json, err)
+	}
+	if g.json {
+		return a.fail(false, a.writeJSON(map[string]any{"success": true}))
+	}
+	c := a.console()
+	c.Heading("embed prepare")
+	c.Done("models loaded (cache under ~/.cache/imprint/models)")
+	c.blank()
+	return 0
+}
 
 func (a *App) cmdEmbedBackfill(g globals, args []string) int {
 	fs := newFlags()

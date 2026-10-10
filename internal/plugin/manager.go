@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/SteamedBread2333/imprint/internal/loopback"
 	"github.com/SteamedBread2333/imprint/pkg/imprint"
 )
 
@@ -36,6 +37,8 @@ type Manager struct {
 	mu     sync.Mutex
 	procs  map[string]*exec.Cmd
 	status map[string]Status
+	// StartProgress, when set, receives sidecar.log output while embed starts (e.g. os.Stderr).
+	StartProgress io.Writer
 }
 
 // Config returns the manager's plugin configuration.
@@ -87,7 +90,7 @@ func (m *Manager) statusFor(id string, entry PluginEntry) Status {
 		}
 	}
 	if st.Running && st.Manifest != nil {
-		st.Healthy = checkHealth(st.Manifest.Entry.Health, port)
+		st.Healthy = pluginRunning(id, st.Manifest.Entry.Health, port)
 	}
 	return st
 }
@@ -147,6 +150,17 @@ func (m *Manager) StopPlugin(id string) error {
 }
 
 func (m *Manager) startOne(ctx context.Context, id string, entry PluginEntry) error {
+	vaultDir := m.cfg.ResolveVaultAbs()
+	pluginState := filepath.Join(imprint.VaultStateDir(vaultDir), imprint.PluginsStateDirName, id)
+	if id == "embed" {
+		return withEmbedFileLock(pluginState, func() error {
+			return m.startOneProcess(ctx, id, entry)
+		})
+	}
+	return m.startOneProcess(ctx, id, entry)
+}
+
+func (m *Manager) startOneProcess(ctx context.Context, id string, entry PluginEntry) error {
 	pkgDir := PackageDir(m.cfg.Workspace(), entry.Package)
 	if pkgDir == "" {
 		return fmt.Errorf("plugin %q: package path is empty", id)
@@ -178,34 +192,57 @@ func (m *Manager) startOne(ctx context.Context, id string, entry PluginEntry) er
 	// DetachProcess (setsid) lets it outlive the CLI, and the sidecar does
 	// not watch getppid(). IMPRINT_PLUGIN_STATE is the per-plugin state
 	// directory; stop is by listen port (StopPlugin / stopPlugin).
-	cmd.Env = append(os.Environ(),
-		fmt.Sprintf("IMPRINT_PLUGIN_PORT=%d", port),
-		fmt.Sprintf("IMPRINT_HOST_URL=%s", m.cfg.HostURL()),
-		fmt.Sprintf("IMPRINT_VAULT=%s", vaultDir),
-		fmt.Sprintf("IMPRINT_WORKSPACE=%s", m.cfg.Workspace()),
-		fmt.Sprintf("IMPRINT_PLUGIN_CONFIG=%s", m.cfg.filePath),
-		fmt.Sprintf("IMPRINT_PLUGIN_STATE=%s", pluginState),
-	)
-	nullOut, _ := os.Open(os.DevNull)
-	cmd.Stdout = nullOut
-	cmd.Stderr = nullOut
+	cmd.Env = pluginProcessEnv(m.cfg, id, entry, port)
+	logPath := filepath.Join(pluginState, "sidecar.log")
+	logFlags := os.O_CREATE | os.O_APPEND | os.O_WRONLY
+	if id == "embed" {
+		logFlags = os.O_CREATE | os.O_TRUNC | os.O_WRONLY
+	}
+	logFile, logErr := os.OpenFile(logPath, logFlags, 0o644)
+	if logErr == nil {
+		cmd.Stdout = logFile
+		cmd.Stderr = logFile
+	} else {
+		nullOut, _ := os.Open(os.DevNull)
+		cmd.Stdout = nullOut
+		cmd.Stderr = nullOut
+	}
 	DetachProcess(cmd)
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("start %q: %w", id, err)
 	}
 
-	deadline := time.Now().Add(8 * time.Second)
+	var tailCancel context.CancelFunc
+	if id == "embed" && m.StartProgress != nil && logErr == nil {
+		tailCtx, cancel := context.WithCancel(ctx)
+		tailCancel = cancel
+		go followLogFile(tailCtx, logPath, m.StartProgress)
+	}
+
+	deadline := time.Now().Add(pluginStartHealthTimeout(id))
 	healthy := false
 	for time.Now().Before(deadline) {
-		if checkHealth(man.Entry.Health, port) {
+		if pluginRunning(id, man.Entry.Health, port) {
 			healthy = true
 			break
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
+	if tailCancel != nil {
+		tailCancel()
+		time.Sleep(200 * time.Millisecond)
+		var off int64
+		for i := 0; i < 8; i++ {
+			off = tailFromOffset(logPath, off, m.StartProgress)
+			time.Sleep(50 * time.Millisecond)
+		}
+	}
 	if !healthy {
 		_ = cmd.Process.Kill()
 		_ = freePort(port, 2*time.Second)
+		if id == "embed" && logErr == nil {
+			return fmt.Errorf("plugin %q: health check failed on port %d (logs: %s; first install: imprint embed prepare)", id, port, logPath)
+		}
 		return fmt.Errorf("plugin %q: health check failed on port %d", id, port)
 	}
 
@@ -317,8 +354,7 @@ func checkHealth(healthTpl string, port int) bool {
 	if err != nil {
 		return false
 	}
-	client := &http.Client{Timeout: 2 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := loopback.Client(2 * time.Second).Do(req)
 	if err != nil {
 		return false
 	}

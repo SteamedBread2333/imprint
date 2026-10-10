@@ -76,13 +76,15 @@ MCP (or `imprint plugin start embed`) owns the process; stop it with
 | Phase | What happens |
 | --- | --- |
 | `imprint-mcp` | If `plugins.embed` is enabled: `GET /health` on the configured port. Unhealthy → fork once at MCP start. Healthy → reuse, no second process. Closing the editor does **not** stop the sidecar (no parent watch); the next MCP start reuses it if still healthy. |
-| `plugin start embed` | Always **stop then fork** (kills whoever holds the port). The new process stays up after the CLI exits. |
+| `embed prepare` | **Foreground** download + load of embed and relate weights (full HF/tqdm on your terminal). No HTTP server. Run after setup or when changing models. |
+| `plugin start embed` | Always **stop then fork** (kills whoever holds the port). Streams **sidecar.log** to stderr while waiting for `ready`. The new process stays up after the CLI exits. |
 | `plugin stop embed` | Frees the configured embed LISTEN port. |
 | CLI `add` / `find` | HTTP client only. Never forks. Connection refused → Jaccard. |
 | `up` | Starts host / shelves / desk. Does **not** start or stop embed. Probes the port and reports running or a start hint. |
 | `down` | Stops host / desk. Leaves embed running. Hint: `imprint plugin stop embed`. |
-| steady | Go client reuses HTTP keep-alive; sidecar caches the ONNX session in RAM |
-| cold start | First `POST /embed` may download the model (~130MB) into `~/.cache/` |
+| steady | Go client reuses HTTP keep-alive; sidecar caches models in RAM after `run.sh` warm |
+| cold start | First machine install may download weights into `~/.cache/imprint/models`. Prefer **`imprint embed prepare`** once so downloads show on the terminal; `run.sh` still runs `--warm` before listen on start. `GET /health` includes `"ready": true` when embed+relate are loaded. Until then, treat the gate as degraded (Jaccard-only). When huggingface.co is unreachable, the CLI sets `HF_ENDPOINT=https://hf-mirror.com` and disables HF XET (avoids 401 / hung downloads); override with `IMPRINT_HF_ENDPOINT`. Relate prefetch skips unused ONNX bundles. |
+| plugin start / MCP | Waits up to **180s** for embed `ready` (not just HTTP 200). |
 
 There is no crash recovery. MCP probes once at process start and does not
 restart a sidecar killed later. The write path degrades to Jaccard if the
@@ -153,13 +155,14 @@ acceptance pair and stays below the conflict group's 75th percentile.**
 After cosine (or high Jaccard) similarity, Go batches claim pairs to the
 sidecar. The sidecar returns softmax probabilities (typically
 `contradiction`, `neutral`, `entailment`) from a configurable cross-encoder
-(`relate_model` in `imprint.yaml`, e.g. `cross-encoder/nli-deberta-v3-small`).
+(`relate_model` in `imprint.yaml`, default `cross-encoder/nli-deberta-v3-base`).
 **Thresholds live only in imprint.yaml** — the sidecar does not decide
 duplicate vs advisory.
 
-Install: `pip install imprint-embed-sidecar` into
-`~/.imprint/plugins/embed/venv`, then `imprint-embed-sidecar --print-plugin-dir`
-for `plugins.embed.package`. Run `calibrate.py` after model changes.
+Install: clone [imprint-embed-sidecar](https://github.com/SteamedBread2333/imprint-embed-sidecar),
+run `./scripts/setup.sh` (venv under `~/.imprint/plugins/embed/venv`), and set
+`plugins.embed.package` to that repo path (e.g. `../imprint-embed-sidecar`).
+Run `calibrate.py` after model changes.
 
 ## Advisory path — `AddResult.Similar`
 
@@ -324,8 +327,8 @@ conflict-penalty logic in `find` is dormant for that pair.
 
 | Knob                                | Default | Where                          | Notes                                                       |
 | ----------------------------------- | ------- | ------------------------------ | ----------------------------------------------------------- |
-| `plugins.embed.duplicate_threshold` | 0.70    | `imprint.yaml`                 | Do not raise without re-calibrating            |
-| `plugins.embed.timeout_seconds`     | 2       | `imprint.yaml`                 | Cold start of model can take longer                          |
+| `plugins.embed.duplicate_threshold` | 0.65    | `imprint.yaml`                 | Run `calibrate.py` after model change          |
+| `plugins.embed.timeout_seconds`     | 5       | `imprint.yaml`                 | Per HTTP call; enough after sidecar warm                          |
 | `plugins.embed.port`                | 4174    | `imprint.yaml`                 | Must match `IMPRINT_PLUGIN_PORT` if set |
 | `plugins.embed.model`               | `BAAI/bge-small-zh-v1.5` | `imprint.yaml`    | Model name keys `rule_vectors` rows; changing it orphans the old vectors |
 | `pkg/imprint.embed.embedThresh`     | 0.70    | `OpenOptions.EmbedThresh`      | Mirrors the yaml value                                |

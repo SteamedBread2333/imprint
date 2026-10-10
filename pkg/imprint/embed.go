@@ -29,19 +29,16 @@ const (
 //	conflict   median 0.753 (max 1.000)
 //	unrelated  median 0.528
 //
-// 0.70 is the highest value that still catches the acceptance pair
-// ("Go exported identifiers must use PascalCase" vs
-// "Exported things use Pascal Case naming", cosine 0.711) while keeping
-// unrelated false positives at 0%. Conflict pairs are filtered by the embed
-// sidecar POST /relate NLI scores (see relate_contradiction_min in yaml).
-// Do not raise this without re-running the calibration.
-const DefaultEmbedDuplicateThreshold = 0.70
+// With cross-encoder/nli-deberta-v3-base, calibrate.py grid best is 0.65
+// (75% duplicate recall, 0% conflict wrong-block on the sample set).
+// Acceptance pair cosine ≈ 0.711 still blocks at 0.65 with relate entailment.
+const DefaultEmbedDuplicateThreshold = 0.65
 
 // DefaultRelateContradictionMin: at or above → advisory (opposite policy).
-const DefaultRelateContradictionMin = 0.50
+const DefaultRelateContradictionMin = 0.40
 
 // DefaultRelateEntailmentMin: with low contradiction → duplicate block.
-const DefaultRelateEntailmentMin = 0.50
+const DefaultRelateEntailmentMin = 0.35
 
 // DefaultEmbedTimeout bounds one embedding call. On timeout or error the
 // caller must degrade silently back to the lexical (Jaccard) path.
