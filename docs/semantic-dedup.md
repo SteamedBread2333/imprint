@@ -25,8 +25,9 @@ The acceptance pair
 `"Go exported identifiers must use PascalCase"` ↔
 `"Exported things use Pascal Case naming"`
 scores **Jaccard 0.38** — below the 0.82 reject threshold, so the lexical
-path lets it through. The semantic gate is what catches it (cosine 0.7107
-at threshold 0.70).
+path lets it through. The semantic gate catches it (cosine ≈ 0.71 with
+`duplicate_threshold` 0.65 and relate entailment, or high cosine fallback
+when NLI is neutral — see tuning below).
 
 ## Architecture
 
@@ -106,11 +107,13 @@ flowchart TD
     D --score < 0.82<br/>or short claim--> E{sidecar alive?}
     E --no--> DEC{len duplicates > 0?}
     E --yes--> F["embed.Embed(claim)<br/>store.RuleVectors(model)<br/>→ qvec, vectors"]
-    F --> G{cosine >= 0.70?}
+    F --> G{cosine >= duplicate_threshold?}
     G --no--> DEC
-    G --yes--> H["POST /relate<br/>contradiction / entailment"]
-    H --contradiction high--> AD["advisory +=<br/>surface to LLM,<br/>do NOT reject"]
-    H --entailment high, contradiction low--> BLK["duplicates +=<br/>blocking candidate"]
+    G --yes--> H["POST /relate<br/>(optional bidirectional merge)"]
+    H --contradiction >= min--> AD["advisory +=<br/>surface to LLM,<br/>do NOT reject"]
+    H --entailment >= min--> BLK["duplicates +=<br/>blocking candidate"]
+    H --else, cos >= high_cos block--> BLK
+    H --else--> DEC
     AD --> DEC
     BLK --> DEC
     DUP --> DEC
@@ -126,29 +129,27 @@ flowchart TD
 | 1 | privacy check   | regex     | yes          | no           | PII, secrets, credential-like data |
 | 2 | source paths    | allowlist | yes          | no           | denied paths / non-vault writes     |
 |  3 | Jaccard         | 0.82      | yes          | no           | near-identical wording        |
-|  4 | cosine          | 0.70      | yes (with relate entailment) | yes     | paraphrases, restructured sentences |
-|  5 | relate (NLI)    | yaml mins | routes high contradiction to advisory | yes  | opposite policy pairs  |
+|  4 | cosine          | `duplicate_threshold` (default 0.65) | enters relate pool | yes | paraphrases, restructured sentences |
+|  5 | relate (NLI)    | `relate_*_min` in yaml | entail → block; contradiction → advisory | yes | opposite policy pairs |
+|  6 | high cosine     | `duplicate_high_cosine_block` (0 = off) | block when NLI neutral but cos very high | yes | `%w`/gofmt-style paraphrases |
 
-**Critical rule**: gate 4 hard-rejects only when gate 5 reports high
-entailment and low contradiction (`relate_entailment_min` /
-`relate_contradiction_min` in `imprint.yaml`). Scores come from the embed
-sidecar `POST /relate` (local cross-encoder, no lexical antonym lists).
+**Decision order (Go, after cosine ≥ threshold):** contradiction ≥
+`relate_contradiction_min` → **advisory**; else entailment ≥
+`relate_entailment_min` → **block**; else if `duplicate_high_cosine_block` > 0
+and cosine ≥ that value → **block**; else pass. With
+`relate_bidirectional: true`, forward and reverse `/relate` scores merge
+(max contradiction, max entailment) before this logic. Thresholds live in
+`imprint.yaml` only — the sidecar returns scores, not decisions.
 
-### Why the cosine threshold is 0.70
+### Calibration
 
-Calibration on `BAAI/bge-small-zh-v1.5` with 20 pairs per group
-(`imprint-embed-sidecar/calibrate.py`) shows:
-
-| Group     | Median | 0.65  | 0.70  | 0.75  | 0.85  |
-| --------- | ------ | ----- | ----- | ----- | ----- |
-| Duplicate | 0.823  | catch | catch | reject | reject |
-| Conflict  | 0.753  | reject (FPR 30%) | reject (FPR 10%) | borderline | miss |
-
-The acceptance pair scores **0.7107** at the real model. Any threshold
-≥ 0.85 would miss it. **0.70 is the highest value that still catches the
-acceptance pair and stays below the conflict group's 75th percentile.**
-
-**Do not raise this without re-running `calibrate.py`.**
+Run `imprint-embed-sidecar/calibrate.py` for grid picks on
+`duplicate_threshold`, `relate_contradiction_min`, and `relate_entailment_min`.
+Run `imprint-embed-sidecar/eval_gate.py --bidirectional --high-cos-block …`
+on the same 60-pair sample set to tune `duplicate_high_cosine_block` (typical
+**0.80** for full duplicate recall with zero conflict false-blocks on samples).
+Run `scripts/embed-eval-batch.py` for end-to-end `imprint add` checks.
+**Do not change knobs without re-running these on your model.**
 
 ### Relate gate — embed sidecar `POST /relate`
 
@@ -219,7 +220,7 @@ flowchart LR
 
 A semantic recall lift **always ranks below** a lexical hit. The semantic
 layer is rescue-only: it surfaces what BM25 missed, not what BM25 found.
-No polarity gate at read time — an antonym pair is still useful context
+No relate gate at read time — an opposing-policy pair is still useful context
 for the agent to see; we let the LLM arbitrate which to follow.
 
 ## Silent degradation
@@ -327,17 +328,22 @@ conflict-penalty logic in `find` is dormant for that pair.
 
 | Knob                                | Default | Where                          | Notes                                                       |
 | ----------------------------------- | ------- | ------------------------------ | ----------------------------------------------------------- |
-| `plugins.embed.duplicate_threshold` | 0.65    | `imprint.yaml`                 | Run `calibrate.py` after model change          |
-| `plugins.embed.timeout_seconds`     | 5       | `imprint.yaml`                 | Per HTTP call; enough after sidecar warm                          |
-| `plugins.embed.port`                | 4174    | `imprint.yaml`                 | Must match `IMPRINT_PLUGIN_PORT` if set |
-| `plugins.embed.model`               | `BAAI/bge-small-zh-v1.5` | `imprint.yaml`    | Model name keys `rule_vectors` rows; changing it orphans the old vectors |
-| `pkg/imprint.embed.embedThresh`     | 0.70    | `OpenOptions.EmbedThresh`      | Mirrors the yaml value                                |
-| `pkg/imprint/embed.go` `DefaultEmbedTimeoutSeconds` | 2 | constant | Hard ceiling on per-call latency |
+| `plugins.embed.duplicate_threshold` | 0.65 | `imprint.yaml` | `calibrate.py` grid |
+| `plugins.embed.relate_contradiction_min` | 0.40 | `imprint.yaml` | At or above → advisory |
+| `plugins.embed.relate_entailment_min` | 0.35 | `imprint.yaml` | At or above → block (if contradiction low) |
+| `plugins.embed.relate_bidirectional` | true | `imprint.yaml` | Merge forward + reverse `/relate` |
+| `plugins.embed.duplicate_high_cosine_block` | 0.80 | `imprint.yaml` | **0** disables; tune with `eval_gate.py` |
+| `plugins.embed.relate_model` | `cross-encoder/nli-deberta-v3-base` | `imprint.yaml` | Sidecar loads from HF cache |
+| `plugins.embed.timeout_seconds` | 5 | `imprint.yaml` | Per embed/relate HTTP call |
+| `plugins.embed.port` | 4174 | `imprint.yaml` | Must match sidecar listen |
+| `plugins.embed.model` | `BAAI/bge-small-zh-v1.5` | `imprint.yaml` | Keys `rule_vectors.model` |
+
+Go defaults mirror yaml when fields are omitted (`pkg/imprint/embed.go`).
 
 ## Re-calibration
 
-If you swap models, **rerun `imprint-embed-sidecar/calibrate.py`** before
-trusting the threshold. The output is a per-group percentile table; pick
-the highest value with zero false-positives on the duplicate group and
-zero false-negatives on the acceptance pair. Anything else is
-speculation.
+After a model or sidecar upgrade:
+
+1. `calibrate.py` — cosine + relate grid for T / C / E  
+2. `eval_gate.py --bidirectional --high-cos-block 0.80` — full 60-pair semantic gate  
+3. `IMPRINT_BIN=imprint python3 scripts/embed-eval-batch.py` — vault `add` regression

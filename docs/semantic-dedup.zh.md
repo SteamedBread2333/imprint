@@ -17,7 +17,7 @@ Jaccard 是两个 claim 词集合的交集除以并集。它忽略词序、词�
 验收对
 `"Go exported identifiers must use PascalCase"` ↔
 `"Exported things use Pascal Case naming"`
-**Jaccard 0.38**——低于 0.82 拒门，所以词面路径放行。语义门禁（余弦 0.7107 / 阈值 0.70）才是抓它的那道闸。
+**Jaccard 0.38**——低于 0.82 拒门，词面路径放行。语义门禁用 `duplicate_threshold`（默认 0.65）+ relate；NLI 偏 neutral 时还可靠 `duplicate_high_cosine_block`（见调优）。
 
 ## 架构
 
@@ -91,11 +91,13 @@ flowchart TD
     D --score < 0.82<br/>或短 claim--> E{sidecar 存活?}
     E --否--> DEC{len duplicates > 0?}
     E --是--> F["embed.Embed(claim)<br/>store.RuleVectors(model)<br/>→ qvec, vectors"]
-    F --> G{cosine >= 0.70?}
+    F --> G{cosine >= duplicate_threshold?}
     G --否--> DEC
-    G --是--> H["POST /relate<br/>contradiction / entailment"]
-    H --contradiction 高--> AD["advisory +=<br/>暴露给 LLM,<br/>不拒"]
-    H --entailment 高、contradiction 低--> BLK["duplicates +=<br/>blocking 候选"]
+    G --是--> H["POST /relate<br/>（可选双向合并）"]
+    H --contradiction >= min--> AD["advisory +=<br/>暴露给 LLM,<br/>不拒"]
+    H --entailment >= min--> BLK["duplicates +=<br/>blocking 候选"]
+    H --否则, cos >= high_cos--> BLK
+    H --否则--> DEC
     AD --> DEC
     BLK --> DEC
     DUP --> DEC
@@ -111,23 +113,15 @@ flowchart TD
 | 1 | 隐私扫描 | 正则     | 是       | 否               | PII、密钥、凭据式数据         |
 | 2 | source 路径 | 白名单 | 是       | 否               | 禁用路径、vault 外的写入       |
 | 3 | Jaccard   | 0.82     | 是       | 否               | 词面高度重合                  |
-| 4 | 余弦      | 0.70     | 是（需 relate entail 高） | 是 | 改述、句式重构               |
-| 5 | relate    | yaml 阈值 | 高 contradiction → advisory | 是 | 对立政策（NLI 模型）          |
+| 4 | 余弦 | `duplicate_threshold`（默认 0.65） | 进入 relate 池 | 是 | 改述、句式重构 |
+| 5 | relate | `relate_*_min` | entail → 拒写；contradiction → advisory | 是 | 对立政策 |
+| 6 | 高余弦 | `duplicate_high_cosine_block`（0=关） | NLI neutral 但 cos 极高仍拒写 | 是 | 如 `%w`/gofmt 改述 |
 
-**关键规则**：闸 4 硬拒需闸 5 报告高 entailment 且低 contradiction（`imprint.yaml` 的 `relate_*_min`）。分数来自 sidecar `POST /relate`，无词典反义词表。
+**判定顺序（Go）：** contradiction ≥ `relate_contradiction_min` → advisory；否则 entailment ≥ `relate_entailment_min` → 拒写；否则若 `duplicate_high_cosine_block` > 0 且 cosine ≥ 该值 → 拒写。`relate_bidirectional: true` 时正反 `/relate` 取 max(contradiction/entailment) 再判定。阈值只在 `imprint.yaml`；sidecar 只出分。
 
-### 余弦阈值为什么是 0.70
+### 标定
 
-`BAAI/bge-small-zh-v1.5` 上 20 对/组的标定结果（`imprint-embed-sidecar/calibrate.py`）：
-
-| 组       | 中位数 | 0.65  | 0.70  | 0.75  | 0.85  |
-| -------- | ------ | ----- | ----- | ----- | ----- |
-| 真重复   | 0.823  | catch | catch | reject | reject |
-| 反义冲突 | 0.753  | reject (FPR 30%) | reject (FPR 10%) | borderline | miss |
-
-验收对真模型分 **0.7107**。任何 ≥ 0.85 的阈值都会漏拦它。**0.70 是既能拦住验收对、又不越过冲突组 75 分位的最高值**。
-
-**未经重跑 `calibrate.py` 不要调这个值。**
+`calibrate.py` 扫 T/C/E；`eval_gate.py --bidirectional --high-cos-block …` 在 60 对样本上扫高余弦兜底（样本集上 **0.80** 常见）；`scripts/embed-eval-batch.py` 做真实 `add` 回归。换模型后三者至少跑前两个。
 
 ### Relate 闸 —— sidecar `POST /relate`
 
@@ -247,7 +241,7 @@ embed sidecar 是**单例**——一个进程、一个模型、一个端口（41
 ```
 add  trace=873d4cb1895d
 ├─ embed_unavailable     （sidecar 不健康时跳过）
-├─ embed_advisory        （极性冲突时才发）
+├─ embed_advisory        （relate contradiction 高时）
 ├─ embed                 （健康路径总发）
 └─ add                   （最终事件）
 ```
@@ -258,13 +252,20 @@ add  trace=873d4cb1895d
 
 | 旋钮                                | 默认值 | 位置                          | 备注                                                       |
 | ----------------------------------- | ------ | ----------------------------- | ---------------------------------------------------------- |
-| `plugins.embed.duplicate_threshold` | 0.65   | `imprint.yaml`                | 换模型后重跑 calibrate.py                     |
-| `plugins.embed.timeout_seconds`     | 5      | `imprint.yaml`                | 单次 HTTP 超时；sidecar 已 warm 后 5s 通常够                                       |
-| `plugins.embed.port`                | 4174   | `imprint.yaml`                | 与 `IMPRINT_PLUGIN_PORT` 一致（如果设了）                   |
-| `plugins.embed.model`               | `BAAI/bge-small-zh-v1.5` | `imprint.yaml`    | 模型名作 `rule_vectors` 的 key，换了会孤立旧向量            |
-| `pkg/imprint.embed.embedThresh`     | 0.70   | `OpenOptions.EmbedThresh`     | 镜像 yaml 值                                        |
-| `pkg/imprint/embed.go` `DefaultEmbedTimeoutSeconds` | 2 | 常量 | 单次调用延迟硬上限                              |
+| `plugins.embed.duplicate_threshold` | 0.65 | `imprint.yaml` | `calibrate.py` |
+| `plugins.embed.relate_contradiction_min` | 0.40 | `imprint.yaml` | ≥ → advisory |
+| `plugins.embed.relate_entailment_min` | 0.35 | `imprint.yaml` | ≥ → 拒写（contradiction 低时） |
+| `plugins.embed.relate_bidirectional` | true | `imprint.yaml` | 正反 relate 合并 |
+| `plugins.embed.duplicate_high_cosine_block` | 0.80 | `imprint.yaml` | **0** 关闭；`eval_gate.py` 调 |
+| `plugins.embed.relate_model` | `nli-deberta-v3-base` | `imprint.yaml` | cross-encoder |
+| `plugins.embed.timeout_seconds` | 5 | `imprint.yaml` | 单次 HTTP |
+| `plugins.embed.port` | 4174 | `imprint.yaml` | 与 sidecar 一致 |
+| `plugins.embed.model` | `BAAI/bge-small-zh-v1.5` | `imprint.yaml` | `rule_vectors` key |
+
+缺省值见 `pkg/imprint/embed.go`。
 
 ## 重标定
 
-换模型时**先重跑 `imprint-embed-sidecar/calibrate.py`** 再信阈值。输出是各组百分位表，挑真重复组 FPR=0 且验收对 FN=0 的最高值。其它都是拍脑袋。
+1. `calibrate.py` — T/C/E  
+2. `eval_gate.py --bidirectional --high-cos-block 0.80`  
+3. `python3 scripts/embed-eval-batch.py` — vault 回归

@@ -28,7 +28,7 @@ const (
 	conflictPenalty = 0.5
 	// embedRecallThreshold gates semantic recall: a rule with zero lexical
 	// overlap and no vector above this cosine stays on the zeroHitFloor. It
-	// is deliberately lower than the duplicate gate (0.70): recall never
+	// is deliberately lower than the duplicate gate (duplicate_threshold): recall never
 	// blocks anything, a weak match only lifts a rule into the tail — the
 	// calibration set puts unrelated pairs at a 0.528 median, so 0.55 keeps
 	// them out while genuine paraphrases (duplicate median 0.823) pass.
@@ -210,7 +210,7 @@ func rankScore(rec *Record, scope []string, query string, idx *termIndex, semVec
 		s = zeroHitFloor * rec.Confidence
 		// Semantic recall: when the embed plugin produced a query vector and
 		// this rule has a stored one, a cosine above embedRecallThreshold
-		// replaces the floor. Recall is not rejection — no polarity guard
+		// replaces the floor. Recall is not rejection — no write-time relate gate
 		// here, a conflict rule is still worth surfacing.
 		if semVec != nil {
 			if vec, ok := vectors[rec.ID]; ok {

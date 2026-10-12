@@ -9,6 +9,8 @@ Shell helpers and dev-only utilities. Release scripts are invoked from the Makef
 | [`release/version.sh`](release/version.sh) | Print version from git tags |
 | [`dev/imprint-mcp.sh`](dev/imprint-mcp.sh) | Run MCP bound to this repo (`--project`) |
 | [`demo/seed-vault/`](demo/seed-vault/) | Idempotent demo vault + doc `sources` for desk unified graph |
+| [`embed-eval-batch.py`](embed-eval-batch.py) | Vault `add` regression on duplicate/conflict sample pairs (live sidecar) |
+| [`embed-eval-vault.sh`](embed-eval-vault.sh) | Short hand-run E2E smoke for embed gate |
 
 ## Common commands
 

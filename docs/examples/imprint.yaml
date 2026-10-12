@@ -37,6 +37,8 @@ plugins:
       relate_model: cross-encoder/nli-deberta-v3-base
       relate_contradiction_min: 0.40
       relate_entailment_min: 0.35
+      relate_bidirectional: true
+      duplicate_high_cosine_block: 0.80   # 0 = off; tune with imprint-embed-sidecar/eval_gate.py
       timeout_seconds: 5   # per HTTP call; run.sh --warm loads models before listen
       duplicate_threshold: 0.65   # run imprint-embed-sidecar/calibrate.py after model change
       # cross_scope_policy: advisory_only   # advisory_only (default) | strict

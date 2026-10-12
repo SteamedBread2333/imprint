@@ -35,3 +35,16 @@ go test ./...
 go test -race ./...
 go test ./internal/cli -run TestDocsContract
 ```
+
+## 语义查重（embed 插件）
+
+Sidecar 须在配置端口 **ready**（在 **imprint 仓库根** 执行 `imprint plugin start embed`）。回归脚本：
+
+```bash
+~/.imprint/plugins/embed/venv/bin/python ../imprint-embed-sidecar/eval_gate.py \
+  --bidirectional --high-cos-block 0.80
+
+IMPRINT_BIN=imprint python3 scripts/embed-eval-batch.py
+```
+
+调参见 [semantic-dedup.zh.md](semantic-dedup.zh.md)。

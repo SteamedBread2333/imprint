@@ -112,7 +112,7 @@ func (v *Vault) duplicateCandidates(claim string, scope []string) (blocking []Du
 // candidates. It returns either:
 //   - a WriteGuardError when a semantic duplicate is confident enough to reject
 //     the write, or
-//   - nil with advisory candidates when cosine is high but polarity differs,
+//   - nil with advisory candidates when cosine is high but relate contradiction is high,
 //     because cosine cannot see negation ("never", "instead of") and antonym
 //     pairs score as high as true restatements.
 //
@@ -247,7 +247,7 @@ func (v *Vault) mergeEmbedDuplicatesScope(claim string, query []float32, ok bool
 }
 
 // mergeAdvisoryCandidates unions advisory lists by rule id. When the same
-// rule trips both Jaccard polarity and the semantic gate, keep the higher
+// rule trips both Jaccard and the semantic gate, keep the higher
 // score (usually cosine) so Similar lists it once. Capped at 3 to match
 // each gate's own limit.
 func mergeAdvisoryCandidates(lists ...[]DuplicateCandidate) []DuplicateCandidate {

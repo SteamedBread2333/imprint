@@ -54,11 +54,6 @@ func (v *Vault) classifyDuplicateCandidate(cosine float64, sc RelateScores) (blo
 	return false, false
 }
 
-// classifyRelate is classifyDuplicateCandidate without cosine (legacy tests).
-func (v *Vault) classifyRelate(sc RelateScores) (blocking, advisory bool) {
-	return v.classifyDuplicateCandidate(0, sc)
-}
-
 func (v *Vault) splitCandidatesByRelate(ctx context.Context, claim string, cands []DuplicateCandidate, trace string) (blocking, advisory []DuplicateCandidate) {
 	if len(cands) == 0 {
 		return nil, nil

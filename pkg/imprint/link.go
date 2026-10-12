@@ -8,7 +8,7 @@ import (
 
 // Link adds relationship edges from an existing rule to other existing rules.
 // It is the post-hoc companion of the add-time conflicts field: when add
-// returns advisory Similar candidates (same topic, opposite polarity), the
+// returns advisory Similar candidates (same topic, high relate contradiction), the
 // caller confirms with the user and then records the opposition here so
 // future find results penalize the weaker side of the pair.
 //

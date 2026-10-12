@@ -171,7 +171,7 @@ func TestEmbedUnavailableStillWrites(t *testing.T) {
 	}
 }
 
-// A pair that trips Jaccard polarity AND the semantic gate must appear
+// A pair that trips high Jaccard AND the semantic gate must appear
 // once in Similar (higher score wins), not twice.
 func TestSimilarDedupesWhenBothGatesFire(t *testing.T) {
 	const a = "Prefer tabs over spaces for Go code"
@@ -215,7 +215,7 @@ func TestEmbedAdvisoryOnRelateConflict(t *testing.T) {
 		t.Fatalf("opposite policy was rejected: %v", err)
 	}
 	if len(res.Similar) == 0 {
-		t.Fatal("advisory candidates missing for a polarity conflict")
+		t.Fatal("advisory candidates missing for a relate contradiction conflict")
 	}
 }
 
@@ -392,11 +392,11 @@ func TestClassifyRelateScores(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	block, adv := v.classifyRelate(RelateScores{Contradiction: 0.8, Entailment: 0.1})
+	block, adv := v.classifyDuplicateCandidate(0.5, RelateScores{Contradiction: 0.8, Entailment: 0.1})
 	if block || !adv {
 		t.Fatalf("high contradiction should be advisory")
 	}
-	block, adv = v.classifyRelate(RelateScores{Contradiction: 0.1, Entailment: 0.8})
+	block, adv = v.classifyDuplicateCandidate(0.5, RelateScores{Contradiction: 0.1, Entailment: 0.8})
 	if !block || adv {
 		t.Fatalf("high entailment should block")
 	}

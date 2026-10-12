@@ -63,7 +63,7 @@ func TestWritePrivacyGuards(t *testing.T) {
 
 // Two near-duplicate claims with reordered words ("Always use pnpm" vs
 // "Use pnpm always") must still be hard-rejected: they share every
-// token, so Jaccard is 1.0, and reordering is not a polarity signal.
+// token, so Jaccard is 1.0; reordering alone is not a relate signal.
 func TestJaccardReorderIsDuplicate(t *testing.T) {
 	v, err := Open(OpenOptions{Dir: t.TempDir()})
 	if err != nil {

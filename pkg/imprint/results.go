@@ -14,7 +14,7 @@ type AddResult struct {
 	Confidence float64 `json:"confidence"`
 	Path       string  `json:"path"`
 	// Similar holds advisory semantic neighbours: rules that look related but
-	// whose polarity differs (cosine cannot see "never"/"instead"), so the
+	// whose relate contradiction is high (cosine alone misses opposite policy), so the
 	// caller — not the system — decides reinforce / supersede / keep both.
 	Similar []DuplicateCandidate `json:"similar,omitempty"`
 }

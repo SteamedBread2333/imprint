@@ -307,7 +307,7 @@ func TestCLIReportJSON(t *testing.T) {
 }
 
 // `imprint add` in human mode must surface the similar advisory list when
-// the embed sidecar reports polarity-conflicting paraphrases. Without this
+// the embed sidecar reports relate contradiction on paraphrases. Without this
 // the user has to pass --json to discover the link — see Issue 4.
 //
 // Without an embedder (the testApp default) lexical Jaccard does not surface

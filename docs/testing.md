@@ -35,3 +35,18 @@ go test ./...
 go test -race ./...
 go test ./internal/cli -run TestDocsContract
 ```
+
+## Semantic duplicate gate (embed plugin)
+
+Sidecar must be **ready** on the configured port (`imprint plugin start embed` from the **imprint repo root**). Regression scripts:
+
+```bash
+# HTTP-only gate on 60 labeled pairs (imprint-embed-sidecar)
+~/.imprint/plugins/embed/venv/bin/python ../imprint-embed-sidecar/eval_gate.py \
+  --bidirectional --high-cos-block 0.80
+
+# End-to-end imprint add on 40 pairs (isolated temp vault)
+IMPRINT_BIN=imprint python3 scripts/embed-eval-batch.py
+```
+
+See [semantic-dedup.md](semantic-dedup.md) for tuning knobs and `calibrate.py` for T/C/E grid.
