@@ -20,7 +20,8 @@ type guardedText struct {
 
 func checkSensitiveText(values ...guardedText) error {
 	for _, value := range values {
-		if finding := privacy.CheckText(value.text); finding != nil {
+		finding := privacy.CheckText(value.text)
+		if finding != nil && privacy.ShouldBlock(value.field, finding.Kind) {
 			return &WriteGuardError{
 				Code:    "privacy_rejected",
 				Message: "write rejected because it may contain sensitive data",

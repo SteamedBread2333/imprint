@@ -64,7 +64,7 @@ Default path: user speaks → MCP **`find(scope, query[, query_local])`** → do
 - `add` after ADD only: `claim`, `scope`, `text` required; optional **`sources`** / **`query_local`** as above; **`conflicts`** (CSV of existing rule ids) when the new rule is the opposite of another rule that must stay active.
 - `link ID --conflicts id,id`: post-hoc edges. When `add` returns advisory **`similar`** (embed: high cosine, relate **contradiction** — opposite policy), **confirm with the user**, then record opposition via `link` (or keep both without linking); `conflicts_with` makes later `find` penalize the weaker side.
 - `reinforce` requires non-empty user reaffirmation evidence; confidence uses diminishing gain `min(0.95, old + (0.95-old)*0.25)`. Find hits never change confidence. `supersede` decays successor confidence by `supersede.inheritance_alpha` of the gap above 0.6 (default 0.20; 0 copies old, 1 drops to baseline) and inherits **`sources`** / **`query_local`** unless overridden; `forget` strips inbound links and keeps a lifecycle event.
-- Server-side guards reject likely secrets/personal data, denied source paths, and high-similarity active duplicates.
+- Server-side guards apply field-aware privacy checks (stricter on `text`/`evidence`; secrets and PEM in any field still reject), denied source paths, and high-similarity active duplicates.
 - `list`: `--scope`, `--query`, `--min-confidence`, `--since`.
 - Language scope tags are canonicalized via GitHub Linguist aliases (go-enry) on add/find/list/supersede; unknown tags pass through. Telemetry writes privacy-safe daily JSONL under `<vault>/state/telemetry/` when enabled. `imprint report --days 30` is CLI audit-only.
 

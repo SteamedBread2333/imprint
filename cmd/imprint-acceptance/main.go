@@ -115,12 +115,20 @@ func runScenarios(rep *report, imprintBin, mcpBin, root, vault string) {
 	dupOut, dupErr := runJSONErr(root, imprintBin, "--json", "--vault", vault, "add",
 		"Always prefer camelCase identifiers in TypeScript", "--scope", "typescript", "--text", "repeat")
 	privOut, privErr := runJSONErr(root, imprintBin, "--json", "--vault", vault, "add",
-		"Store secrets outside the repo", "--scope", "security", "--text", "password=hunter2")
+		"Store secrets outside the repo", "--scope", "security", "--text", "password=hunter22")
+	privClaimOut, privClaimErr := runJSON(root, imprintBin, "--json", "--vault", vault, "add",
+		"Mention support dev@example.com in claims", "--scope", "security", "--text", "policy only")
 	add(scenario{
 		Name: "重复与隐私拒绝", Action: "再次添加近似规则，并尝试写入 secret",
 		Expect: "duplicate 与 privacy_rejected",
 		Actual: fmt.Sprintf("dup=%v privacy=%v", strings.Contains(dupOut, "duplicate"), strings.Contains(privOut, "privacy_rejected")),
 		OK:     dupErr != nil && privErr != nil && strings.Contains(dupOut, "duplicate") && strings.Contains(privOut, "privacy_rejected"),
+	})
+	add(scenario{
+		Name: "隐私 claim 字段分级", Action: "claim 含 example 邮箱、text 无 PII",
+		Expect: "add 成功",
+		Actual: fmt.Sprintf("err=%v id_present=%v", privClaimErr, strings.Contains(privClaimOut, `"id"`)),
+		OK:     privClaimErr == nil && strings.Contains(privClaimOut, `"id"`),
 	})
 
 	// 4. reinforce gate

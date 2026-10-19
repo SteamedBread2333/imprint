@@ -14,14 +14,16 @@ type Finding struct {
 
 var (
 	pemPattern       = regexp.MustCompile(`(?i)-----BEGIN [A-Z0-9 ]*(PRIVATE KEY|CERTIFICATE)-----`)
-	assignmentSecret = regexp.MustCompile(`(?i)\b(api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|password|passwd|connection[_-]?string|database[_-]?url)\b\s*[:=]\s*["']?[^\s"']{4,}`)
+	assignmentSecret = regexp.MustCompile(`(?i)\b(api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|password|passwd|connection[_-]?string|database[_-]?url)\b\s*[:=]\s*["']?([^\s"']+)["']?`)
 	tokenPattern     = regexp.MustCompile(`(?i)\b(sk-[a-z0-9_-]{16,}|gh[pousr]_[a-z0-9]{20,}|xox[baprs]-[a-z0-9-]{16,})\b`)
-	emailPattern     = regexp.MustCompile(`(?i)\b[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}\b`)
+	emailPattern     = regexp.MustCompile(`(?i)\b([a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,})\b`)
 	ipv4Pattern      = regexp.MustCompile(`\b(?:\d{1,3}\.){3}\d{1,3}\b`)
-	homePathPattern  = regexp.MustCompile(`(?:^|[\s"'(])(?:/Users/|/home/|/root/|[A-Za-z]:\\Users\\)[^\s"']+`)
+	homePathPattern  = regexp.MustCompile(`(?:^|[\s"'(])(?:/Users/[^/\s"']+/[^\s"']+|/home/[^/\s"']+/[^\s"']+|/root/[^\s"']+|[A-Za-z]:\\Users\\[^\\"']+\\[^\\"']+)`)
 	phonePattern     = regexp.MustCompile(`(?:^|\D)1[3-9]\d{9}(?:\D|$)`)
 	chinaIDPattern   = regexp.MustCompile(`(?:^|\D)\d{17}[\dXx](?:\D|$)`)
 )
+
+const minAssignmentSecretLen = 8
 
 // CheckText reports the first sensitive-data class found without returning the
 // matched value.
@@ -32,9 +34,9 @@ func CheckText(s string) *Finding {
 	switch {
 	case pemPattern.MatchString(s):
 		return &Finding{Kind: "pem"}
-	case assignmentSecret.MatchString(s), tokenPattern.MatchString(s):
+	case looksLikeSecretAssignment(s), tokenPattern.MatchString(s):
 		return &Finding{Kind: "secret"}
-	case emailPattern.MatchString(s):
+	case looksLikeEmail(s):
 		return &Finding{Kind: "email"}
 	case homePathPattern.MatchString(s):
 		return &Finding{Kind: "absolute_path"}
@@ -49,6 +51,67 @@ func CheckText(s string) *Finding {
 		}
 	}
 	return nil
+}
+
+func looksLikeSecretAssignment(s string) bool {
+	m := assignmentSecret.FindStringSubmatch(s)
+	if len(m) < 3 {
+		return false
+	}
+	return assignmentValueSensitive(m[2])
+}
+
+func assignmentValueSensitive(value string) bool {
+	value = strings.TrimSpace(value)
+	if len(value) < minAssignmentSecretLen {
+		return false
+	}
+	lower := strings.ToLower(value)
+	if lower == "example" || lower == "changeme" || lower == "<redacted>" {
+		return false
+	}
+	if strings.HasPrefix(lower, "your_") || strings.HasPrefix(lower, "your-") {
+		return false
+	}
+	if strings.Trim(lower, "*xX-_") == "" {
+		return false
+	}
+	if onlyPlaceholderChars(lower) {
+		return false
+	}
+	return true
+}
+
+func onlyPlaceholderChars(s string) bool {
+	for _, r := range s {
+		switch r {
+		case 'x', 'X', '*', '-', '_', '.':
+		default:
+			return false
+		}
+	}
+	return len(s) > 0
+}
+
+func looksLikeEmail(s string) bool {
+	m := emailPattern.FindStringSubmatch(s)
+	if len(m) < 2 {
+		return false
+	}
+	return !documentationEmailDomain(m[1])
+}
+
+func documentationEmailDomain(addr string) bool {
+	at := strings.LastIndex(addr, "@")
+	if at < 0 {
+		return false
+	}
+	domain := strings.ToLower(addr[at+1:])
+	switch domain {
+	case "example.com", "example.org", "example.net":
+		return true
+	}
+	return strings.HasSuffix(domain, ".example") || strings.HasSuffix(domain, ".test")
 }
 
 // CheckSourcePath rejects absolute, escaping, and credential-bearing source

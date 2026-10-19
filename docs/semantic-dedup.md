@@ -126,7 +126,7 @@ flowchart TD
 
 | # | Gate             | Threshold | Hard reject. | Sidecar dep. | What it catches              |
 | - | --------------- | --------- | ------------ | ------------ | ---------------------------- |
-| 1 | privacy check   | regex     | yes          | no           | PII, secrets, credential-like data |
+| 1 | privacy check   | regex + field policy | yes (per field/kind) | no | PII, secrets, credential-like data; stricter on text/evidence |
 | 2 | source paths    | allowlist | yes          | no           | denied paths / non-vault writes     |
 |  3 | Jaccard         | 0.82      | yes          | no           | near-identical wording        |
 |  4 | cosine          | `duplicate_threshold` (default 0.65) | enters relate pool | yes | paraphrases, restructured sentences |

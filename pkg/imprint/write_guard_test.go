@@ -43,21 +43,38 @@ func TestWritePrivacyGuards(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := v.Add("Store credential", []string{"security"}, "password=hunter2", 0.6); err == nil {
+	if _, err := v.Add("Store credential", []string{"security"}, "password=hunter22", 0.6); err == nil {
 		t.Fatal("secret add was accepted")
 	}
 	added, err := v.Add("Keep credentials external", []string{"security"}, "team policy", 0.6)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := v.Reinforce(added.ID, "contact dev@example.com"); err == nil {
+	if _, err := v.Reinforce(added.ID, "contact dev@company.com"); err == nil {
 		t.Fatal("email evidence was accepted")
 	}
-	if _, err := v.Supersede(added.ID, "Use private host", []string{"security"}, "host 10.0.0.8", ""); err == nil {
-		t.Fatal("private IP supersede reason was accepted")
+	if _, err := v.Supersede(added.ID, "Use private host", []string{"security"}, "host 10.0.0.8", "service at 10.0.0.8"); err == nil {
+		t.Fatal("private IP supersede text was accepted")
 	}
 	if _, err := v.AddWithSources("Cite safe docs", []string{"docs"}, "policy", 0.6, []DocRef{{Path: "../.env"}}); err == nil {
 		t.Fatal("unsafe source path was accepted")
+	}
+}
+
+func TestWritePrivacyFieldAwareClaim(t *testing.T) {
+	v, err := Open(OpenOptions{Dir: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := v.Add("Rotate keys", []string{"security"}, "password=hunter22", 0.6); err == nil {
+		t.Fatal("secret in claim was accepted")
+	}
+	claim := "Document support email dev@example.com and RFC5737 hosts"
+	if _, err := v.Add(claim, []string{"security"}, "team policy", 0.6); err != nil {
+		t.Fatalf("field-aware claim rejected: %v", err)
+	}
+	if _, err := v.Add("Another rule", []string{"security"}, "reach us at dev@company.com", 0.6); err == nil {
+		t.Fatal("email in text was accepted")
 	}
 }
 

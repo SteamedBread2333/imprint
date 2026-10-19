@@ -7,14 +7,19 @@ func TestCheckText(t *testing.T) {
 		text string
 		kind string
 	}{
-		{"password=hunter2", "secret"},
+		{"password=hunter22", "secret"},
+		{"password=hunter2", ""},
+		{"password=changeme", ""},
 		{"token sk-1234567890abcdefghijkl", "secret"},
-		{"contact dev@example.com", "email"},
+		{"contact dev@example.com", ""},
+		{"contact dev@company.com", "email"},
 		{"host 192.168.1.20", "private_ip"},
 		{"read /Users/alice/project/.env", "absolute_path"},
+		{"mention /Users/alice only", ""},
 		{"-----BEGIN PRIVATE KEY-----", "pem"},
 		{"Use tokens rather than sessions", ""},
 		{"Bind the public example 203.0.113.8", ""},
+		{"Do not commit .env files", ""},
 	}
 	for _, tt := range tests {
 		got := CheckText(tt.text)
