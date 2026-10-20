@@ -837,11 +837,7 @@ is off, the command prints a hint to run imprint up && imprint embed backfill.
 `
 
 func (a *App) cmdEmbedPrepare(g globals) int {
-	cfg, err := plugin.ResolveConfigPath(a.Getwd)
-	if err != nil {
-		return a.fail(g.json, err)
-	}
-	pcfg, err := plugin.Load(cfg)
+	pcfg, err := plugin.LoadEmbedManagerConfig()
 	if err != nil {
 		return a.fail(g.json, err)
 	}

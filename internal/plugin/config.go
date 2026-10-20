@@ -82,6 +82,8 @@ type Config struct {
 	Plugins   map[string]PluginEntry `yaml:"plugins"`
 	filePath  string
 	workspace string
+	// embedGlobalConfigPath is ~/.imprint/embed.yaml when plugins.embed comes from global config.
+	embedGlobalConfigPath string
 }
 
 // ResolveConfigPath walks up from cwd for imprint.yaml (root or legacy .imprint/).
@@ -150,6 +152,9 @@ func Load(path string) (*Config, error) {
 	}
 	normalizeLegacyShelves(cfg)
 	cfg.Vault = imprint.NormalizeVaultRel(cfg.Vault)
+	if err := MergeGlobalEmbed(cfg); err != nil {
+		return nil, err
+	}
 	return cfg, nil
 }
 
@@ -269,15 +274,18 @@ func (c *Config) HostURL() string {
 }
 
 // ApplyToOpenOptions copies yaml vault tunables onto Open.
-// It also wires the optional embed sidecar when plugins.embed is enabled.
+// Embed is wired from ~/.imprint/embed.yaml (not project imprint.yaml).
 func (c *Config) ApplyToOpenOptions(opts *imprint.OpenOptions) {
 	if c == nil || opts == nil {
 		return
 	}
 	a := c.Supersede.Alpha()
 	opts.InheritanceAlpha = &a
-	entry, ok := c.Plugins["embed"]
-	if !ok || !entry.Enabled {
+	ApplyGlobalEmbedToOpenOptions(opts)
+}
+
+func applyEmbedEntryToOpenOptions(opts *imprint.OpenOptions, entry PluginEntry) {
+	if !entry.Enabled {
 		return
 	}
 	cfg := EmbedConfigFrom(entry)

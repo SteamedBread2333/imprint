@@ -28,19 +28,4 @@ plugins:
     config:
       port: 4173
       hostUrl: http://127.0.0.1:9470
-  embed:
-    enabled: false  # opt-in: semantic duplicate gate; degrades to Jaccard when off
-    package: ../imprint-embed-sidecar
-    config:
-      port: 4174
-      model: BAAI/bge-small-zh-v1.5   # must match the sidecar model; it keys rule_vectors
-      relate_model: cross-encoder/nli-deberta-v3-base
-      relate_contradiction_min: 0.40
-      relate_entailment_min: 0.35
-      relate_bidirectional: true
-      duplicate_high_cosine_block: 0.80   # 0 = off; tune with eval_gate.py / calibrate
-      timeout_seconds: 5   # per embed/relate HTTP call; run.sh --warm loads models before listen
-      duplicate_threshold: 0.65   # run imprint-embed-sidecar/calibrate.py after model change
-      # cross_scope_policy: advisory_only   # advisory_only (default) | strict
-      #   advisory_only: foreign-scope paraphrases surface as advisory only (recall preserved)
-      #   strict:        existing rule must have every tag of the new claim (AND, not overlap)
+# Embed (semantic dedup): ~/.imprint/embed.yaml — see docs/semantic-dedup.md

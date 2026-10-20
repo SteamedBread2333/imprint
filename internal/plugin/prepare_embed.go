@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 
 	"github.com/SteamedBread2333/imprint/pkg/imprint"
 )
@@ -18,15 +17,17 @@ func RunEmbedPrepare(ctx context.Context, cfg *Config) error {
 	}
 	entry, ok := cfg.Plugins["embed"]
 	if !ok || !entry.Enabled {
-		return fmt.Errorf("embed plugin is not enabled in imprint.yaml")
+		return fmt.Errorf("embed is not enabled in ~/.imprint/embed.yaml")
 	}
 	pkgDir := PackageDir(cfg.Workspace(), entry.Package)
 	if pkgDir == "" {
 		return fmt.Errorf("embed: package path is empty")
 	}
 	port := PluginPort(entry, imprint.DefaultPortForPlugin("embed"))
-	vaultDir := cfg.ResolveVaultAbs()
-	pluginState := filepath.Join(imprint.VaultStateDir(vaultDir), imprint.PluginsStateDirName, "embed")
+	pluginState, err := pluginStateDir(cfg, "embed")
+	if err != nil {
+		return err
+	}
 	return withEmbedFileLock(pluginState, func() error {
 		cmd := exec.CommandContext(ctx, "sh", "-c", "./run.sh prepare")
 		cmd.Dir = pkgDir

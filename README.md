@@ -145,7 +145,7 @@ Rules live in `vault.db`. IDs: `r-YYYY-MM-DD-NNN`. Status: `active` | `dormant` 
 | --- | --- | --- |
 | **Shelves** | **host** | `shelves.enabled`, `config.roots` in [imprint.yaml](docs/examples/imprint.yaml) |
 | **Desk** | External plugin | `plugins.desk` + [imprint-desk-plugin](https://github.com/SteamedBread2333/imprint-desk-plugin) |
-| **Embed** | External sidecar (plugin protocol) | `plugins.embed` + [imprint-embed-sidecar](https://github.com/SteamedBread2333/imprint-embed-sidecar) |
+| **Embed** | External sidecar (plugin protocol) | `~/.imprint/embed.yaml` + [imprint-embed-sidecar](https://github.com/SteamedBread2333/imprint-embed-sidecar) |
 
 Embed adds a semantic duplicate gate to `add`: the lexical Jaccard check only catches near-identical wording, so paraphrases slip through. Off by default; when the sidecar is absent or slow, writes degrade back to the lexical path. `imprint-mcp` starts the sidecar if the port is down (reuses it if healthy). `imprint plugin start embed` always stop-then-fork; `imprint plugin stop embed` stops it. `imprint up` / `down` do not touch embed. See [docs/semantic-dedup.md](docs/semantic-dedup.md) for the full pipeline, calibration data, and tuning.
 

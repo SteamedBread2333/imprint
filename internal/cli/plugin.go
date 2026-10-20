@@ -57,9 +57,13 @@ Shelves is host config (shelves: in imprint.yaml) — use imprint up/down.
 func (a *App) loadPluginConfig() (*plugin.Config, error) {
 	path, err := plugin.ResolveConfigPath(a.Getwd)
 	if err != nil {
+		return plugin.LoadEmbedManagerConfig()
+	}
+	cfg, err := plugin.Load(path)
+	if err != nil {
 		return nil, err
 	}
-	return plugin.Load(path)
+	return cfg, nil
 }
 
 func (a *App) pluginList(g globals, mgr *plugin.Manager) int {
@@ -97,14 +101,25 @@ func (a *App) pluginSetEnabled(g globals, cfg *plugin.Config, on bool, args []st
 	if id == "shelves" {
 		return a.fail(g.json, fmt.Errorf("shelves is host config — edit shelves.enabled in imprint.yaml, then run: imprint up"))
 	}
-	entry, ok := cfg.Plugins[id]
-	if !ok {
-		entry = plugin.PluginEntry{Config: map[string]any{}}
-	}
-	entry.Enabled = on
-	cfg.Plugins[id] = entry
-	if err := cfg.Save(); err != nil {
-		return a.fail(g.json, err)
+	if id == "embed" {
+		entry, _, _, err := plugin.LoadGlobalEmbedEntry()
+		if err != nil {
+			return a.fail(g.json, err)
+		}
+		entry.Enabled = on
+		if err := plugin.SaveGlobalEmbedEntry(entry); err != nil {
+			return a.fail(g.json, err)
+		}
+	} else {
+		entry, ok := cfg.Plugins[id]
+		if !ok {
+			entry = plugin.PluginEntry{Config: map[string]any{}}
+		}
+		entry.Enabled = on
+		cfg.Plugins[id] = entry
+		if err := cfg.Save(); err != nil {
+			return a.fail(g.json, err)
+		}
 	}
 	if g.json {
 		return boolExit(a.writeJSON(map[string]any{"id": id, "enabled": on}))
@@ -132,6 +147,9 @@ func (a *App) pluginStart(g globals, mgr *plugin.Manager, args []string) int {
 		}
 		entry, ok := cfg.Plugins[id]
 		if !ok || !entry.Enabled {
+			if id == "embed" {
+				return a.fail(g.json, fmt.Errorf("plugin %q is not enabled in ~/.imprint/embed.yaml", id))
+			}
 			return a.fail(g.json, fmt.Errorf("plugin %q is not enabled in imprint.yaml", id))
 		}
 		if id == "embed" && !g.json {

@@ -142,7 +142,7 @@ Vault 和 shelves 都以 WAL 模式打开 SQLite，方便 CLI、MCP、host 跨�
 | --- | --- | --- |
 | **Shelves** | **host** | `shelves` · [imprint.yaml](docs/examples/imprint.yaml) |
 | **Desk** | 外部插件 | `plugins.desk` · [imprint-desk-plugin](https://github.com/SteamedBread2333/imprint-desk-plugin) |
-| **Embed** | 外部 sidecar（插件协议） | `plugins.embed` · [imprint-embed-sidecar](https://github.com/SteamedBread2333/imprint-embed-sidecar) |
+| **Embed** | 外部 sidecar（插件协议） | `~/.imprint/embed.yaml` · [imprint-embed-sidecar](https://github.com/SteamedBread2333/imprint-embed-sidecar) |
 
 Embed 给 `add` 加语义查重门禁——词面 Jaccard 只抓得到近同词面，改述会漏；默认关，sidecar 缺席/慢时降级回词面路径。`imprint-mcp` 在端口不健康时拉起 sidecar（已健康则复用）；`imprint plugin start embed` 每次先 stop 再 fork；停它用 `imprint plugin stop embed`。`imprint up` / `down` 不碰 embed。完整链路、标定数据、调优见 [docs/semantic-dedup.zh.md](docs/semantic-dedup.zh.md)。
 

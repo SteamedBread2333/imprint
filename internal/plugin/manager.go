@@ -150,8 +150,10 @@ func (m *Manager) StopPlugin(id string) error {
 }
 
 func (m *Manager) startOne(ctx context.Context, id string, entry PluginEntry) error {
-	vaultDir := m.cfg.ResolveVaultAbs()
-	pluginState := filepath.Join(imprint.VaultStateDir(vaultDir), imprint.PluginsStateDirName, id)
+	pluginState, err := pluginStateDir(m.cfg, id)
+	if err != nil {
+		return err
+	}
 	if id == "embed" {
 		return withEmbedFileLock(pluginState, func() error {
 			return m.startOneProcess(ctx, id, entry)
@@ -185,8 +187,10 @@ func (m *Manager) startOneProcess(ctx context.Context, id string, entry PluginEn
 		return fmt.Errorf("plugin %q: %w", id, err)
 	}
 	cmd.Dir = pkgDir
-	vaultDir := m.cfg.ResolveVaultAbs()
-	pluginState := filepath.Join(imprint.VaultStateDir(vaultDir), imprint.PluginsStateDirName, id)
+	pluginState, err := pluginStateDir(m.cfg, id)
+	if err != nil {
+		return err
+	}
 	_ = os.MkdirAll(pluginState, 0o755)
 	// Embed (and any daemon-style plugin) is not bound to this process:
 	// DetachProcess (setsid) lets it outlive the CLI, and the sidecar does

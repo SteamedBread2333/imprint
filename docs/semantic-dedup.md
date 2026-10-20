@@ -1,8 +1,8 @@
 # Semantic duplicate gate
 
 The write-time gate that catches paraphrases and topic-near duplicates that
-lexical Jaccard misses. Optional: enabled by setting `plugins.embed.enabled: true`
-in `imprint.yaml`. When the sidecar is absent or slow, writes degrade silently
+lexical Jaccard misses. Optional: enabled in `~/.imprint/embed.yaml` (`enabled: true`).
+When the sidecar is absent or slow, writes degrade silently
 back to the lexical path — **the write never blocks on the embedder**.
 
 The gate has two consumers: the **write path** (reject or admit) and the
@@ -76,7 +76,7 @@ MCP (or `imprint plugin start embed`) owns the process; stop it with
 
 | Phase | What happens |
 | --- | --- |
-| `imprint-mcp` | If `plugins.embed` is enabled: `GET /health` on the configured port. Unhealthy → fork once at MCP start. Healthy → reuse, no second process. Closing the editor does **not** stop the sidecar (no parent watch); the next MCP start reuses it if still healthy. |
+| `imprint-mcp` | If global embed is enabled: `GET /health` on the configured port. Unhealthy → fork once at MCP start. Healthy → reuse, no second process. Closing the editor does **not** stop the sidecar (no parent watch); the next MCP start reuses it if still healthy. |
 | `embed prepare` | **Foreground** download + load of embed and relate weights (full HF/tqdm on your terminal). No HTTP server. Run after setup or when changing models. |
 | `plugin start embed` | Always **stop then fork** (kills whoever holds the port). Streams **sidecar.log** to stderr while waiting for `ready`. The new process stays up after the CLI exits. |
 | `plugin stop embed` | Frees the configured embed LISTEN port. |
@@ -162,7 +162,8 @@ duplicate vs advisory.
 
 Install: clone [imprint-embed-sidecar](https://github.com/SteamedBread2333/imprint-embed-sidecar),
 run `./scripts/setup.sh` (venv under `~/.imprint/plugins/embed/venv`), and set
-`plugins.embed.package` to that repo path (e.g. `../imprint-embed-sidecar`).
+`package` in `~/.imprint/embed.yaml` to that repo path (absolute recommended).
+Project `imprint.yaml` must not contain `plugins.embed` (legacy keys are ignored with a warning).
 Run `calibrate.py` after model changes.
 
 ## Advisory path — `AddResult.Similar`
@@ -328,15 +329,15 @@ conflict-penalty logic in `find` is dormant for that pair.
 
 | Knob                                | Default | Where                          | Notes                                                       |
 | ----------------------------------- | ------- | ------------------------------ | ----------------------------------------------------------- |
-| `plugins.embed.duplicate_threshold` | 0.65 | `imprint.yaml` | `calibrate.py` grid |
-| `plugins.embed.relate_contradiction_min` | 0.40 | `imprint.yaml` | At or above → advisory |
-| `plugins.embed.relate_entailment_min` | 0.35 | `imprint.yaml` | At or above → block (if contradiction low) |
-| `plugins.embed.relate_bidirectional` | true | `imprint.yaml` | Merge forward + reverse `/relate` |
-| `plugins.embed.duplicate_high_cosine_block` | 0.80 | `imprint.yaml` | **0** disables; tune with `eval_gate.py` |
-| `plugins.embed.relate_model` | `cross-encoder/nli-deberta-v3-base` | `imprint.yaml` | Sidecar loads from HF cache |
-| `plugins.embed.timeout_seconds` | 5 | `imprint.yaml` | Per embed/relate HTTP call |
-| `plugins.embed.port` | 4174 | `imprint.yaml` | Must match sidecar listen |
-| `plugins.embed.model` | `BAAI/bge-small-zh-v1.5` | `imprint.yaml` | Keys `rule_vectors.model` |
+| `duplicate_threshold` | 0.65 | `~/.imprint/embed.yaml` `config` | `calibrate.py` grid |
+| `relate_contradiction_min` | 0.40 | `embed.yaml` | At or above → advisory |
+| `relate_entailment_min` | 0.35 | `embed.yaml` | At or above → block (if contradiction low) |
+| `relate_bidirectional` | true | `embed.yaml` | Merge forward + reverse `/relate` |
+| `duplicate_high_cosine_block` | 0.80 | `embed.yaml` | **0** disables; tune with `eval_gate.py` |
+| `relate_model` | `cross-encoder/nli-deberta-v3-base` | `embed.yaml` | Sidecar loads from HF cache |
+| `timeout_seconds` | 5 | `embed.yaml` | Per embed/relate HTTP call |
+| `port` | 4174 | `embed.yaml` | Must match sidecar listen |
+| `model` | `BAAI/bge-small-zh-v1.5` | `embed.yaml` | Keys `rule_vectors.model` |
 
 Go defaults mirror yaml when fields are omitted (`pkg/imprint/embed.go`).
 

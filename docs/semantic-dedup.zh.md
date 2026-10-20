@@ -1,6 +1,6 @@
 # 语义去重门禁
 
-抓词面 Jaccard 抓不到的改述和话题相近的重复写入。**可选**：在 `imprint.yaml` 设 `plugins.embed.enabled: true` 启用。sidecar 缺席或慢时静默降级回词面路径——**写入永远不会因 embedder 而阻塞**。
+抓词面 Jaccard 抓不到的改述和话题相近的重复写入。**可选**：在 `~/.imprint/embed.yaml` 设 `enabled: true` 启用。sidecar 缺席或慢时静默降级回词面路径——**写入永远不会因 embedder 而阻塞**。
 
 门禁有两个消费者：**写路径**（拒或放）和**读路径**（语义召回抬升）。两者共用同一个 embedder 和同一个向量存储。
 
@@ -63,7 +63,7 @@ embed 是**单例 daemon**。`imprint up` / `down` 既不起也不停。进程�
 
 | 阶段 | 发生了什么 |
 | --- | --- |
-| `imprint-mcp` | `plugins.embed` 启用时：对配置端口 `GET /health`。不健康 → MCP 启动时 fork 一次。已健康 → 复用，不拉第二个进程。关编辑器**不会**停 sidecar（没有 parent watch）；下次 MCP 启动时若仍健康就复用。 |
+| `imprint-mcp` | 全局 embed 启用时：对配置端口 `GET /health`。不健康 → MCP 启动时 fork 一次。已健康 → 复用，不拉第二个进程。关编辑器**不会**停 sidecar（没有 parent watch）；下次 MCP 启动时若仍健康就复用。 |
 | `embed prepare` | **前台**下载并加载 embed + relate 权重（终端可见 HF/tqdm 进度），不起 HTTP。新机或换模型后跑一次。 |
 | `plugin start embed` | **每次先 stop 再 fork**（端口上无论谁在听都会被杀）。等待 `ready` 期间把 **sidecar.log** 流到 stderr。CLI 退出后新进程继续活着。 |
 | `plugin stop embed` | 清掉配置端口上的 LISTEN 进程。 |
@@ -128,7 +128,7 @@ flowchart TD
 余弦（或高 Jaccard）之后，Go 把 claim 对 batch 到 sidecar；返回 cross-encoder 的
 contradiction / entailment 等概率。**阈值只在 imprint.yaml**，sidecar 不做裁决。
 
-安装：clone [imprint-embed-sidecar](https://github.com/SteamedBread2333/imprint-embed-sidecar)，在本仓库跑 `./scripts/setup.sh`，`imprint.yaml` 里 `plugins.embed.package` 指向该目录（如 `../imprint-embed-sidecar`）。改模型后重跑 `calibrate.py`。
+安装：clone [imprint-embed-sidecar](https://github.com/SteamedBread2333/imprint-embed-sidecar)，跑 `./scripts/setup.sh`，在 `~/.imprint/embed.yaml` 里 `package` 指向该目录（建议绝对路径）。项目 `imprint.yaml` 勿再写 `plugins.embed`。改模型后重跑 `calibrate.py`。
 
 ## Advisory 旁路 —— `AddResult.Similar`
 
@@ -252,15 +252,15 @@ add  trace=873d4cb1895d
 
 | 旋钮                                | 默认值 | 位置                          | 备注                                                       |
 | ----------------------------------- | ------ | ----------------------------- | ---------------------------------------------------------- |
-| `plugins.embed.duplicate_threshold` | 0.65 | `imprint.yaml` | `calibrate.py` |
-| `plugins.embed.relate_contradiction_min` | 0.40 | `imprint.yaml` | ≥ → advisory |
-| `plugins.embed.relate_entailment_min` | 0.35 | `imprint.yaml` | ≥ → 拒写（contradiction 低时） |
-| `plugins.embed.relate_bidirectional` | true | `imprint.yaml` | 正反 relate 合并 |
-| `plugins.embed.duplicate_high_cosine_block` | 0.80 | `imprint.yaml` | **0** 关闭；`eval_gate.py` 调 |
-| `plugins.embed.relate_model` | `nli-deberta-v3-base` | `imprint.yaml` | cross-encoder |
-| `plugins.embed.timeout_seconds` | 5 | `imprint.yaml` | 单次 HTTP |
-| `plugins.embed.port` | 4174 | `imprint.yaml` | 与 sidecar 一致 |
-| `plugins.embed.model` | `BAAI/bge-small-zh-v1.5` | `imprint.yaml` | `rule_vectors` key |
+| `duplicate_threshold` | 0.65 | `~/.imprint/embed.yaml` | `calibrate.py` |
+| `relate_contradiction_min` | 0.40 | `embed.yaml` | ≥ → advisory |
+| `relate_entailment_min` | 0.35 | `embed.yaml` | ≥ → 拒写（contradiction 低时） |
+| `relate_bidirectional` | true | `embed.yaml` | 正反 relate 合并 |
+| `duplicate_high_cosine_block` | 0.80 | `embed.yaml` | **0** 关闭；`eval_gate.py` 调 |
+| `relate_model` | `nli-deberta-v3-base` | `embed.yaml` | cross-encoder |
+| `timeout_seconds` | 5 | `embed.yaml` | 单次 HTTP |
+| `port` | 4174 | `embed.yaml` | 与 sidecar 一致 |
+| `model` | `BAAI/bge-small-zh-v1.5` | `embed.yaml` | `rule_vectors` key |
 
 缺省值见 `pkg/imprint/embed.go`。
 

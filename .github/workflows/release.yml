@@ -39,11 +39,21 @@ jobs:
       - name: GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >
-          gh release create "$GITHUB_REF_NAME" dist/*
-          --repo "$GITHUB_REPOSITORY"
-          --title "imprint $GITHUB_REF_NAME"
-          --notes "Binaries attached to this release. GitHub Packages: ${{ steps.names.outputs.image }}:${{ steps.names.outputs.version }}. Go: go install github.com/${GITHUB_REPOSITORY}/cmd/imprint@${GITHUB_REF_NAME}. Then: imprint init"
+        run: |
+          ver="${GITHUB_REF_NAME#v}"
+          notes="$(cat <<EOF
+          Prebuilt archives: \`imprint-${ver}-<os>-<arch>.tar.gz\` (or \`.zip\` on Windows), each includes \`imprint\` and \`imprint-mcp\`.
+          \`SHA256SUMS\` covers all archives. Imprint Console downloads \`imprint\` from these assets for a user-level install.
+
+          GitHub Packages: ${{ steps.names.outputs.image }}:${{ steps.names.outputs.version }}
+          Go: \`go install github.com/${GITHUB_REPOSITORY}/cmd/imprint@${GITHUB_REF_NAME}\`
+          Then: \`imprint init\`
+          EOF
+          )"
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "imprint $GITHUB_REF_NAME" \
+            --notes "$notes"
 
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
