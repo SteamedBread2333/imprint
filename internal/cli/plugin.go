@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -57,6 +58,14 @@ Shelves is host config (shelves: in imprint.yaml) — use imprint up/down.
 func (a *App) loadPluginConfig() (*plugin.Config, error) {
 	path, err := plugin.ResolveConfigPath(a.Getwd)
 	if err != nil {
+		return plugin.LoadEmbedManagerConfig()
+	}
+	if st, statErr := os.Stat(path); statErr != nil {
+		if os.IsNotExist(statErr) {
+			return plugin.LoadEmbedManagerConfig()
+		}
+		return nil, statErr
+	} else if st.IsDir() {
 		return plugin.LoadEmbedManagerConfig()
 	}
 	cfg, err := plugin.Load(path)
