@@ -39,7 +39,7 @@ func TestPutGetEvidence(t *testing.T) {
 			At: now, Kind: imprint.EvidenceOriginal, Text: "snake_case please",
 		}},
 	}
-	if err := st.PutRecord(rec); err != nil {
+	if err := st.ReplaceRecord(rec); err != nil {
 		t.Fatal(err)
 	}
 	if err := st.AppendEvidence(rec.ID, imprint.Evidence{
@@ -54,6 +54,17 @@ func TestPutGetEvidence(t *testing.T) {
 	if len(got.EvidenceLog) != 2 {
 		t.Fatalf("evidence = %d", len(got.EvidenceLog))
 	}
+
+	if err := st.ReplaceRecord(rec); err != nil {
+		t.Fatal(err)
+	}
+	got, err = st.GetRecord(rec.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.EvidenceLog) != 1 {
+		t.Fatalf("ReplaceRecord must reset evidence to r.EvidenceLog, got %d rows", len(got.EvidenceLog))
+	}
 }
 
 func TestScopeANDCandidates(t *testing.T) {
@@ -64,7 +75,7 @@ func TestScopeANDCandidates(t *testing.T) {
 		{ID: "r-2026-09-18-001", Claim: "a", Scope: []string{"go", "naming"}, Status: imprint.StatusActive, Confidence: 0.8, CreatedAt: now, UpdatedAt: now},
 		{ID: "r-2026-09-18-002", Claim: "b", Scope: []string{"go"}, Status: imprint.StatusActive, Confidence: 0.8, CreatedAt: now, UpdatedAt: now},
 	} {
-		if err := st.PutRecord(r); err != nil {
+		if err := st.ReplaceRecord(r); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -87,7 +98,7 @@ func TestRulesReferencingDoc(t *testing.T) {
 		CreatedAt: now, UpdatedAt: now,
 		Sources: []imprint.DocRef{{Path: "docs/style.md", Heading: "Naming"}},
 	}
-	if err := st.PutRecord(rec); err != nil {
+	if err := st.ReplaceRecord(rec); err != nil {
 		t.Fatal(err)
 	}
 	refs, err := st.RulesReferencingDoc("docs/style.md", "Naming", "")
@@ -113,7 +124,7 @@ func TestQueryLocalRoundTrip(t *testing.T) {
 		QueryLocal: "否定式堆砌 文档写作", Status: imprint.StatusActive, Confidence: 0.85,
 		CreatedAt: now, UpdatedAt: now,
 	}
-	if err := st.PutRecord(rec); err != nil {
+	if err := st.ReplaceRecord(rec); err != nil {
 		t.Fatal(err)
 	}
 	got, err := st.GetRecord(rec.ID)

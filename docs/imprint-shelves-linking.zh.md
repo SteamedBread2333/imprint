@@ -234,8 +234,7 @@ CLI 对称：
 
 ```bash
 imprint add "..." --scope python,naming --text "..." \
-  --source docs/style.md#Python-naming
-# 或 --source-json '[{"path":"docs/style.md"}]'
+  --sources '[{"path":"docs/style.md","heading":"Python naming"}]'
 ```
 
 ### 7.2 `get` — 紧凑与 enriched 响应

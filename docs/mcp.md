@@ -9,8 +9,8 @@
 
 | Capability | MCP (shelves on) | CLI `imprint --json` |
 | --- | --- | --- |
-| Write rules + `sources` | `add` / `supersede` | same |
-| Pre-coding recall | `find(scope, query[, query_local][, paths])` → rules + **documents** + **links** | `find --json` → vault rules; with shelves + query → enriched JSON; optional `--paths` |
+| Write rules + `sources` | `add` / `supersede` | `add` / `supersede` `--sources '[{"path":…,"heading":…}]'` |
+| Pre-coding recall | `find(scope, query[, query_local][, paths])` → rules + **documents** + **links** | `find --json` → same shapes as MCP `full:true`; optional `--paths` |
 | Rule doc basis | `get r-…` → compact source pointers; `full:true` → excerpts | `get r-…` → vault only |
 | Chunk → rules | `get <chunk-id>` → **referenced_rules** | not supported |
 | Rule graph | desk `/` | host `GET /graph` |

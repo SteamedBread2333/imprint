@@ -228,7 +228,7 @@ CLI:
 
 ```bash
 imprint add "..." --scope python,naming --text "..." \
-  --source docs/style.md#Python-naming
+  --sources '[{"path":"docs/style.md","heading":"Python naming"}]'
 ```
 
 ### 7.2 `get` — enriched responses

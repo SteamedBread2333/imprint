@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/SteamedBread2333/imprint/internal/argx"
 	"github.com/SteamedBread2333/imprint/internal/linking"
 	"github.com/SteamedBread2333/imprint/internal/shelves"
 	"github.com/SteamedBread2333/imprint/internal/shelves/index"
@@ -99,7 +100,7 @@ func Serve(ctx context.Context, cfg Config) error {
 			Query:  r.URL.Query().Get("query"),
 		}
 		if s := r.URL.Query().Get("scope"); s != "" {
-			f.Scope = splitCSV(s)
+			f.Scope = argx.SplitCSV(s)
 		}
 		if s := r.URL.Query().Get("min_confidence"); s != "" {
 			v, err := strconv.ParseFloat(s, 64)
@@ -118,7 +119,7 @@ func Serve(ctx context.Context, cfg Config) error {
 			f.Limit = v
 		}
 		if s := r.URL.Query().Get("since"); s != "" {
-			t, err := parseSince(s)
+			t, err := argx.ParseSince(s, "since")
 			if err != nil {
 				writeErr(w, http.StatusBadRequest, err)
 				return
@@ -168,44 +169,29 @@ func Serve(ctx context.Context, cfg Config) error {
 			}
 			topK = v
 		}
-		query := r.URL.Query().Get("query")
-		queryLocal := r.URL.Query().Get("query_local")
-		scope := splitCSV(r.URL.Query().Get("scope"))
 		paths := r.URL.Query()["paths"]
 		if len(paths) == 1 && strings.Contains(paths[0], ",") {
-			paths = splitCSV(paths[0])
+			paths = argx.SplitCSV(paths[0])
 		}
-		if cfg.Shelves != nil && shelves.MatchFindQuery(cfg.Shelves.Config(), query, queryLocal) {
-			scfg := cfg.Shelves.Config()
-			enriched, _, err := linking.EnrichFindDocs(cfg.Vault, cfg.Shelves.IndexStore(), scope, query, queryLocal, topK, linking.FindDocs{
-				TopK: scfg.FindTopK, SnippetRunes: scfg.SnippetRunes, Paths: paths,
-			})
-			if err != nil {
-				writeErr(w, http.StatusInternalServerError, err)
-				return
-			}
-			writeJSON(w, enriched)
-			return
-		}
-		hits, err := cfg.Vault.FindMerged(scope, query, queryLocal, topK)
+		out, err := linking.Find(cfg.Vault, cfg.Shelves, linking.FindRequest{
+			Scope:      argx.SplitCSV(r.URL.Query().Get("scope")),
+			Query:      r.URL.Query().Get("query"),
+			QueryLocal: r.URL.Query().Get("query_local"),
+			TopK:       topK,
+			Paths:      paths,
+		})
 		if err != nil {
 			writeErr(w, http.StatusInternalServerError, err)
 			return
 		}
-		if cfg.Shelves != nil && cfg.Shelves.IndexStore() != nil && len(hits) > 0 {
-			ids := make([]string, len(hits))
-			for i, h := range hits {
-				ids[i] = h.ID
-			}
-			sourcesByID, err := shelves.SourcesByIDs(cfg.Vault, ids)
-			if err != nil {
-				writeErr(w, http.StatusInternalServerError, err)
-				return
-			}
-			writeJSON(w, shelves.EnrichFindHits(cfg.Shelves.IndexStore(), hits, sourcesByID))
-			return
+		switch {
+		case out.Docs != nil:
+			writeJSON(w, out.Docs)
+		case out.Rules != nil:
+			writeJSON(w, out.Rules)
+		default:
+			writeJSON(w, out.Hits)
 		}
-		writeJSON(w, hits)
 	})
 	mux.HandleFunc("/export", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -394,33 +380,4 @@ func writeErr(w http.ResponseWriter, code int, err error) {
 
 func methodNotAllowed(w http.ResponseWriter) {
 	writeErr(w, http.StatusMethodNotAllowed, fmt.Errorf("method not allowed"))
-}
-
-func splitCSV(s string) []string {
-	if strings.TrimSpace(s) == "" {
-		return nil
-	}
-	parts := strings.Split(s, ",")
-	var out []string
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if p != "" {
-			out = append(out, p)
-		}
-	}
-	return out
-}
-
-func parseSince(s string) (time.Time, error) {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return time.Time{}, nil
-	}
-	if t, err := time.Parse(time.RFC3339, s); err == nil {
-		return t, nil
-	}
-	if t, err := time.Parse("2006-01-02", s); err == nil {
-		return t, nil
-	}
-	return time.Time{}, fmt.Errorf("invalid since %q (use YYYY-MM-DD or RFC3339)", s)
 }

@@ -8,14 +8,14 @@ Mount **imprint MCP** for full shelves (document BM25 + rule↔doc links). CLI `
 
 | Capability | MCP (shelves on) | CLI |
 | --- | --- | --- |
-| Write rules + link docs | `add` / `supersede` + `sources` | same (vault write) |
-| Pre-coding recall | `find(scope, query[, query_local][, paths])` → rules + **documents** + **links** | `find --json` → vault rules; with shelves + query → same enriched shape; optional `--paths` |
+| Write rules + link docs | `add` / `supersede` + `sources` | `add` / `supersede` `--sources '[{"path":…,"heading":…}]'` |
+| Pre-coding recall | `find(scope, query[, query_local][, paths])` → rules + **documents** + **links** | `find --json` → same shapes as MCP `full:true`; optional `--paths` |
 | Rule provenance | compact `get r-…` → source pointers; `full:true` → excerpts | `get r-…` → vault only |
 | Doc inbound refs | `get <chunk-id>` → **referenced_rules** | chunk `get` not supported |
 | Rule graph | desk `/` | host `GET /graph` |
 | Human review rule↔doc | `imprint desk open` → `/unified` | — |
 
-Mount: `docs/mcp.md`, `docs/examples/cursor-mcp.json`. Write loop: `docs/correction.md`.
+Mount: in the editor's MCP config, register server `imprint` with command `imprint-mcp` and args `--project <workspace root>`.
 
 - **Transport:** Prefer **imprint MCP** when connected. CLI fallback = vault read/write (see table). Same vault; pick one transport per operation.
 - **Users never maintain the vault.** They speak normally; you run `find` / `add` / `reinforce` / `supersede` / `forget` — never ask for imprint commands or rule ids.
@@ -78,9 +78,9 @@ Default path: user speaks → MCP **`find(scope, query[, query_local])`** → do
 ```bash
 # CLI — vault read/write from repo root (walk-up imprint.yaml); find/get see CLI column above
 imprint --json find --scope go,naming --query PascalCase [--query-local LOCAL_TERMS] [--paths path1,path2]
-imprint --json add "CLAIM" --scope tag,tag --text "user's original words" [--query-local TERMS]
+imprint --json add "CLAIM" --scope tag,tag --text "user's original words" [--query-local TERMS] [--sources '[{"path":"…","heading":"…"}]']
 imprint --json reinforce ID --evidence "..." [--query-local TERMS]
-imprint --json supersede ID --claim "NEW" --scope tag,tag --reason "..." [--query-local TERMS]
+imprint --json supersede ID --claim "NEW" --scope tag,tag --reason "..." [--query-local TERMS] [--sources JSON]
 imprint --json get ID
 imprint --json forget ID
 imprint --json list --status active --scope go --min-confidence 0.85
@@ -132,4 +132,4 @@ Unindexed grep-only paths: follow host agent default read policy; imprint does n
 - Infer preferences. Don't store secrets. Don't hand-edit `vault.db` (`sweep` only).
 - Call it "memory store" — it is **imprint**.
 - Ask the user to maintain imprint (commands, ids). Cite `[r-id]` only when shaping code or when they ask what's recorded.
-- Prompt templates `internal/cli/templates/body.md` and `internal/cli/templates/imprint-memory.mdc` must not point at other documents (no markdown hyperlinks and no see-this-file design pointers).
+- Prompt template `internal/cli/templates/body.md` must not point at other documents (no markdown hyperlinks and no see-this-file design pointers).

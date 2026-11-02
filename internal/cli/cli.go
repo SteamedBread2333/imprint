@@ -120,21 +120,6 @@ func parseGlobals(args []string) (g globals, cmd string, rest []string, err erro
 	return g, cmd, rest, nil
 }
 
-func splitCSV(s string) []string {
-	if strings.TrimSpace(s) == "" {
-		return nil
-	}
-	parts := strings.Split(s, ",")
-	var out []string
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if p != "" {
-			out = append(out, p)
-		}
-	}
-	return out
-}
-
 func (a *App) writeJSON(v any) error {
 	enc := json.NewEncoder(a.out())
 	enc.SetEscapeHTML(true)
@@ -321,13 +306,13 @@ Vault:
 func commandHelp(cmd string) string {
 	switch cmd {
 	case "add":
-		return "Usage: imprint add CLAIM --scope tag,tag --text ORIG [--confidence 0.6] [--query-local TERMS] [--conflicts id,id]\n"
+		return "Usage: imprint add CLAIM --scope tag,tag --text ORIG [--confidence 0.6] [--query-local TERMS] [--conflicts id,id] [--sources JSON]\n\n--sources takes a JSON array of document refs, e.g. '[{\"path\":\"docs/x.md\",\"heading\":\"Intro\"}]'.\n"
 	case "find":
 		return "Usage: imprint find [--scope tag,tag] [--query TEXT] [--query-local TERMS] [--paths path,path] [--top-k 5]\n"
 	case "reinforce":
 		return "Usage: imprint reinforce ID --evidence TEXT [--query-local TERMS]\n"
 	case "supersede":
-		return "Usage: imprint supersede OLD_ID --claim NEW --scope tag,tag [--reason TEXT] [--text ORIG] [--query-local TERMS]\n"
+		return "Usage: imprint supersede OLD_ID --claim NEW --scope tag,tag [--reason TEXT] [--text ORIG] [--query-local TERMS] [--sources JSON]\n\nOmitting --sources inherits the old rule's sources.\n"
 	case "forget":
 		return "Usage: imprint forget ID\n"
 	case "link":

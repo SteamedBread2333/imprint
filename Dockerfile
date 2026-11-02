@@ -9,8 +9,9 @@ COPY . .
 ARG VERSION=devel
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
 	go build -trimpath -ldflags="-s -w -X github.com/SteamedBread2333/imprint/pkg/imprint.Version=${VERSION}" \
-	-o /out/imprint ./cmd/imprint
+	-o /out/ ./cmd/imprint ./cmd/imprint-mcp
 
+# Default entrypoint is the CLI; run the MCP server with --entrypoint /imprint-mcp.
 FROM scratch
-COPY --from=build /out/imprint /imprint
+COPY --from=build /out/imprint /out/imprint-mcp /
 ENTRYPOINT ["/imprint"]

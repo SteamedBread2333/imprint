@@ -5,6 +5,7 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/SteamedBread2333/imprint/internal/argx"
 	"github.com/SteamedBread2333/imprint/internal/linking"
 	"github.com/SteamedBread2333/imprint/internal/shelves"
 	"github.com/SteamedBread2333/imprint/internal/shelves/index"
@@ -70,56 +71,34 @@ type findArgs struct {
 }
 
 func (s *vaultTools) find(_ context.Context, _ *sdkmcp.CallToolRequest, args findArgs) (*sdkmcp.CallToolResult, any, error) {
-	topK := args.TopK
-	if topK == 0 {
-		topK = imprint.DefaultTopK
+	out, err := linking.Find(s.v, s.shelves, linking.FindRequest{
+		Scope: argx.SplitCSV(args.Scope), Query: args.Query, QueryLocal: args.QueryLocal,
+		TopK: args.TopK, Paths: args.Paths,
+	})
+	if err != nil {
+		return toolErr(err), nil, nil
 	}
-	scope := splitCSV(args.Scope)
-	query := args.Query
-	queryLocal := args.QueryLocal
-
-	if s.shelves != nil && shelves.MatchFindQuery(s.shelves.Config(), query, queryLocal) {
-		cfg := s.shelves.Config()
-		enriched, _, err := linking.EnrichFindDocs(s.v, s.shelves.IndexStore(), scope, query, queryLocal, topK, linking.FindDocs{
-			TopK: cfg.FindTopK, SnippetRunes: cfg.SnippetRunes, Paths: args.Paths,
-		})
-		if err != nil {
-			return toolErr(err), nil, nil
-		}
+	switch {
+	case out.Docs != nil:
 		if args.Full {
-			return jsonOK(enriched)
+			return jsonOK(out.Docs)
 		}
-		compact, err := linking.CompactFind(s.v, enriched)
+		compact, err := linking.CompactFind(s.v, out.Docs)
 		if err != nil {
 			return toolErr(err), nil, nil
 		}
 		return jsonOK(compact)
-	}
-
-	hits, err := s.v.FindMerged(scope, query, queryLocal, topK)
-	if err != nil {
-		return toolErr(err), nil, nil
-	}
-	if s.shelves != nil && s.shelves.IndexStore() != nil && len(hits) > 0 {
-		ids := make([]string, len(hits))
-		for i, h := range hits {
-			ids[i] = h.ID
-		}
-		sourcesByID, err := shelves.SourcesByIDs(s.v, ids)
-		if err != nil {
-			return toolErr(err), nil, nil
-		}
-		enriched := shelves.EnrichFindHits(s.shelves.IndexStore(), hits, sourcesByID)
+	case out.Rules != nil:
 		if args.Full {
-			return jsonOK(enriched)
+			return jsonOK(out.Rules)
 		}
-		return s.compactHits(enriched)
+		return s.compactHits(out.Rules)
 	}
 	if args.Full {
-		return jsonOK(hits)
+		return jsonOK(out.Hits)
 	}
-	enriched := make([]imprint.EnrichedFindHit, 0, len(hits))
-	for _, hit := range hits {
+	enriched := make([]imprint.EnrichedFindHit, 0, len(out.Hits))
+	for _, hit := range out.Hits {
 		enriched = append(enriched, imprint.EnrichedFindHit{FindHit: hit})
 	}
 	return s.compactHits(enriched)
@@ -161,7 +140,7 @@ type addArgs struct {
 }
 
 func (s *vaultTools) add(_ context.Context, _ *sdkmcp.CallToolRequest, args addArgs) (*sdkmcp.CallToolResult, any, error) {
-	res, err := s.v.AddRecord(args.Claim, splitCSV(args.Scope), args.Text, args.Confidence, nil, nil, splitCSV(args.Conflicts), parseDocRefs(args.Sources), args.QueryLocal)
+	res, err := s.v.AddRecord(args.Claim, argx.SplitCSV(args.Scope), args.Text, args.Confidence, nil, nil, argx.SplitCSV(args.Conflicts), parseDocRefs(args.Sources), args.QueryLocal)
 	if err != nil {
 		return toolErr(err), nil, nil
 	}
@@ -193,7 +172,7 @@ type supersedeArgs struct {
 }
 
 func (s *vaultTools) supersede(_ context.Context, _ *sdkmcp.CallToolRequest, args supersedeArgs) (*sdkmcp.CallToolResult, any, error) {
-	res, err := s.v.SupersedeWithSources(args.OldID, args.Claim, splitCSV(args.Scope), args.Reason, args.Text, parseDocRefs(args.Sources), args.QueryLocal)
+	res, err := s.v.SupersedeWithSources(args.OldID, args.Claim, argx.SplitCSV(args.Scope), args.Reason, args.Text, parseDocRefs(args.Sources), args.QueryLocal)
 	if err != nil {
 		return toolErr(err), nil, nil
 	}
@@ -219,7 +198,7 @@ type linkArgs struct {
 }
 
 func (s *vaultTools) link(_ context.Context, _ *sdkmcp.CallToolRequest, args linkArgs) (*sdkmcp.CallToolResult, any, error) {
-	res, err := s.v.Link(args.ID, splitCSV(args.Related), splitCSV(args.Conflicts))
+	res, err := s.v.Link(args.ID, argx.SplitCSV(args.Related), argx.SplitCSV(args.Conflicts))
 	if err != nil {
 		return toolErr(err), nil, nil
 	}
@@ -277,13 +256,13 @@ type listArgs struct {
 }
 
 func (s *vaultTools) list(_ context.Context, _ *sdkmcp.CallToolRequest, args listArgs) (*sdkmcp.CallToolResult, any, error) {
-	when, err := parseSince(args.Since)
+	when, err := argx.ParseSince(args.Since, "since")
 	if err != nil {
 		return toolErr(err), nil, nil
 	}
 	items, err := s.v.ListFilter(imprint.ListFilter{
 		Status:        args.Status,
-		Scope:         splitCSV(args.Scope),
+		Scope:         argx.SplitCSV(args.Scope),
 		MinConfidence: args.MinConfidence,
 		Query:         args.Query,
 		Since:         when,

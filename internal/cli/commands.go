@@ -1,132 +1,16 @@
 package cli
 
 import (
-	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"os"
-	"path/filepath"
-	"strconv"
 	"strings"
-	"time"
 
+	"github.com/SteamedBread2333/imprint/internal/argx"
 	"github.com/SteamedBread2333/imprint/internal/linking"
 	"github.com/SteamedBread2333/imprint/internal/plugin"
 	"github.com/SteamedBread2333/imprint/internal/shelves"
-	"github.com/SteamedBread2333/imprint/internal/telemetry"
 	"github.com/SteamedBread2333/imprint/pkg/imprint"
 )
-
-type flagSet struct {
-	bools  map[string]*bool
-	strs   map[string]*string
-	ints   map[string]*int
-	floats map[string]*float64
-}
-
-func newFlags() *flagSet {
-	return &flagSet{
-		bools:  map[string]*bool{},
-		strs:   map[string]*string{},
-		ints:   map[string]*int{},
-		floats: map[string]*float64{},
-	}
-}
-
-func (f *flagSet) Bool(name string, def bool) *bool {
-	v := def
-	f.bools[name] = &v
-	return &v
-}
-
-func (f *flagSet) String(name, def string) *string {
-	v := def
-	f.strs[name] = &v
-	return &v
-}
-
-func (f *flagSet) Int(name string, def int) *int {
-	v := def
-	f.ints[name] = &v
-	return &v
-}
-
-func (f *flagSet) Float(name string, def float64) *float64 {
-	v := def
-	f.floats[name] = &v
-	return &v
-}
-
-func (f *flagSet) parse(args []string) ([]string, error) {
-	var pos []string
-	for i := 0; i < len(args); i++ {
-		a := args[i]
-		if a == "--" {
-			pos = append(pos, args[i+1:]...)
-			break
-		}
-		if a == "-h" || a == "--help" {
-			return nil, errHelp
-		}
-		if !strings.HasPrefix(a, "--") {
-			pos = append(pos, a)
-			continue
-		}
-		name := strings.TrimPrefix(a, "--")
-		raw := ""
-		hasVal := false
-		if j := strings.IndexByte(name, '='); j >= 0 {
-			raw = name[j+1:]
-			name = name[:j]
-			hasVal = true
-		}
-		if _, ok := f.bools[name]; ok {
-			if !hasVal {
-				raw = "true"
-			}
-			b, err := strconv.ParseBool(raw)
-			if err != nil {
-				return nil, fmt.Errorf("flag --%s: %w", name, err)
-			}
-			*f.bools[name] = b
-			continue
-		}
-		if !hasVal {
-			i++
-			if i >= len(args) {
-				return nil, fmt.Errorf("flag --%s needs a value", name)
-			}
-			raw = args[i]
-		}
-		switch {
-		case f.strs[name] != nil:
-			*f.strs[name] = raw
-		case f.ints[name] != nil:
-			n, err := strconv.Atoi(raw)
-			if err != nil {
-				return nil, fmt.Errorf("flag --%s: %w", name, err)
-			}
-			*f.ints[name] = n
-		case f.floats[name] != nil:
-			n, err := strconv.ParseFloat(raw, 64)
-			if err != nil {
-				return nil, fmt.Errorf("flag --%s: %w", name, err)
-			}
-			*f.floats[name] = n
-		default:
-			return nil, fmt.Errorf("unknown flag --%s", name)
-		}
-	}
-	return pos, nil
-}
-
-type helpError struct{}
-
-func (helpError) Error() string { return "help" }
-
-var errHelp = helpError{}
 
 func (a *App) cmdAdd(g globals, args []string) int {
 	fs := newFlags()
@@ -135,6 +19,7 @@ func (a *App) cmdAdd(g globals, args []string) int {
 	conf := fs.Float("confidence", 0)
 	queryLocal := fs.String("query-local", "")
 	conflicts := fs.String("conflicts", "")
+	sourcesFlag := fs.String("sources", "")
 	pos, err := fs.parse(args)
 	if err != nil {
 		if err == errHelp {
@@ -143,12 +28,16 @@ func (a *App) cmdAdd(g globals, args []string) int {
 		}
 		return a.fail(g.json, err)
 	}
+	sources, err := parseSourcesFlag(*sourcesFlag)
+	if err != nil {
+		return a.fail(g.json, err)
+	}
 	claim := strings.TrimSpace(strings.Join(pos, " "))
 	v, err := a.openVault(g)
 	if err != nil {
 		return a.fail(g.json, err)
 	}
-	res, err := v.AddRecord(claim, splitCSV(*scope), *text, *conf, nil, nil, splitCSV(*conflicts), nil, *queryLocal)
+	res, err := v.AddRecord(claim, argx.SplitCSV(*scope), *text, *conf, nil, nil, argx.SplitCSV(*conflicts), sources, *queryLocal)
 	if err != nil {
 		return a.fail(g.json, err)
 	}
@@ -188,70 +77,84 @@ func (a *App) cmdFind(g globals, args []string) int {
 	if *query == "" && len(pos) > 0 {
 		*query = strings.Join(pos, " ")
 	}
-	paths := splitCSV(*pathsFlag)
 	v, err := a.openVault(g)
 	if err != nil {
 		return a.fail(g.json, err)
 	}
-	if g.json {
-		if enriched, ok, err := a.findWithShelves(v, splitCSV(*scope), *query, *queryLocal, *topK, paths); err != nil {
-			return a.fail(g.json, err)
-		} else if ok {
-			return a.fail(false, a.writeJSON(enriched))
-		}
+	svc, err := shelvesForVault(v)
+	if err != nil {
+		return a.fail(g.json, err)
 	}
-	hits, err := v.FindMerged(splitCSV(*scope), *query, *queryLocal, *topK)
+	out, err := linking.Find(v, svc, linking.FindRequest{
+		Scope: argx.SplitCSV(*scope), Query: *query, QueryLocal: *queryLocal,
+		TopK: *topK, Paths: argx.SplitCSV(*pathsFlag),
+	})
 	if err != nil {
 		return a.fail(g.json, err)
 	}
 	if g.json {
-		return a.fail(false, a.writeJSON(hits))
+		switch {
+		case out.Docs != nil:
+			return a.fail(false, a.writeJSON(out.Docs))
+		case out.Rules != nil:
+			return a.fail(false, a.writeJSON(out.Rules))
+		}
+		return a.fail(false, a.writeJSON(out.Hits))
 	}
 	c := a.console()
 	c.Heading("find")
+	hits := out.RuleHits()
 	if len(hits) == 0 {
 		c.Empty("no matching imprints")
-		c.blank()
-		return 0
 	}
 	for _, h := range hits {
 		c.RuleFind(h.ID, h.Score, h.Confidence, strings.Join(h.Scope, ","), h.Title)
+	}
+	if out.Docs != nil && len(out.Docs.Documents) > 0 {
+		c.Section("documents")
+		for _, d := range out.Docs.Documents {
+			c.DocFind(d.Path, d.Heading, d.Score, d.Snippet)
+		}
 	}
 	c.blank()
 	return 0
 }
 
-func (a *App) findWithShelves(v *imprint.Vault, scope []string, query, queryLocal string, topK int, paths []string) (*linking.FindResult, bool, error) {
+// parseSourcesFlag decodes --sources, the same JSON array the MCP tools take:
+// [{"path":"docs/x.md","heading":"Intro","chunk":"..."}]. Empty means none.
+func parseSourcesFlag(s string) ([]imprint.DocRef, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil, nil
+	}
+	var refs []imprint.DocRef
+	if err := json.Unmarshal([]byte(s), &refs); err != nil {
+		return nil, fmt.Errorf(`invalid --sources (want JSON like [{"path":"docs/x.md","heading":"Intro"}]): %w`, err)
+	}
+	for i, r := range refs {
+		if strings.TrimSpace(r.Path) == "" {
+			return nil, fmt.Errorf("invalid --sources: item %d has empty path", i)
+		}
+	}
+	return refs, nil
+}
+
+// shelvesForVault loads the shelves index for the project owning v, or nil
+// when the project has no imprint.yaml or shelves is disabled.
+func shelvesForVault(v *imprint.Vault) (*shelves.Service, error) {
 	cfgPath, ok := plugin.ResolveConfigPathForVault(v.Dir)
 	if !ok {
-		return nil, false, nil
+		return nil, nil
 	}
 	pcfg, err := plugin.Load(cfgPath)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 	scfg := shelves.ConfigFrom(pcfg)
 	if !scfg.Enabled {
-		return nil, false, nil
+		return nil, nil
 	}
-	if !shelves.MatchFindQuery(scfg, query, queryLocal) {
-		return nil, false, nil
-	}
-	svc, err := shelves.New(scfg)
-	if err != nil {
-		return nil, false, err
-	}
-	st := svc.IndexStore()
-	if st == nil {
-		return nil, false, nil
-	}
-	enriched, _, err := linking.EnrichFindDocs(v, st, scope, query, queryLocal, topK, linking.FindDocs{
-		TopK: scfg.FindTopK, SnippetRunes: scfg.SnippetRunes, Paths: paths,
-	})
-	if err != nil {
-		return nil, false, err
-	}
-	return enriched, true, nil
+	return shelves.New(scfg)
 }
 
 func (a *App) cmdReinforce(g globals, args []string) int {
@@ -294,6 +197,7 @@ func (a *App) cmdSupersede(g globals, args []string) int {
 	reason := fs.String("reason", "")
 	text := fs.String("text", "")
 	queryLocal := fs.String("query-local", "")
+	sourcesFlag := fs.String("sources", "")
 	pos, err := fs.parse(args)
 	if err != nil {
 		if err == errHelp {
@@ -305,11 +209,15 @@ func (a *App) cmdSupersede(g globals, args []string) int {
 	if len(pos) != 1 {
 		return a.fail(g.json, fmt.Errorf("usage: imprint supersede OLD_ID --claim NEW --scope tag,tag"))
 	}
+	sources, err := parseSourcesFlag(*sourcesFlag)
+	if err != nil {
+		return a.fail(g.json, err)
+	}
 	v, err := a.openVault(g)
 	if err != nil {
 		return a.fail(g.json, err)
 	}
-	res, err := v.SupersedeWithSources(pos[0], *claim, splitCSV(*scope), *reason, *text, nil, *queryLocal)
+	res, err := v.SupersedeWithSources(pos[0], *claim, argx.SplitCSV(*scope), *reason, *text, sources, *queryLocal)
 	if err != nil {
 		return a.fail(g.json, err)
 	}
@@ -373,7 +281,7 @@ func (a *App) cmdLink(g globals, args []string) int {
 	if err != nil {
 		return a.fail(g.json, err)
 	}
-	res, err := v.Link(pos[0], splitCSV(*related), splitCSV(*conflicts))
+	res, err := v.Link(pos[0], argx.SplitCSV(*related), argx.SplitCSV(*conflicts))
 	if err != nil {
 		return a.fail(g.json, err)
 	}
@@ -403,7 +311,7 @@ func (a *App) cmdList(g globals, args []string) int {
 		}
 		return a.fail(g.json, err)
 	}
-	when, err := parseSince(*since)
+	when, err := argx.ParseSince(*since, "--since")
 	if err != nil {
 		return a.fail(g.json, err)
 	}
@@ -413,7 +321,7 @@ func (a *App) cmdList(g globals, args []string) int {
 	}
 	items, err := v.ListFilter(imprint.ListFilter{
 		Status:        *status,
-		Scope:         splitCSV(*scope),
+		Scope:         argx.SplitCSV(*scope),
 		MinConfidence: *minConf,
 		Query:         *query,
 		Since:         when,
@@ -437,20 +345,6 @@ func (a *App) cmdList(g globals, args []string) int {
 	}
 	c.blank()
 	return 0
-}
-
-func parseSince(s string) (time.Time, error) {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return time.Time{}, nil
-	}
-	if t, err := time.Parse(time.RFC3339, s); err == nil {
-		return t, nil
-	}
-	if t, err := time.Parse("2006-01-02", s); err == nil {
-		return t, nil
-	}
-	return time.Time{}, fmt.Errorf("invalid --since %q (use YYYY-MM-DD or RFC3339)", s)
 }
 
 func (a *App) cmdGet(g globals, args []string) int {
@@ -568,336 +462,4 @@ func (a *App) cmdShow(g globals, args []string) int {
 	}
 	c.blank()
 	return 0
-}
-
-func (a *App) cmdExport(g globals, args []string) int {
-	fs := newFlags()
-	format := fs.String("format", "json")
-	_, err := fs.parse(args)
-	if err != nil {
-		if err == errHelp {
-			fmt.Fprint(a.out(), commandHelp("export"))
-			return 0
-		}
-		return a.fail(g.json, err)
-	}
-	v, err := a.openVault(g)
-	if err != nil {
-		return a.fail(g.json, err)
-	}
-	exportDir := filepath.Join(v.Dir, imprint.ExportDirName)
-	if err := os.MkdirAll(exportDir, 0o755); err != nil {
-		return a.fail(g.json, err)
-	}
-	var (
-		name     string
-		exportFn func(io.Writer) error
-	)
-	switch strings.ToLower(strings.TrimSpace(*format)) {
-	case "json":
-		name, exportFn = "vault.json", v.ExportJSON
-	case "jsonl":
-		name, exportFn = "vault.jsonl", v.ExportJSONL
-	default:
-		return a.fail(g.json, fmt.Errorf("invalid export format %q (use json or jsonl)", *format))
-	}
-	exportPath := filepath.Join(exportDir, name)
-	f, err := os.Create(exportPath)
-	if err != nil {
-		return a.fail(g.json, err)
-	}
-	if err := exportFn(f); err != nil {
-		_ = f.Close()
-		return a.fail(g.json, err)
-	}
-	if err := f.Close(); err != nil {
-		return a.fail(g.json, err)
-	}
-	if g.json {
-		if err := exportFn(a.out()); err != nil {
-			return a.fail(g.json, err)
-		}
-		return 0
-	}
-	c := a.console()
-	c.Heading("export")
-	c.Done("wrote %s", exportPath)
-	c.blank()
-	return 0
-}
-
-func (a *App) cmdImport(g globals, args []string) int {
-	fs := newFlags()
-	pos, err := fs.parse(args)
-	if err != nil {
-		if err == errHelp {
-			fmt.Fprint(a.out(), commandHelp("import"))
-			return 0
-		}
-		return a.fail(g.json, err)
-	}
-	v, err := a.openVault(g)
-	if err != nil {
-		return a.fail(g.json, err)
-	}
-	defer v.Close()
-	path := ""
-	if len(pos) > 0 {
-		path = pos[0]
-	} else {
-		exportDir := filepath.Join(v.Dir, imprint.ExportDirName)
-		for _, name := range []string{"vault.json", "vault.jsonl"} {
-			cand := filepath.Join(exportDir, name)
-			if st, err := os.Stat(cand); err == nil && !st.IsDir() {
-				path = cand
-				break
-			}
-		}
-		if path == "" {
-			return a.fail(g.json, fmt.Errorf("usage: imprint import [FILE] (no %s/vault.json or vault.jsonl)", imprint.ExportDirName))
-		}
-	}
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		return a.fail(g.json, err)
-	}
-	recs, err := parseExportedRecords(raw)
-	if err != nil {
-		return a.fail(g.json, err)
-	}
-	res, err := v.ImportRecords(recs)
-	if err != nil {
-		return a.fail(g.json, err)
-	}
-	if g.json {
-		return a.fail(false, a.writeJSON(map[string]any{
-			"imported": len(recs),
-			"path":     path,
-			"backfill": res,
-		}))
-	}
-	c := a.console()
-	c.Heading("import")
-	c.Done("imported %d rules from %s", len(recs), path)
-	printBackfillHint(c, res)
-	c.blank()
-	return 0
-}
-
-func parseExportedRecords(raw []byte) ([]*imprint.Record, error) {
-	trim := bytes.TrimSpace(raw)
-	if len(trim) == 0 {
-		return nil, fmt.Errorf("import file is empty")
-	}
-	if trim[0] == '[' {
-		var recs []*imprint.Record
-		if err := json.Unmarshal(trim, &recs); err != nil {
-			return nil, fmt.Errorf("parse json export: %w", err)
-		}
-		return recs, nil
-	}
-	dec := json.NewDecoder(bytes.NewReader(trim))
-	var recs []*imprint.Record
-	for {
-		var rec imprint.Record
-		if err := dec.Decode(&rec); err == io.EOF {
-			break
-		} else if err != nil {
-			return nil, fmt.Errorf("parse jsonl export: %w", err)
-		}
-		cp := rec
-		recs = append(recs, &cp)
-	}
-	return recs, nil
-}
-
-func (a *App) cmdReport(g globals, args []string) int {
-	fs := newFlags()
-	days := fs.Int("days", 30)
-	if _, err := fs.parse(args); err != nil {
-		if err == errHelp {
-			fmt.Fprint(a.out(), commandHelp("report"))
-			return 0
-		}
-		return a.fail(g.json, err)
-	}
-	v, err := a.openVault(g)
-	if err != nil {
-		return a.fail(g.json, err)
-	}
-	defer v.Close()
-	report, err := v.Report(*days)
-	if err != nil {
-		return a.fail(g.json, err)
-	}
-	tel, err := telemetry.Summarize(
-		filepath.Join(v.Dir, imprint.StateDirName, "telemetry"),
-		a.now().Add(-time.Duration(*days)*24*time.Hour),
-	)
-	if err != nil {
-		return a.fail(g.json, err)
-	}
-	payload := struct {
-		*imprint.ReportResult
-		Telemetry telemetry.Summary `json:"telemetry"`
-	}{ReportResult: report, Telemetry: tel}
-	if g.json {
-		_ = a.writeJSON(payload)
-		return 0
-	}
-	c := a.console()
-	c.Heading("report")
-	fmt.Fprintf(a.out(), "  since          %s\n", report.Since.Format(time.RFC3339))
-	fmt.Fprintf(a.out(), "  rules          %d\n", len(report.Rules))
-	fmt.Fprintf(a.out(), "  duplicates     %d\n", len(report.Duplicates))
-	fmt.Fprintf(a.out(), "  conflicts      %d\n", len(report.Conflicts))
-	fmt.Fprintf(a.out(), "  telemetry      %d events, %.1fms average\n", tel.Events, tel.AvgLatency)
-	for kind, count := range report.EventCounts {
-		fmt.Fprintf(a.out(), "  %-14s %d\n", kind, count)
-	}
-	for _, rule := range report.Rules {
-		if rule.Recommendation != "" {
-			fmt.Fprintf(a.out(), "  review %-24s %s\n", rule.ID, rule.Recommendation)
-		}
-	}
-	c.blank()
-	return 0
-}
-
-func (a *App) cmdClear(g globals, args []string) int {
-	fs := newFlags()
-	confirm := fs.Bool("confirm", false)
-	yes := fs.Bool("yes", false)
-	_, err := fs.parse(args)
-	if err != nil {
-		if err == errHelp {
-			fmt.Fprint(a.out(), commandHelp("clear"))
-			return 0
-		}
-		return a.fail(g.json, err)
-	}
-	if !*confirm || !*yes {
-		msg := "clear is irreversible; pass --confirm --yes to delete every rule in the vault"
-		if g.json {
-			return a.fail(true, fmt.Errorf("%s", msg))
-		}
-		fmt.Fprintln(a.errw(), "imprint:", msg)
-		return 1
-	}
-	v, err := a.openVault(g)
-	if err != nil {
-		return a.fail(g.json, err)
-	}
-	if err := v.Clear(); err != nil {
-		return a.fail(g.json, err)
-	}
-	if g.json {
-		return a.fail(false, a.writeJSON(map[string]any{"success": true}))
-	}
-	c := a.console()
-	c.Heading("clear")
-	c.Done("vault cleared")
-	c.blank()
-	return 0
-}
-
-func (a *App) cmdEmbed(g globals, rest []string) int {
-	if len(rest) == 0 {
-		fmt.Fprint(a.out(), embedUsage)
-		return 2
-	}
-	sub := rest[0]
-	switch sub {
-	case "prepare":
-		return a.cmdEmbedPrepare(g)
-	case "backfill":
-		return a.cmdEmbedBackfill(g, rest[1:])
-	default:
-		fmt.Fprintf(a.errw(), "imprint embed: unknown subcommand %q\n", sub)
-		fmt.Fprint(a.errw(), embedUsage)
-		return 2
-	}
-}
-
-const embedUsage = `Usage:
-  imprint embed prepare
-  imprint embed backfill [--limit N] [--force] [--dry-run]
-
-prepare — download and load embed + relate weights in the foreground (Hugging
-Face / tqdm on your terminal). No HTTP server. Run once after setup or when
-changing relate_model / embed model. plugin start embed still warms on listen
-but reuses the cache.
-
-backfill — encodes every active+dormant rule whose claim has no vector for the
-embed plugin's model. Use after enabling embed, after importing a vault, or
-after a sidecar cold-restart that lost cache. --force re-encodes rules that
-already have a vector (e.g. after a model upgrade). --dry-run reports the
-scan without writing. The sidecar must be running. If it is down or the plugin
-is off, the command prints a hint to run imprint up && imprint embed backfill.
-`
-
-func (a *App) cmdEmbedPrepare(g globals) int {
-	pcfg, err := plugin.LoadEmbedManagerConfig()
-	if err != nil {
-		return a.fail(g.json, err)
-	}
-	if err := plugin.RunEmbedPrepare(context.Background(), pcfg); err != nil {
-		return a.fail(g.json, err)
-	}
-	if g.json {
-		return a.fail(false, a.writeJSON(map[string]any{"success": true}))
-	}
-	c := a.console()
-	c.Heading("embed prepare")
-	c.Done("models loaded (cache under ~/.cache/imprint/models)")
-	c.blank()
-	return 0
-}
-
-func (a *App) cmdEmbedBackfill(g globals, args []string) int {
-	fs := newFlags()
-	limit := fs.Int("limit", 0)
-	force := fs.Bool("force", false)
-	dryRun := fs.Bool("dry-run", false)
-	if _, err := fs.parse(args); err != nil {
-		if err == errHelp {
-			fmt.Fprint(a.out(), embedUsage)
-			return 0
-		}
-		return a.fail(g.json, err)
-	}
-	v, err := a.openVault(g)
-	if err != nil {
-		return a.fail(g.json, err)
-	}
-	defer v.Close()
-	res := v.BackfillEmbeddings(*limit, *force, *dryRun, 0)
-	if g.json {
-		return a.fail(false, a.writeJSON(res))
-	}
-	c := a.console()
-	c.Heading("embed backfill")
-	if *dryRun {
-		c.Done("dry run: %d rules would be encoded", res.Scanned)
-		c.blank()
-		return 0
-	}
-	c.Done("scanned %d  ·  encoded %d  ·  failed %d", res.Scanned, res.Encoded, res.Failed)
-	printBackfillHint(c, res)
-	c.blank()
-	return 0
-}
-
-func printBackfillHint(c *console, res imprint.BackfillResult) {
-	switch {
-	case res.NoEmbedder:
-		c.Action("embed is off; rules have no vectors until the sidecar is enabled and backfill runs",
-			"set plugins.embed.enabled: true, then imprint up && imprint embed backfill")
-	case res.Failed > 0:
-		c.Action("sidecar missed some rules; vectors stay empty until backfill succeeds",
-			"imprint up && imprint embed backfill")
-		if len(res.FailedIDs) > 0 {
-			c.Note("failed ids: %s", strings.Join(res.FailedIDs, ", "))
-		}
-	}
 }

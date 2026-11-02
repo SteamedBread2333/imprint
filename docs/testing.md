@@ -36,6 +36,17 @@ go test -race ./...
 go test ./internal/cli -run TestDocsContract
 ```
 
+The `cli`, `mcp`, and `plugin` packages run their tests under a throwaway `$HOME` (`internal/testhome`), so a developer's `~/.imprint/embed.yaml` never changes results. New packages that read global `~/.imprint` files add the same `TestMain`.
+
+## Large-vault timing
+
+`cmd/loadgen` writes a synthetic vault for `find` and graph timing:
+
+```bash
+go run ./cmd/loadgen -n 3000 -vault loadvault   # loadvault/ is gitignored
+imprint --vault loadvault --json find --scope go --query naming
+```
+
 ## Semantic duplicate gate (embed plugin)
 
 Sidecar must be **ready** on the configured port (`imprint plugin start embed` from the **imprint repo root**). Regression scripts:

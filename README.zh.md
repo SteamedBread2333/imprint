@@ -158,7 +158,7 @@ Shelves 在 `roots` 下建文档索引（如 `docs/`、`.cursor/rules/`）。挂
 | --- | --- |
 | `imprint init` | 写入 `imprint.yaml`（若尚无）和编辑器智能体规则 |
 | `imprint find [--scope a,b] [--query TEXT]` | 召回 imprint（scope **AND**）；shelves 开且带 query → 含 documents、links |
-| `imprint add CLAIM --scope a,b --text ORIG` | 新建 imprint（MCP 可带 `sources` 关联文档） |
+| `imprint add CLAIM --scope a,b --text ORIG` | 新建 imprint（`--sources JSON` 或 MCP `sources` 关联文档） |
 | `imprint reinforce ID --evidence TEXT` | 用户明确重申后加强规则（递减增益，上限 0.95） |
 | `imprint supersede OLD --claim NEW --scope a,b` | 替换规则；旧规则标记 `superseded` |
 | `imprint forget ID` | 永久删除（生命周期事件保留） |

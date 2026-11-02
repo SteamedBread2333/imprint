@@ -9,8 +9,8 @@
 
 | 能力 | MCP（shelves 开） | CLI `imprint --json` |
 | --- | --- | --- |
-| 写规则 + `sources` | `add` / `supersede` | 同左 |
-| 写代码前召回 | `find(scope, query[, query_local][, paths])` → rules + **documents** + **links** | `find --json` → vault rules；shelves 开且有 query →  enriched JSON；可选 `--paths` |
+| 写规则 + `sources` | `add` / `supersede` | `add` / `supersede` `--sources '[{"path":…,"heading":…}]'` |
+| 写代码前召回 | `find(scope, query[, query_local][, paths])` → rules + **documents** + **links** | `find --json` → 与 MCP `full:true` 相同的结构；可选 `--paths` |
 | 查规则文档依据 | `get r-…` → 紧凑来源指针；`full:true` → 正文 | `get r-…` → vault only |
 | 查 chunk 被哪些规则引用 | `get <chunk-id>` → **referenced_rules** | 不支持 |
 | 规则关系图 | desk `/` | host `GET /graph` |

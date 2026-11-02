@@ -36,6 +36,17 @@ go test -race ./...
 go test ./internal/cli -run TestDocsContract
 ```
 
+`cli`、`mcp`、`plugin` 三个包的测试在临时 `$HOME` 下运行（`internal/testhome`），开发者本机的 `~/.imprint/embed.yaml` 不会影响结果。新增读取全局 `~/.imprint` 文件的包时，加上同样的 `TestMain`。
+
+## 大 vault 计时
+
+`cmd/loadgen` 生成合成 vault，用于 `find` 与关系图计时：
+
+```bash
+go run ./cmd/loadgen -n 3000 -vault loadvault   # loadvault/ 已 gitignore
+imprint --vault loadvault --json find --scope go --query naming
+```
+
 ## 语义查重（embed 插件）
 
 Sidecar 须在配置端口 **ready**（在 **imprint 仓库根** 执行 `imprint plugin start embed`）。回归脚本：

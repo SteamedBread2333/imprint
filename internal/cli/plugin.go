@@ -61,10 +61,13 @@ func (a *App) loadPluginConfig() (*plugin.Config, error) {
 		return plugin.LoadEmbedManagerConfig()
 	}
 	if st, statErr := os.Stat(path); statErr != nil {
-		if os.IsNotExist(statErr) {
-			return plugin.LoadEmbedManagerConfig()
+		if !os.IsNotExist(statErr) {
+			return nil, statErr
 		}
-		return nil, statErr
+		if cfg, embedErr := plugin.LoadEmbedManagerConfig(); embedErr == nil {
+			return cfg, nil
+		}
+		return plugin.Load(path)
 	} else if st.IsDir() {
 		return plugin.LoadEmbedManagerConfig()
 	}

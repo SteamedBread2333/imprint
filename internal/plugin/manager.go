@@ -382,6 +382,8 @@ func (m *Manager) DeskURL() (string, error) {
 
 // EnabledTools returns proxied tools from enabled plugins with resolved names.
 // skipped lists human-readable reasons for enabled plugins that were not loaded.
+// Plugins without the tools capability (sidecars such as embed) are not tool
+// providers and are omitted silently.
 func EnabledTools(cfg *Config) (routes []ToolRoute, skipped []string) {
 	taken := map[string]struct{}{}
 	for id, entry := range cfg.Plugins {
@@ -402,7 +404,6 @@ func EnabledTools(cfg *Config) (routes []ToolRoute, skipped []string) {
 			}
 		}
 		if !hasTools {
-			skipped = append(skipped, fmt.Sprintf("plugin %q skipped: no tools capability", id))
 			continue
 		}
 		port := PluginPort(entry, imprint.DefaultPortForPlugin(id))

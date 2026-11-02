@@ -275,10 +275,6 @@ func (v *Vault) cleanScope(scope []string) []string {
 	return cleanStrings(out)
 }
 
-func (v *Vault) save(r *Record) error {
-	return v.store.PutRecord(r)
-}
-
 // Add writes a new active rule. confidence <= 0 means 0.6.
 func (v *Vault) Add(claim string, scope []string, text string, confidence float64) (*AddResult, error) {
 	return v.AddRecord(claim, scope, text, confidence, nil, nil, nil, nil, "")

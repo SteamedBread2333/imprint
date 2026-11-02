@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
@@ -88,6 +89,23 @@ func TestRecallProtocolInBody(t *testing.T) {
 	}
 	if strings.Contains(text, "cited_rules") {
 		t.Fatal("body.md should not document cited_rules")
+	}
+}
+
+func TestBodyHasNoDocPointers(t *testing.T) {
+	root := repoRoot(t)
+	body, err := os.ReadFile(filepath.Join(root, "internal/cli/templates/body.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// imprint init copies body.md into other repos, where imprint's docs/ does not exist.
+	for _, re := range []*regexp.Regexp{
+		regexp.MustCompile(`\[[^\]]*\]\([^)]*\)`),
+		regexp.MustCompile("`docs/[^`]*`"),
+	} {
+		if m := re.FindString(string(body)); m != "" {
+			t.Errorf("body.md points at another document: %s", m)
+		}
 	}
 }
 

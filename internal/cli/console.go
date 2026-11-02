@@ -149,6 +149,15 @@ func (c *console) RuleFind(id string, score, conf float64, scope, claim string) 
 	c.ruleClaim(claim)
 }
 
+func (c *console) DocFind(path, heading string, score float64, snippet string) {
+	meta := fmt.Sprintf("%s  ·  score %.2f", path, score)
+	if heading != "" {
+		meta += "  ·  " + heading
+	}
+	fmt.Fprintf(c.w, "      %s\n", meta)
+	c.ruleClaim(snippet)
+}
+
 func (c *console) RuleBrief(id string, conf float64, status, scope, claim string) {
 	meta := fmt.Sprintf("%s  ·  conf %.2f", id, conf)
 	if status != "" {

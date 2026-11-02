@@ -6,8 +6,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"strings"
 
+	"github.com/SteamedBread2333/imprint/internal/argx"
 	"github.com/SteamedBread2333/imprint/pkg/imprint"
 )
 
@@ -151,14 +151,14 @@ func ensure(v *imprint.Vault, d demoRule) error {
 			fmt.Printf("skip %s (%s)\n", id, d.claim)
 			return nil
 		}
-		res, err := v.SupersedeWithSources(id, d.claim, splitCSV(d.scope), "attach demo sources", d.text, d.sources, "")
+		res, err := v.SupersedeWithSources(id, d.claim, argx.SplitCSV(d.scope), "attach demo sources", d.text, d.sources, "")
 		if err != nil {
 			return err
 		}
 		fmt.Printf("superseded %s -> %s (sources)\n", id, res.ID)
 		return nil
 	}
-	res, err := v.AddWithSources(d.claim, splitCSV(d.scope), d.text, conf, d.sources)
+	res, err := v.AddWithSources(d.claim, argx.SplitCSV(d.scope), d.text, conf, d.sources)
 	if err != nil {
 		return err
 	}
@@ -182,15 +182,4 @@ func findActive(v *imprint.Vault, claim string) (string, *imprint.Record, error)
 		return it.ID, rec, nil
 	}
 	return "", nil, nil
-}
-
-func splitCSV(s string) []string {
-	var out []string
-	for _, p := range strings.Split(s, ",") {
-		p = strings.TrimSpace(p)
-		if p != "" {
-			out = append(out, p)
-		}
-	}
-	return out
 }

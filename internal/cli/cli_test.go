@@ -127,6 +127,53 @@ func TestCLIFindQueryLocal(t *testing.T) {
 	}
 }
 
+func TestCLIAddSupersedeSources(t *testing.T) {
+	dir := t.TempDir()
+	app, out, errw := testApp(t, dir)
+	getSources := func(id string) []imprint.DocRef {
+		t.Helper()
+		out.Reset()
+		if code := app.Run([]string{"--json", "--vault", dir, "get", id}); code != 0 {
+			t.Fatal(errw.String())
+		}
+		var rec imprint.Record
+		if err := json.Unmarshal(out.Bytes(), &rec); err != nil {
+			t.Fatal(err)
+		}
+		return rec.Sources
+	}
+
+	if code := app.Run([]string{"--json", "--vault", dir, "add", "Use gofmt", "--scope", "go", "--text", "gofmt",
+		"--sources", `[{"path":"docs/style.md","heading":"Format"}]`}); code != 0 {
+		t.Fatalf("add: %s %s", errw, out)
+	}
+	var added imprint.AddResult
+	if err := json.Unmarshal(out.Bytes(), &added); err != nil {
+		t.Fatal(err)
+	}
+	if got := getSources(added.ID); len(got) != 1 || got[0].Path != "docs/style.md" || got[0].Heading != "Format" {
+		t.Fatalf("add sources = %+v", got)
+	}
+
+	out.Reset()
+	if code := app.Run([]string{"--json", "--vault", dir, "supersede", added.ID, "--claim", "Run gofmt before commit", "--scope", "go",
+		"--sources", `[{"path":"docs/commit.md"}]`}); code != 0 {
+		t.Fatalf("supersede: %s %s", errw, out)
+	}
+	var sup imprint.SupersedeResult
+	if err := json.Unmarshal(out.Bytes(), &sup); err != nil {
+		t.Fatal(err)
+	}
+	if got := getSources(sup.ID); len(got) != 1 || got[0].Path != "docs/commit.md" {
+		t.Fatalf("supersede sources = %+v", got)
+	}
+
+	out.Reset()
+	if code := app.Run([]string{"--json", "--vault", dir, "add", "Bad", "--scope", "go", "--text", "x", "--sources", "docs/x.md"}); code == 0 {
+		t.Fatal("non-JSON --sources should fail")
+	}
+}
+
 func TestCLIForgetGetSweepShowClear(t *testing.T) {
 	dir := t.TempDir()
 	app, out, errw := testApp(t, dir)

@@ -161,7 +161,7 @@ Global flags: `--vault PATH` · `--global` · `--json` (machine-readable stdout 
 | --- | --- |
 | `imprint init` | Write `imprint.yaml` (if missing) and editor agent rules |
 | `imprint find [--scope a,b] [--query TEXT]` | Recall imprints (scope **AND**); with query + shelves → also `documents`, `links` |
-| `imprint add CLAIM --scope a,b --text ORIG` | Create an imprint (MCP may include `sources` linking docs) |
+| `imprint add CLAIM --scope a,b --text ORIG` | Create an imprint (`--sources JSON` or MCP `sources` links docs) |
 | `imprint reinforce ID --evidence TEXT` | Strengthen a rule after explicit reaffirmation (diminishing gain, cap 0.95) |
 | `imprint supersede OLD --claim NEW --scope a,b` | Replace a rule; old → `superseded` |
 | `imprint forget ID` | Delete permanently (lifecycle event remains) |
