@@ -54,7 +54,11 @@ func (v *Vault) classifyDuplicateCandidate(cosine float64, sc RelateScores) (blo
 	return false, false
 }
 
-func (v *Vault) splitCandidatesByRelate(ctx context.Context, claim string, cands []DuplicateCandidate, trace string) (blocking, advisory []DuplicateCandidate) {
+// splitCandidatesByRelate scores claim pairs. keepWhenRelateMissing is for the
+// Jaccard pool: those candidates already cleared the lexical threshold, so a
+// missing /relate leaves them blocking. The cosine pool passes false and then
+// only duplicate_high_cosine_block can still reject.
+func (v *Vault) splitCandidatesByRelate(ctx context.Context, claim string, cands []DuplicateCandidate, trace string, keepWhenRelateMissing bool) (blocking, advisory []DuplicateCandidate) {
 	if len(cands) == 0 {
 		return nil, nil
 	}
@@ -64,7 +68,11 @@ func (v *Vault) splitCandidatesByRelate(ctx context.Context, claim string, cands
 	}
 	rel := v.relater()
 	if rel == nil {
-		return append([]DuplicateCandidate(nil), cands...), nil
+		if keepWhenRelateMissing {
+			return append([]DuplicateCandidate(nil), cands...), nil
+		}
+		v.emit(TelemetryEvent{Op: "relate_unavailable", Code: "relate_disabled"}, trace)
+		return v.candidatesWhenRelateMissing(cands)
 	}
 	pairs := make([][2]string, len(cands))
 	for i, c := range cands {
@@ -73,7 +81,10 @@ func (v *Vault) splitCandidatesByRelate(ctx context.Context, claim string, cands
 	scores, err := rel.Relate(ctx, pairs)
 	if err != nil || len(scores) != len(cands) {
 		v.emit(TelemetryEvent{Op: "relate_unavailable", Code: "relate_failed"}, trace)
-		return append([]DuplicateCandidate(nil), cands...), nil
+		if keepWhenRelateMissing {
+			return append([]DuplicateCandidate(nil), cands...), nil
+		}
+		return v.candidatesWhenRelateMissing(cands)
 	}
 	if v.relateBidirectional {
 		rev := make([][2]string, len(cands))
@@ -91,6 +102,21 @@ func (v *Vault) splitCandidatesByRelate(ctx context.Context, claim string, cands
 	}
 	for i, c := range cands {
 		block, adv := v.classifyDuplicateCandidate(c.Score, scores[i])
+		if adv {
+			advisory = append(advisory, c)
+		} else if block {
+			blocking = append(blocking, c)
+		}
+	}
+	return blocking, advisory
+}
+
+// candidatesWhenRelateMissing applies only duplicate_high_cosine_block.
+// Cosine above duplicate_threshold does not block by itself: that pool exists
+// to be scored by /relate. Jaccard duplicates are handled before this call.
+func (v *Vault) candidatesWhenRelateMissing(cands []DuplicateCandidate) (blocking, advisory []DuplicateCandidate) {
+	for _, c := range cands {
+		block, adv := v.classifyDuplicateCandidate(c.Score, RelateScores{})
 		if adv {
 			advisory = append(advisory, c)
 		} else if block {

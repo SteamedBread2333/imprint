@@ -11,13 +11,13 @@ import (
 // it hashes each text into a small vector so identical-meaning claims land
 // close together and unrelated ones do not.
 type stubEmbedder struct {
-	model  string
-	vecs   map[string][]float32
-	relate map[string]RelateScores
-	fail   bool
+	model      string
+	vecs       map[string][]float32
+	relate     map[string]RelateScores
+	fail       bool
 	relateFail bool
-	dim    int
-	called int
+	dim        int
+	called     int
 }
 
 func newStub(dim int) *stubEmbedder {
@@ -150,6 +150,34 @@ func TestEmbedBlocksSemanticDuplicate(t *testing.T) {
 	// restatement from an opposite policy.
 	if !containsAll(guard.Hint, "reinforce", "supersede") {
 		t.Fatalf("hint must offer reinforce and supersede: %q", guard.Hint)
+	}
+}
+
+// /relate disabled or erroring must not turn cosine hits into hard blocks.
+// duplicate_high_cosine_block still applies when it is set.
+func TestEmbedRelateUnavailableStillWrites(t *testing.T) {
+	const first = "Go exported identifiers must use PascalCase"
+	const paraphrase = "Exported things use Pascal Case naming"
+	stub := newStub(64)
+	stub.relateFail = true
+	stub.makeSimilar(first, paraphrase, 0.95)
+	v := embedVault(t, stub, 0.70)
+	if _, err := v.Add(first, []string{"go", "naming"}, "use PascalCase", 0.8); err != nil {
+		t.Fatal(err)
+	}
+	res, err := v.Add(paraphrase, []string{"go", "naming"}, "naming", 0.8)
+	if err != nil {
+		t.Fatalf("write blocked while relate was down: %v", err)
+	}
+	if res.ID == "" {
+		t.Fatal("empty id")
+	}
+
+	const again = "Public Go names are written in PascalCase"
+	stub.makeSimilar(first, again, 0.99)
+	v.duplicateHighCosBlock = 0.80
+	if _, err := v.Add(again, []string{"go", "naming"}, "naming", 0.8); err == nil {
+		t.Fatal("high-cosine block did not apply while relate was down")
 	}
 }
 

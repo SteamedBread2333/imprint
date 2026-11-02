@@ -3,6 +3,7 @@ package plugin
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/SteamedBread2333/imprint/pkg/imprint"
@@ -46,6 +47,30 @@ func TestResolveConfigPathForVault(t *testing.T) {
 	got, ok := ResolveConfigPathForVault(imprint.DefaultVaultDir(dir))
 	if !ok || got != cfgPath {
 		t.Fatalf("ResolveConfigPathForVault = %q, %v want %q, true", got, ok, cfgPath)
+	}
+}
+
+func TestPluginProcessEnvLeavesRelateModelToSidecar(t *testing.T) {
+	cfg := &Config{
+		Plugins: map[string]PluginEntry{
+			"embed": {Enabled: true, Config: map[string]any{
+				"relate_model": "org/custom-nli",
+			}},
+		},
+		embedGlobalConfigPath: "/tmp/embed.yaml",
+	}
+	env := pluginProcessEnv(cfg, "embed", cfg.Plugins["embed"], 4174)
+	sawConfig := false
+	for _, e := range env {
+		if strings.HasPrefix(e, "IMPRINT_RELATE_MODEL=") {
+			t.Fatalf("imprint set %s; the sidecar resolves relate_model", e)
+		}
+		if e == "IMPRINT_PLUGIN_CONFIG=/tmp/embed.yaml" {
+			sawConfig = true
+		}
+	}
+	if !sawConfig {
+		t.Fatal("embed start did not point IMPRINT_PLUGIN_CONFIG at embed.yaml")
 	}
 }
 

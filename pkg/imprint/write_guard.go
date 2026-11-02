@@ -87,7 +87,7 @@ func (v *Vault) duplicateCandidates(claim string, scope []string) (blocking []Du
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), v.embedTimeout)
 	defer cancel()
-	blocking, advisory = v.splitCandidatesByRelate(ctx, claim, high, "")
+	blocking, advisory = v.splitCandidatesByRelate(ctx, claim, high, "", true)
 	sort.Slice(blocking, func(i, j int) bool {
 		if blocking[i].Score == blocking[j].Score {
 			return blocking[i].ID < blocking[j].ID
@@ -217,7 +217,7 @@ func (v *Vault) mergeEmbedDuplicatesScope(claim string, query []float32, ok bool
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), v.embedTimeout)
 	defer cancel()
-	relBlock, relAdv := v.splitCandidatesByRelate(ctx, claim, pending, trace)
+	relBlock, relAdv := v.splitCandidatesByRelate(ctx, claim, pending, trace, false)
 	blocking = append(blocking, relBlock...)
 	advisory = append(advisory, relAdv...)
 	sort.Slice(blocking, func(i, j int) bool { return blocking[i].Score > blocking[j].Score })

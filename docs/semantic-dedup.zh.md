@@ -117,7 +117,7 @@ flowchart TD
 | 5 | relate | `relate_*_min` | entail → 拒写；contradiction → advisory | 是 | 对立政策 |
 | 6 | 高余弦 | `duplicate_high_cosine_block`（0=关） | NLI neutral 但 cos 极高仍拒写 | 是 | 如 `%w`/gofmt 改述 |
 
-**判定顺序（Go）：** contradiction ≥ `relate_contradiction_min` → advisory；否则 entailment ≥ `relate_entailment_min` → 拒写；否则若 `duplicate_high_cosine_block` > 0 且 cosine ≥ 该值 → 拒写。`relate_bidirectional: true` 时正反 `/relate` 取 max(contradiction/entailment) 再判定。阈值只在 `imprint.yaml`；sidecar 只出分。
+**判定顺序（Go）：** contradiction ≥ `relate_contradiction_min` → advisory；否则 entailment ≥ `relate_entailment_min` → 拒写；否则若 `duplicate_high_cosine_block` > 0 且 cosine ≥ 该值 → 拒写。`relate_bidirectional: true` 时正反 `/relate` 取 max(contradiction/entailment) 再判定。阈值在 `~/.imprint/embed.yaml`；sidecar 只出分。`/relate` 报错或 relate 未启用时，只越过余弦阈值的候选不拒写；`duplicate_high_cosine_block` > 0 时高余弦仍拒写。Jaccard 命中仍拒写。余弦路径记 telemetry `relate_unavailable`。
 
 ### 标定
 
@@ -126,7 +126,7 @@ flowchart TD
 ### Relate 闸 —— sidecar `POST /relate`
 
 余弦（或高 Jaccard）之后，Go 把 claim 对 batch 到 sidecar；返回 cross-encoder 的
-contradiction / entailment 等概率。**阈值只在 imprint.yaml**，sidecar 不做裁决。
+contradiction / entailment 等概率。`relate_model` 写在 `~/.imprint/embed.yaml` 时用该值；键省略时 sidecar 加载自己 `imprint.plugin.json` 里 `configSchema.relate_model.default`。**阈值只在 embed.yaml**，sidecar 只出分。空值，或 `off` / `none` / `false`，关闭 `/relate`。
 
 安装：clone [imprint-embed-sidecar](https://github.com/SteamedBread2333/imprint-embed-sidecar)，跑 `./scripts/setup.sh`，在 `~/.imprint/embed.yaml` 里 `package` 指向该目录（建议绝对路径）。项目 `imprint.yaml` 勿再写 `plugins.embed`。改模型后重跑 `calibrate.py`。
 
@@ -186,6 +186,7 @@ flowchart LR
 | 启用 + 健康                   | 完整 Jaccard + 余弦 + 极性栈                      |
 | 启用 + 调用超时                | 仅 Jaccard；telemetry `Op: "embed_unavailable"`   |
 | 启用 + sidecar 中途崩         | 仅 Jaccard（下一次调用重连或失败）               |
+| 启用 + `/relate` 报错或未启用 | 仅 Jaccard；`duplicate_high_cosine_block` > 0 时高余弦仍拒写；telemetry `relate_unavailable` |
 | 禁用（`enabled: false`）       | 仅 Jaccard；无 telemetry                          |
 
 **写入永远不会因 sidecar 不可用而失败**——这是本子系统唯一的不变量。写入精度会降（改述和重构的重复会漏），可用性永远保。
@@ -257,7 +258,7 @@ add  trace=873d4cb1895d
 | `relate_entailment_min` | 0.35 | `embed.yaml` | ≥ → 拒写（contradiction 低时） |
 | `relate_bidirectional` | true | `embed.yaml` | 正反 relate 合并 |
 | `duplicate_high_cosine_block` | 0.80 | `embed.yaml` | **0** 关闭；`eval_gate.py` 调 |
-| `relate_model` | `nli-deberta-v3-base` | `embed.yaml` | cross-encoder |
+| `relate_model` | sidecar `imprint.plugin.json` | `embed.yaml` 可覆盖 | 省略键时用插件 schema 默认 |
 | `timeout_seconds` | 5 | `embed.yaml` | 单次 HTTP |
 | `port` | 4174 | `embed.yaml` | 与 sidecar 一致 |
 | `model` | `BAAI/bge-small-zh-v1.5` | `embed.yaml` | `rule_vectors` key |

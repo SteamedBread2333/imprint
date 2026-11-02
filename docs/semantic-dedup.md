@@ -139,7 +139,11 @@ flowchart TD
 and cosine ≥ that value → **block**; else pass. With
 `relate_bidirectional: true`, forward and reverse `/relate` scores merge
 (max contradiction, max entailment) before this logic. Thresholds live in
-`imprint.yaml` only — the sidecar returns scores, not decisions.
+`~/.imprint/embed.yaml` — the sidecar returns scores, not decisions.
+When `/relate` errors or relate is disabled, candidates that only cleared
+the cosine threshold are not blocked. `duplicate_high_cosine_block` > 0 still
+blocks those. Jaccard matches stay blocking. Telemetry records
+`relate_unavailable` on the cosine path.
 
 ### Calibration
 
@@ -156,9 +160,11 @@ Run `scripts/embed-eval-batch.py` for end-to-end `imprint add` checks.
 After cosine (or high Jaccard) similarity, Go batches claim pairs to the
 sidecar. The sidecar returns softmax probabilities (typically
 `contradiction`, `neutral`, `entailment`) from a configurable cross-encoder
-(`relate_model` in `imprint.yaml`, default `cross-encoder/nli-deberta-v3-base`).
-**Thresholds live only in imprint.yaml** — the sidecar does not decide
-duplicate vs advisory.
+(`relate_model` in `~/.imprint/embed.yaml` when set). When that key is omitted,
+the sidecar loads `configSchema.relate_model.default` from its own
+`imprint.plugin.json`. **Thresholds live only in embed.yaml** — the sidecar
+returns scores, not decisions. An empty `relate_model`, or `off` / `none` /
+`false`, leaves `/relate` off.
 
 Install: clone [imprint-embed-sidecar](https://github.com/SteamedBread2333/imprint-embed-sidecar),
 run `./scripts/setup.sh` (venv under `~/.imprint/plugins/embed/venv`), and set
@@ -233,6 +239,7 @@ Every embed call is bounded by `embedTimeout = 2s`. The semantics:
 | enabled, healthy             | full Jaccard + cosine + relate stack               |
 | enabled, call times out      | Jaccard only; telemetry `Op: "embed_unavailable"`     |
 | enabled, sidecar crashed     | Jaccard only (the next call reconnects or fails)     |
+| enabled, `/relate` errors or relate disabled | Jaccard only, plus high-cosine block when `duplicate_high_cosine_block` > 0; telemetry `relate_unavailable` |
 | disabled (`enabled: false`)  | Jaccard only; no telemetry                           |
 
 **A write never fails because the sidecar is unavailable.** That is the
@@ -334,7 +341,7 @@ conflict-penalty logic in `find` is dormant for that pair.
 | `relate_entailment_min` | 0.35 | `embed.yaml` | At or above → block (if contradiction low) |
 | `relate_bidirectional` | true | `embed.yaml` | Merge forward + reverse `/relate` |
 | `duplicate_high_cosine_block` | 0.80 | `embed.yaml` | **0** disables; tune with `eval_gate.py` |
-| `relate_model` | `cross-encoder/nli-deberta-v3-base` | `embed.yaml` | Sidecar loads from HF cache |
+| `relate_model` | sidecar `imprint.plugin.json` | `embed.yaml` overrides | Omitted key uses the plugin schema default |
 | `timeout_seconds` | 5 | `embed.yaml` | Per embed/relate HTTP call |
 | `port` | 4174 | `embed.yaml` | Must match sidecar listen |
 | `model` | `BAAI/bge-small-zh-v1.5` | `embed.yaml` | Keys `rule_vectors.model` |
