@@ -4,6 +4,7 @@
 # --- binaries (make build / go test -c) ---
 /imprint
 /imprint.exe
+/imprint-mcp
 *.exe
 *.exe~
 *.dll
