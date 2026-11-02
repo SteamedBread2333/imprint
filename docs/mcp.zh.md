@@ -75,7 +75,7 @@ flowchart LR
 | 层级        | 作用                                                                            |
 | --------- | ----------------------------------------------------------------------------- |
 | **宿主**    | Cursor、Claude Desktop 等启动 `imprint-mcp`，经 stdin/stdout 通信。                    |
-| **工具**    | vault 命令对应 MCP 工具（`find`、`add` …）。**MCP** 在 shelves 开时 enrich `find`/`get`；**CLI** `find`/`get` 仅 vault。 |
+| **工具**    | vault 命令对应 MCP 工具（`find`、`add` …）。shelves 开时 MCP 与 CLI 的 `find` 共用同一 enrich 流程；**MCP** 还会 enrich `get`，**CLI** `get` 仅 vault。 |
 | **Vault** | 默认 `~/.imprint/projects/<hash>/vault.db`（SQLite）；`find`/`get`/`add` 读写 claim、evidence、**sources**。 |
 | **Shelves** | 读 `imprint.yaml` 的 `roots`；`find`+query 时 BM25 文档（`find_top_k` 截断、查询窗口 snippet）并返回 `documents`、`links`；`get chunk` 返回 `referenced_rules`。 |
 | **判断**    | 新增 / 强化 / 替换 / 忽略 与是否写 **sources** 均由智能体负责。 |

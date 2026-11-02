@@ -72,7 +72,7 @@ flowchart LR
 | Layer | Role |
 | --- | --- |
 | **Host** | Cursor, Claude Desktop, etc. spawns `imprint-mcp` and talks over stdin/stdout. |
-| **Tools** | One MCP tool per vault command (`find`, `add`, …). **MCP** enriches `find`/`get` when shelves is on; **CLI** `find`/`get` are vault-only. |
+| **Tools** | One MCP tool per vault command (`find`, `add`, …). With shelves on, MCP and CLI `find` share one enrichment path; **MCP** also enriches `get`, while **CLI** `get` is vault-only. |
 | **Vault** | `~/.imprint/projects/<hash>/vault.db` by default (SQLite); `find` / `get` / `add` read and write claim, evidence, **sources**. |
 | **Shelves** | Reads `roots` from `imprint.yaml`; `find`+query adds BM25 **documents** (capped by `find_top_k`, query-window snippets) and **links**; chunk `get` adds **referenced_rules**. |
 | **Judgment** | ADD / REINFORCE / SUPERSEDE / IGNORE and whether to set **sources** stay on the agent. |
