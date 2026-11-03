@@ -54,7 +54,7 @@ func TestClientEmbedWarnsOnceWhenSidecarDown(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	srv.Close() // immediately close; any future call gets connection-refused.
 
-	c := NewClient(portOf(srv.URL), "test-model", 200*time.Millisecond)
+	c := NewClient(portOf(srv.URL), 200*time.Millisecond)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
@@ -88,9 +88,13 @@ func TestClientHealthProbeBypassesWarnStderr(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewClient(portOf(srv.URL), "test-model", time.Second)
-	if ok, _, err := c.Health(context.Background()); !ok || err != nil {
+	c := NewClient(portOf(srv.URL), time.Second)
+	ok, model, err := c.Health(context.Background())
+	if !ok || err != nil {
 		t.Fatalf("healthy: %v / err=%v", ok, err)
+	}
+	if model != "x" || c.Model() != "x" {
+		t.Fatalf("model = %q client = %q", model, c.Model())
 	}
 	if got := capture(); got != "" {
 		t.Fatalf("health success must not warn, got: %q", got)
@@ -125,7 +129,7 @@ func TestWarnStderrReplacement(t *testing.T) {
 
 	// Trigger via the helper directly — keeps the test independent of
 	// network state.
-	c := NewClient(1, "x", 10*time.Millisecond)
+	c := NewClient(1, 10*time.Millisecond)
 	c.warned.Store(false)
 	// Force the warn path without an actual network call.
 	c.maybeWarnSidecarDown(&net.OpError{Op: "dial", Err: syscall.ECONNREFUSED})

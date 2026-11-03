@@ -42,17 +42,20 @@ var warnStderr io.Writer = os.Stderr
 // It is safe for concurrent use.
 type Client struct {
 	baseURL string
-	model   string
 	http    *http.Client
 
 	warned atomic.Bool
+
+	modelMu sync.Mutex
+	model   string // learned from /health or /embed; empty until the sidecar answers
 
 	cacheMu sync.Mutex
 	cache   map[string][]float32
 }
 
 // NewClient returns a client for a sidecar listening on port.
-func NewClient(port int, model string, timeout time.Duration) *Client {
+// The embedding model id is taken from the sidecar response, not from config.
+func NewClient(port int, timeout time.Duration) *Client {
 	if port <= 0 {
 		port = DefaultPort
 	}
@@ -61,7 +64,6 @@ func NewClient(port int, model string, timeout time.Duration) *Client {
 	}
 	return &Client{
 		baseURL: imprint.LocalURL(port),
-		model:   model,
 		cache:   make(map[string][]float32),
 		http: &http.Client{
 			Timeout: timeout,
@@ -75,12 +77,22 @@ func NewClient(port int, model string, timeout time.Duration) *Client {
 	}
 }
 
-// Model returns the embedding model id for this client's vector space.
+// Model returns the embedding model id last reported by the sidecar.
+// It is empty until a successful /health or /embed response.
 func (c *Client) Model() string {
-	if c.model == "" {
-		return imprint.EmbedModel
-	}
+	c.modelMu.Lock()
+	defer c.modelMu.Unlock()
 	return c.model
+}
+
+func (c *Client) noteModel(id string) {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return
+	}
+	c.modelMu.Lock()
+	c.model = id
+	c.modelMu.Unlock()
 }
 
 // BaseURL returns the sidecar root URL.
@@ -88,7 +100,6 @@ func (c *Client) BaseURL() string { return c.baseURL }
 
 type embedRequest struct {
 	Texts []string `json:"texts"`
-	Model string   `json:"model,omitempty"`
 }
 
 type embedResponse struct {
@@ -109,10 +120,10 @@ type relateRequest struct {
 }
 
 type relateResponse struct {
-	Model   string             `json:"model"`
-	Labels  []string           `json:"labels"`
+	Model   string               `json:"model"`
+	Labels  []string             `json:"labels"`
 	Results []map[string]float64 `json:"results"`
-	Error   string             `json:"error,omitempty"`
+	Error   string               `json:"error,omitempty"`
 }
 
 // Embed returns one vector per text. It honors ctx and the client timeout; a
@@ -179,7 +190,7 @@ func (c *Client) cachePut(text string, vec []float32) {
 }
 
 func (c *Client) embedRemote(ctx context.Context, texts []string) ([][]float32, error) {
-	body, err := json.Marshal(embedRequest{Texts: texts, Model: c.Model()})
+	body, err := json.Marshal(embedRequest{Texts: texts})
 	if err != nil {
 		return nil, fmt.Errorf("encode embed request: %w", err)
 	}
@@ -204,6 +215,7 @@ func (c *Client) embedRemote(ctx context.Context, texts []string) ([][]float32, 
 	if out.Error != "" {
 		return nil, errors.New("embed plugin: " + out.Error)
 	}
+	c.noteModel(out.Model)
 	if len(out.Vectors) != len(texts) {
 		return nil, fmt.Errorf("embed plugin returned %d vectors for %d texts", len(out.Vectors), len(texts))
 	}
@@ -326,5 +338,6 @@ func (c *Client) Health(ctx context.Context) (bool, string, error) {
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 		return false, "", fmt.Errorf("decode health response: %w", err)
 	}
-	return out.OK, out.Model, nil
+	c.noteModel(out.Model)
+	return out.OK, c.Model(), nil
 }

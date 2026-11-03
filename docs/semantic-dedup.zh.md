@@ -28,13 +28,13 @@ Jaccard 是两个 claim 词集合的交集除以并集。它忽略词序、词�
 │        │                                                              │
 │        │   claims (字符串)                                            │
 │        ▼                                                              │
-│  pkg/imprint/embed.go  (Embedder 接口、阈值、模型名)                  │
+│  pkg/imprint/embed.go  (Embedder 接口、阈值)                          │
 │        │                                                              │
 │        ▼                                                              │
 │  internal/embed/client.go  (HTTP 客户端，2s 超时，连接池)            │
 │        │                                                              │
 └────────┼──────────────────────────────────────────────────────────────┘
-         │  POST /embed   {"texts":[...], "model":"BAAI/bge-small-zh-v1.5"}
+         │  POST /embed   {"texts":[...]}
          │  GET  /health
          ▼
 ┌──── imprint-embed-sidecar (Python，外部进程) ────────────────────────┐
@@ -42,9 +42,9 @@ Jaccard 是两个 claim 词集合的交集除以并集。它忽略词序、词�
 │      │   ThreadingHTTPServer，懒加载模型                            │
 │      ▼                                                              │
 │  fastembed + onnxruntime                                             │
-│      │   BAAI/bge-small-zh-v1.5 (512 维，~130MB)                    │
+│      │   模型 id 来自 imprint.plugin.json configSchema               │
 │      ▼                                                              │
-│  响应: {"vectors":[[...]], "dim":512, "model":"..."}                  │
+│  响应: {"vectors":[[...]], "dim":N, "model":"<sidecar id>"}           │
 └─────────────────────────────────────────────────────────────────────┘
 
                         ┌─────────────────────────────┐
@@ -55,7 +55,7 @@ Jaccard 是两个 claim 词集合的交集除以并集。它忽略词序、词�
                         └─────────────────────────────┘
 ```
 
-Go 二进制**没有** ONNX / fastembed / sentence-transformers 任何依赖。向量由 sidecar 产生，落库到 `rule_vectors`。
+Go 二进制**没有** ONNX / fastembed / sentence-transformers 任何依赖。向量由 sidecar 产生，落库到 `rule_vectors`。Go 客户端只发送文本。`rule_vectors.model` 取自 `GET /health` 与 `POST /embed` 响应里的 `model`。
 
 ## 生命周期
 
@@ -126,7 +126,9 @@ flowchart TD
 ### Relate 闸 —— sidecar `POST /relate`
 
 余弦（或高 Jaccard）之后，Go 把 claim 对 batch 到 sidecar；返回 cross-encoder 的
-contradiction / entailment 等概率。`relate_model` 写在 `~/.imprint/embed.yaml` 时用该值；键省略时 sidecar 加载自己 `imprint.plugin.json` 里 `configSchema.relate_model.default`。**阈值只在 embed.yaml**，sidecar 只出分。空值，或 `off` / `none` / `false`，关闭 `/relate`。
+contradiction / entailment 等概率。relate 模型由 sidecar 自己的 `imprint.plugin.json`
+`configSchema.relate_model.default` 声明。**阈值只在 embed.yaml**，sidecar 只出分。
+`~/.imprint/embed.yaml` 把 `relate_model` 设为 `off`、`none` 或 `false` 时关闭 `/relate`。省略该键则按 schema 默认开启。
 
 安装：clone [imprint-embed-sidecar](https://github.com/SteamedBread2333/imprint-embed-sidecar)，跑 `./scripts/setup.sh`，在 `~/.imprint/embed.yaml` 里 `package` 指向该目录（建议绝对路径）。项目 `imprint.yaml` 勿再写 `plugins.embed`。改模型后重跑 `calibrate.py`。
 
@@ -198,7 +200,7 @@ flowchart LR
 | 落在                                | 内容                                                        |
 | ----------------------------------- | ----------------------------------------------------------- |
 | `<vault>/vault.db`（表 `rule_vectors`；默认在 `~/.imprint/projects/<hash>/`） | (rule_id, model, dim, vec BLOB, updated_at)              |
-| `~/.cache/imprint/models/`          | ONNX 模型权重，`BAAI/bge-small-zh-v1.5` 约 130MB           |
+| `~/.cache/imprint/models/`          | sidecar embed 与 relate 模型的 ONNX 权重                   |
 | `~/.imprint/plugins/embed/venv`     | 含 fastembed + onnxruntime 的 Python venv                    |
 
 向量随 vault 走（项目-local），所以门禁在 global + project vault 都生效。模型权重和 venv 在用户家目录下，所有 imprint vault 共享。
@@ -209,9 +211,9 @@ embed sidecar 是**单例**——一个进程、一个模型、一个端口（41
 
 **所有 imprint vault 都共享：**
 
-- 一个模型（`BAAI/bge-small-zh-v1.5`）——每个 vault 的 `rule_vectors.model` 列必须等于这个值
+- 一个模型——id 来自 `GET /health`；每个 vault 的 `rule_vectors.model` 列等于这个 id
 - 一个端口（4174）——同一时刻只能有一个 embed 进程在跑
-- 一个 512 维向量空间——所有 cosine 比较都假设两边向量出自同一模型
+- 一个向量空间——维数来自 embed 响应；cosine 比较假设两边向量出自同一模型
 
 **为什么不会"项目间窜台"：**
 
@@ -223,7 +225,7 @@ embed sidecar 是**单例**——一个进程、一个模型、一个端口（41
 
 | 约束                                       | 绕法                                                                  |
 | ------------------------------------------ | --------------------------------------------------------------------- |
-| 不能给不同 vault 服务不同模型              | 所有 vault 共享 `BAAI/bge-small-zh-v1.5`；换模型会让所有 vault 的 `rule_vectors` 全部失效，需全量 backfill |
+| 不能给不同 vault 服务不同模型              | 所有 vault 共享 sidecar 的模型；换模型会让所有 vault 的 `rule_vectors` 全部失效，需全量 backfill |
 | 不能在同一台机起两个不同模型的 embed       | 只有一个模型胜出；输的那个配的 embed 配置照常，但每次 embed 调用都拿 2s 超时错误 |
 | 不能跨 vault 做向量查询（不同 vault 模型不同） | 不支持跨 vault find；想跨项目查，得动 **规则数据**本身（如全局 personal vault），不是动向量层 |
 
@@ -233,7 +235,7 @@ embed sidecar 是**单例**——一个进程、一个模型、一个端口（41
 - `imprint-mcp` **会复用**已健康的监听：启动时 health probe 通过就 return，不 fork。
 - `imprint plugin start embed` **不会复用**：先停掉占着该端口的进程，再 fork 一个新的。
 - `imprint up`、`imprint down` **都不碰** embed。起停只用 `imprint plugin start embed` / `imprint plugin stop embed`。
-- 真要支持多模型（比如 bge-small + OpenAI text-embedding-3 + Cohere），sidecar 必须改造成**路由器**——按模型分派或代理到子进程。当前不在范围。
+- 多模型意味着把 sidecar 改造成**路由器**——按模型分派或代理到子进程。当前不在范围。
 
 ## Trace 串链路
 
@@ -258,10 +260,11 @@ add  trace=873d4cb1895d
 | `relate_entailment_min` | 0.35 | `embed.yaml` | ≥ → 拒写（contradiction 低时） |
 | `relate_bidirectional` | true | `embed.yaml` | 正反 relate 合并 |
 | `duplicate_high_cosine_block` | 0.80 | `embed.yaml` | **0** 关闭；`eval_gate.py` 调 |
-| `relate_model` | sidecar `imprint.plugin.json` | `embed.yaml` 可覆盖 | 省略键时用插件 schema 默认 |
+| `relate_model` | 省略（sidecar schema） | `embed.yaml` | `off` / `none` / `false` 关闭 `/relate` |
 | `timeout_seconds` | 5 | `embed.yaml` | 单次 HTTP |
 | `port` | 4174 | `embed.yaml` | 与 sidecar 一致 |
-| `model` | `BAAI/bge-small-zh-v1.5` | `embed.yaml` | `rule_vectors` key |
+
+embed 模型 id 是 sidecar `imprint.plugin.json` 里的 `configSchema.model.default`。`GET /health` 与 `POST /embed` 报告该 id，并作为 `rule_vectors.model` 的键。`embed.yaml` 放端口、超时和阈值。
 
 缺省值见 `pkg/imprint/embed.go`。
 

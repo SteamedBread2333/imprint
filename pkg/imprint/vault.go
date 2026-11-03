@@ -17,19 +17,19 @@ import (
 
 // Vault is a SQLite-backed imprint store at Dir/vault.db.
 type Vault struct {
-	Dir             string
-	store           *sqlite.Store
-	now             func() time.Time
-	telemetry       EventSink
-	inheritAlpha    float64
-	embed           Embedder
-	embedTimeout    time.Duration
-	embedThresh     float64
-	embedCrossScope string
-	relateConMin           float64
-	relateEntMin           float64
-	duplicateHighCosBlock  float64
-	relateBidirectional  bool
+	Dir                   string
+	store                 *sqlite.Store
+	now                   func() time.Time
+	telemetry             EventSink
+	inheritAlpha          float64
+	embed                 Embedder
+	embedTimeout          time.Duration
+	embedThresh           float64
+	embedCrossScope       string
+	relateConMin          float64
+	relateEntMin          float64
+	duplicateHighCosBlock float64
+	relateBidirectional   bool
 }
 
 // OpenOptions configures a vault. Construction is immutable after Open.
@@ -133,15 +133,15 @@ func Open(opts OpenOptions) (*Vault, error) {
 		return nil, err
 	}
 	return &Vault{
-		Dir:             abs,
-		store:           st,
-		now:             opts.Now,
-		telemetry:       opts.Telemetry,
-		inheritAlpha:    alpha,
-		embed:           opts.Embed,
-		embedTimeout:    timeout,
-		embedThresh:     thresh,
-		embedCrossScope: crossScope,
+		Dir:                   abs,
+		store:                 st,
+		now:                   opts.Now,
+		telemetry:             opts.Telemetry,
+		inheritAlpha:          alpha,
+		embed:                 opts.Embed,
+		embedTimeout:          timeout,
+		embedThresh:           thresh,
+		embedCrossScope:       crossScope,
 		relateConMin:          relateCon,
 		relateEntMin:          relateEnt,
 		duplicateHighCosBlock: highCos,
@@ -561,7 +561,15 @@ func (v *Vault) storeEmbedding(id, claim string, traceID ...string) {
 // for why this must finish before the write returns.
 func (v *Vault) storeEmbeddingVec(id string, vec []float32, traceID ...string) {
 	start := time.Now()
-	if err := v.store.UpsertRuleVector(id, v.embed.Model(), vec, time.Now().UTC()); err != nil {
+	model := ""
+	if v.embed != nil {
+		model = v.embed.Model()
+	}
+	if model == "" {
+		v.emit(TelemetryEvent{Op: "embed_unavailable", Code: "model_unknown", LatencyMS: time.Since(start).Milliseconds()}, traceID...)
+		return
+	}
+	if err := v.store.UpsertRuleVector(id, model, vec, time.Now().UTC()); err != nil {
 		v.emit(TelemetryEvent{Op: "embed_unavailable", Code: "vector_write_failed", LatencyMS: time.Since(start).Milliseconds()}, traceID...)
 		return
 	}

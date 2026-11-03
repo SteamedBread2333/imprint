@@ -175,7 +175,6 @@ func normalizeLegacyShelves(cfg *Config) {
 	}
 }
 
-
 // FileExists reports whether imprint.yaml was loaded from an on-disk file.
 func (c *Config) FileExists() bool {
 	if c.filePath == "" {
@@ -289,7 +288,7 @@ func applyEmbedEntryToOpenOptions(opts *imprint.OpenOptions, entry PluginEntry) 
 		return
 	}
 	cfg := EmbedConfigFrom(entry)
-	opts.Embed = embed.NewClient(cfg.Port, cfg.Model, time.Duration(cfg.TimeoutSeconds)*time.Second)
+	opts.Embed = embed.NewClient(cfg.Port, time.Duration(cfg.TimeoutSeconds)*time.Second)
 	if cfg.DuplicateThreshold > 0 {
 		opts.EmbedDuplicateThreshold = cfg.DuplicateThreshold
 	}
@@ -308,14 +307,13 @@ func applyEmbedEntryToOpenOptions(opts *imprint.OpenOptions, entry PluginEntry) 
 
 // EmbedConfig is the parsed plugins.embed.config section.
 type EmbedConfig struct {
-	Port               int
-	Model              string
-	TimeoutSeconds     int
-	DuplicateThreshold float64
-	RelateContradictionMin float64
-	RelateEntailmentMin       float64
-	DuplicateHighCosineBlock  float64
-	RelateBidirectional       bool
+	Port                     int
+	TimeoutSeconds           int
+	DuplicateThreshold       float64
+	RelateContradictionMin   float64
+	RelateEntailmentMin      float64
+	DuplicateHighCosineBlock float64
+	RelateBidirectional      bool
 	// CrossScopePolicy is advisory_only (default) or strict.
 	// advisory_only keeps the cross-project recall signal — a Chinese rule
 	// in one project can still surface as a paraphrase of an English rule
@@ -333,9 +331,8 @@ const (
 // EmbedConfigFrom reads typed values from a plugin entry with defaults.
 func EmbedConfigFrom(entry PluginEntry) EmbedConfig {
 	cfg := EmbedConfig{
-		Port:               imprint.DefaultEmbedPort,
-		Model:              imprint.EmbedModel,
-		TimeoutSeconds:     imprint.DefaultEmbedTimeoutSeconds,
+		Port:                   imprint.DefaultEmbedPort,
+		TimeoutSeconds:         imprint.DefaultEmbedTimeoutSeconds,
 		DuplicateThreshold:     imprint.DefaultEmbedDuplicateThreshold,
 		RelateContradictionMin: imprint.DefaultRelateContradictionMin,
 		RelateEntailmentMin:    imprint.DefaultRelateEntailmentMin,
@@ -348,9 +345,6 @@ func EmbedConfigFrom(entry PluginEntry) EmbedConfig {
 		cfg.Port = v
 	} else if v, ok := entry.Config["port"].(float64); ok && v > 0 {
 		cfg.Port = int(v)
-	}
-	if v, ok := entry.Config["model"].(string); ok && strings.TrimSpace(v) != "" {
-		cfg.Model = strings.TrimSpace(v)
 	}
 	if v, ok := entry.Config["timeout_seconds"].(int); ok && v > 0 {
 		cfg.TimeoutSeconds = v

@@ -2,11 +2,6 @@ package imprint
 
 import "context"
 
-// EmbedModel is the conventional embedding model id for the embed plugin.
-// bge-small-zh-v1.5 emits 512-dim vectors (measured, not 384 as earlier notes
-// assumed) — always read the dim from the plugin response.
-const EmbedModel = "BAAI/bge-small-zh-v1.5"
-
 // DefaultEmbedPort is the imprint-embed plugin port.
 const DefaultEmbedPort = 4174
 
@@ -22,16 +17,16 @@ const (
 )
 
 // DefaultEmbedDuplicateThreshold is the semantic duplicate cosine threshold,
-// calibrated by imprint-embed-sidecar/calibrate.py on 20 pairs per group with
-// bge-small-zh-v1.5:
+// calibrated by imprint-embed-sidecar/calibrate.py on 20 pairs per group:
 //
 //	duplicate  median 0.823 (min 0.652)
 //	conflict   median 0.753 (max 1.000)
 //	unrelated  median 0.528
 //
-// With cross-encoder/nli-deberta-v3-base, calibrate.py grid best is 0.65
-// (75% duplicate recall, 0% conflict wrong-block on the sample set).
-// Acceptance pair cosine ≈ 0.711 still blocks at 0.65 with relate entailment.
+// Grid best is 0.65 (75% duplicate recall, 0% conflict wrong-block on the
+// sample set). Acceptance pair cosine ≈ 0.711 still blocks at 0.65 when
+// relate entailment is high. Re-run calibrate.py when the sidecar changes models.
+// Vector width comes from the embed response, not from a constant here.
 const DefaultEmbedDuplicateThreshold = 0.65
 
 // DefaultRelateContradictionMin: at or above → advisory (opposite policy).

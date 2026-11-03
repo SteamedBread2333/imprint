@@ -38,13 +38,13 @@ when NLI is neutral — see tuning below).
 │        │                                                              │
 │        │   claims (strings)                                           │
 │        ▼                                                              │
-│  pkg/imprint/embed.go  (Embedder interface, threshold, model name)     │
+│  pkg/imprint/embed.go  (Embedder interface, thresholds)               │
 │        │                                                              │
 │        ▼                                                              │
 │  internal/embed/client.go  (HTTP client, 2s timeout, connection pool) │
 │        │                                                              │
 └────────┼──────────────────────────────────────────────────────────────┘
-         │  POST /embed   {"texts":[...], "model":"BAAI/bge-small-zh-v1.5"}
+         │  POST /embed   {"texts":[...]}
          │  GET  /health
          ▼
 ┌──── imprint-embed-sidecar (Python, external process) ────────────────┐
@@ -52,9 +52,9 @@ when NLI is neutral — see tuning below).
 │      │   ThreadingHTTPServer, lazy model load                      │
 │      ▼                                                              │
 │  fastembed + onnxruntime                                             │
-│      │   BAAI/bge-small-zh-v1.5 (512-dim, ~130MB)                    │
+│      │   model id from imprint.plugin.json configSchema             │
 │      ▼                                                              │
-│  responses: {"vectors":[[...]], "dim":512, "model":"..."}             │
+│  responses: {"vectors":[[...]], "dim":N, "model":"<sidecar id>"}      │
 └─────────────────────────────────────────────────────────────────────┘
 
                         ┌─────────────────────────────┐
@@ -66,7 +66,9 @@ when NLI is neutral — see tuning below).
 ```
 
 The Go binary has **no** ONNX / fastembed / sentence-transformers dependency.
-Vectors are produced by the sidecar and stored in `rule_vectors`.
+Vectors are produced by the sidecar and stored in `rule_vectors`. The Go
+client sends texts only. `rule_vectors.model` is the `model` field from
+`GET /health` and `POST /embed`.
 
 ## Lifecycle
 
@@ -159,12 +161,11 @@ Run `scripts/embed-eval-batch.py` for end-to-end `imprint add` checks.
 
 After cosine (or high Jaccard) similarity, Go batches claim pairs to the
 sidecar. The sidecar returns softmax probabilities (typically
-`contradiction`, `neutral`, `entailment`) from a configurable cross-encoder
-(`relate_model` in `~/.imprint/embed.yaml` when set). When that key is omitted,
-the sidecar loads `configSchema.relate_model.default` from its own
-`imprint.plugin.json`. **Thresholds live only in embed.yaml** — the sidecar
-returns scores, not decisions. An empty `relate_model`, or `off` / `none` /
-`false`, leaves `/relate` off.
+`contradiction`, `neutral`, `entailment`) from the relate model declared in
+its `imprint.plugin.json` `configSchema.relate_model.default`. **Thresholds
+live only in embed.yaml** — the sidecar returns scores, not decisions.
+`~/.imprint/embed.yaml` sets `relate_model` to `off`, `none`, or `false` to
+leave `/relate` off. An omitted key leaves relate on at the schema default.
 
 Install: clone [imprint-embed-sidecar](https://github.com/SteamedBread2333/imprint-embed-sidecar),
 run `./scripts/setup.sh` (venv under `~/.imprint/plugins/embed/venv`), and set
@@ -255,7 +256,7 @@ scenario 12 of `cmd/imprint-acceptance` also exercises this path.
 | Lives in                                | Contents                                                     |
 | --------------------------------------- | ------------------------------------------------------------ |
 | `<vault>/vault.db` (table `rule_vectors`; default under `~/.imprint/projects/<hash>/`) | (rule_id, model, dim, vec BLOB, updated_at)              |
-| `~/.cache/imprint/models/`              | ONNX model weights, ~130MB for `BAAI/bge-small-zh-v1.5`      |
+| `~/.cache/imprint/models/`              | ONNX weights for the sidecar embed and relate models         |
 | `~/.imprint/plugins/embed/venv`         | Python venv with fastembed + onnxruntime                     |
 
 The vector stays with the vault (project-local) so the gate works on
@@ -270,11 +271,11 @@ naming explicitly because it bounds what users can do with embed.
 
 **What every imprint vault gets, regardless of project:**
 
-- one shared model (`BAAI/bge-small-zh-v1.5`) — the `rule_vectors.model`
-  column in every vault must match this value
+- one shared model — the id from `GET /health`; every vault's
+  `rule_vectors.model` matches that id
 - one shared port (4174) — only one embed process can be alive at a time
-- one shared 512-dim vector space — all cosine comparisons assume the
-  same model emitted both vectors
+- one shared vector space — dim comes from the embed response; cosine
+  comparisons assume the same model emitted both vectors
 
 **Why this is fine and never "crosses wires" between projects:**
 
@@ -294,7 +295,7 @@ naming explicitly because it bounds what users can do with embed.
 
 | Constraint                                        | Workaround                                            |
 | ------------------------------------------------- | ----------------------------------------------------- |
-| Cannot serve different models per vault           | All vaults share `BAAI/bge-small-zh-v1.5`; switching models orphans every `rule_vectors` row in every vault and triggers a full backfill |
+| Cannot serve different models per vault           | All vaults share the sidecar's model; switching it orphans every `rule_vectors` row in every vault and triggers a full backfill |
 | Cannot run two embers with different models on the same machine | One model wins; the loser writes its configurations and gets a clear 2s timeout error on every embed call |
 | Cannot query vectors across vaults (different per-vault `model`) | Cross-vault find is not supported; if you need it, the rule data itself must move (e.g. global personal vault), not the vector store |
 
@@ -309,8 +310,7 @@ naming explicitly because it bounds what users can do with embed.
   holds that port, then forks a new process.
 - `imprint up` and `imprint down` do **not** touch embed. Start or stop
   it only with `imprint plugin start embed` / `imprint plugin stop embed`.
-- If you ever need multi-model support (bge-small + OpenAI text-embedding-3
-  + Cohere, say), the sidecar must be re-architected as a **router**
+- Multi-model support means re-architecting the sidecar as a **router**
   that spawns or proxies per-model child processes. That is out of scope
   for the current single-model design.
 
@@ -341,10 +341,13 @@ conflict-penalty logic in `find` is dormant for that pair.
 | `relate_entailment_min` | 0.35 | `embed.yaml` | At or above → block (if contradiction low) |
 | `relate_bidirectional` | true | `embed.yaml` | Merge forward + reverse `/relate` |
 | `duplicate_high_cosine_block` | 0.80 | `embed.yaml` | **0** disables; tune with `eval_gate.py` |
-| `relate_model` | sidecar `imprint.plugin.json` | `embed.yaml` overrides | Omitted key uses the plugin schema default |
+| `relate_model` | omit (sidecar schema) | `embed.yaml` | `off` / `none` / `false` disables `/relate` |
 | `timeout_seconds` | 5 | `embed.yaml` | Per embed/relate HTTP call |
 | `port` | 4174 | `embed.yaml` | Must match sidecar listen |
-| `model` | `BAAI/bge-small-zh-v1.5` | `embed.yaml` | Keys `rule_vectors.model` |
+
+The embed model id is `configSchema.model.default` in the sidecar
+`imprint.plugin.json`. `GET /health` and `POST /embed` report it, and that
+string keys `rule_vectors.model`. `embed.yaml` holds port, timeout, and thresholds.
 
 Go defaults mirror yaml when fields are omitted (`pkg/imprint/embed.go`).
 

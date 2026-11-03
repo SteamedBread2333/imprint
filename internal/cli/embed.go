@@ -33,7 +33,7 @@ const embedUsage = `Usage:
 
 prepare — download and load embed + relate weights in the foreground (Hugging
 Face / tqdm on your terminal). No HTTP server. Run once after setup or when
-changing relate_model / embed model. plugin start embed still warms on listen
+the sidecar changes models. plugin start embed still warms on listen
 but reuses the cache.
 
 backfill — encodes every active+dormant rule whose claim has no vector for the
