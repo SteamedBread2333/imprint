@@ -560,20 +560,28 @@ func (v *Vault) storeEmbedding(id, claim string, traceID ...string) {
 // storeEmbeddingVec persists an already-computed vector. See storeEmbedding
 // for why this must finish before the write returns.
 func (v *Vault) storeEmbeddingVec(id string, vec []float32, traceID ...string) {
-	start := time.Now()
 	model := ""
 	if v.embed != nil {
 		model = v.embed.Model()
 	}
+	_ = v.storeEmbeddingVecModel(id, model, vec, traceID...)
+}
+
+// storeEmbeddingVecModel persists a vector under an explicit model id (used by
+// backfill after resolveBackfillModel). Returns false when nothing was written.
+func (v *Vault) storeEmbeddingVecModel(id, model string, vec []float32, traceID ...string) bool {
+	start := time.Now()
+	model = strings.TrimSpace(model)
 	if model == "" {
 		v.emit(TelemetryEvent{Op: "embed_unavailable", Code: "model_unknown", LatencyMS: time.Since(start).Milliseconds()}, traceID...)
-		return
+		return false
 	}
 	if err := v.store.UpsertRuleVector(id, model, vec, time.Now().UTC()); err != nil {
 		v.emit(TelemetryEvent{Op: "embed_unavailable", Code: "vector_write_failed", LatencyMS: time.Since(start).Milliseconds()}, traceID...)
-		return
+		return false
 	}
 	v.emit(TelemetryEvent{Op: "embed", LatencyMS: time.Since(start).Milliseconds()}, traceID...)
+	return true
 }
 
 // Forget permanently deletes a record and strips inbound relationship ids.
@@ -660,6 +668,28 @@ type BackfillResult struct {
 // failing sidecar surfaces as Failed > 0 with the offending ids so the user
 // can re-run. Each rule uses a single Embed call; per-call latency is bounded
 // by embedTimeout so a stuck sidecar cannot block the batch forever.
+type embedHealthProber interface {
+	Health(ctx context.Context) (ok bool, model string, err error)
+}
+
+// resolveBackfillModel returns the sidecar model id used to match rule_vectors rows.
+// The HTTP client learns model from /health or /embed; when the sidecar is down
+// Model() stays empty and RulesWithoutVectors("") would falsely mark every rule missing.
+func (v *Vault) resolveBackfillModel(ctx context.Context) string {
+	if v.embed == nil {
+		return ""
+	}
+	if m := strings.TrimSpace(v.embed.Model()); m != "" {
+		return m
+	}
+	if hp, ok := v.embed.(embedHealthProber); ok {
+		if up, _, err := hp.Health(ctx); up && err == nil {
+			return strings.TrimSpace(v.embed.Model())
+		}
+	}
+	return ""
+}
+
 func (v *Vault) BackfillEmbeddings(limit int, force, dryRun bool, batchSize int) BackfillResult {
 	start := time.Now()
 	trace := newTraceID()
@@ -669,7 +699,14 @@ func (v *Vault) BackfillEmbeddings(limit int, force, dryRun bool, batchSize int)
 		v.emit(TelemetryEvent{Op: "backfill_skipped", Code: "no_embedder"}, trace)
 		return res
 	}
-	model := v.embed.Model()
+	ctx, cancel := context.WithTimeout(context.Background(), v.embedTimeout)
+	defer cancel()
+	model := v.resolveBackfillModel(ctx)
+	if model == "" {
+		res.NoEmbedder = true
+		v.emit(TelemetryEvent{Op: "backfill_skipped", Code: "sidecar_unreachable"}, trace)
+		return res
+	}
 	if force {
 		// In force mode, every active+dormant rule is eligible regardless of
 		// existing vector state. We approximate by reading all rule ids.
@@ -690,8 +727,12 @@ func (v *Vault) BackfillEmbeddings(limit int, force, dryRun bool, batchSize int)
 				continue
 			}
 			if vec, ok := v.embedClaim(r.Claim, trace); ok {
-				v.storeEmbeddingVec(r.ID, vec, trace)
-				res.Encoded++
+				if v.storeEmbeddingVecModel(r.ID, model, vec, trace) {
+					res.Encoded++
+				} else {
+					res.Failed++
+					res.FailedIDs = append(res.FailedIDs, r.ID)
+				}
 			} else {
 				res.Failed++
 				res.FailedIDs = append(res.FailedIDs, r.ID)
@@ -718,8 +759,12 @@ func (v *Vault) BackfillEmbeddings(limit int, force, dryRun bool, batchSize int)
 				continue
 			}
 			if vec, ok := v.embedClaim(rec.Claim, trace); ok {
-				v.storeEmbeddingVec(rec.ID, vec, trace)
-				res.Encoded++
+				if v.storeEmbeddingVecModel(rec.ID, model, vec, trace) {
+					res.Encoded++
+				} else {
+					res.Failed++
+					res.FailedIDs = append(res.FailedIDs, id)
+				}
 			} else {
 				res.Failed++
 				res.FailedIDs = append(res.FailedIDs, id)

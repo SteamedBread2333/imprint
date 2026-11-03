@@ -70,6 +70,25 @@ func (s *stubEmbedder) Embed(ctx context.Context, texts []string) ([][]float32, 
 
 func (s *stubEmbedder) Model() string { return s.model }
 
+// lazyModelStub reports an empty Model() until Health runs, like a fresh CLI
+// process before the sidecar has been probed.
+type lazyModelStub struct {
+	*stubEmbedder
+	probed bool
+}
+
+func (s *lazyModelStub) Model() string {
+	if !s.probed {
+		return ""
+	}
+	return s.stubEmbedder.Model()
+}
+
+func (s *lazyModelStub) Health(_ context.Context) (bool, string, error) {
+	s.probed = true
+	return true, s.stubEmbedder.model, nil
+}
+
 // hashVector builds a stable unit-ish vector from a text. Semantically related
 // texts are made to share most components so cosine is high.
 func hashVector(text string, dim int) []float32 {
@@ -97,7 +116,7 @@ func (s *stubEmbedder) makeSimilar(a, b string, similarity float64) {
 	s.vecs[b] = vb
 }
 
-func embedVault(t *testing.T, stub *stubEmbedder, thresh float64) *Vault {
+func embedVault(t *testing.T, stub Embedder, thresh float64) *Vault {
 	t.Helper()
 	v, err := Open(OpenOptions{
 		Dir:                     t.TempDir(),
@@ -436,6 +455,27 @@ func TestClassifyRelateScores(t *testing.T) {
 	block, adv = v.classifyDuplicateCandidate(0.91, RelateScores{Contradiction: 0.5, Entailment: 0.1})
 	if block || !adv {
 		t.Fatalf("contradiction still wins over high cosine")
+	}
+}
+
+// Dry-run must probe the sidecar for model id before scanning rule_vectors.
+// Otherwise Model() is empty and every rule looks missing even when vectors exist.
+func TestBackfillDryRunLazyModel(t *testing.T) {
+	stub := &lazyModelStub{stubEmbedder: newStub(64)}
+	v := embedVault(t, stub, 0.70)
+	rec, err := v.Add("Use tabs for indentation", []string{"go"}, "doc", 0.7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Simulate a vault that was backfilled while the sidecar was up (vectors exist).
+	claim := "Use tabs for indentation"
+	if err := v.store.UpsertRuleVector(rec.ID, stub.stubEmbedder.model, hashVector(claim, 64), time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+
+	res := v.BackfillEmbeddings(0, false, true, 0)
+	if res.Scanned != 0 {
+		t.Fatalf("dry-run with existing vectors should scan 0, got %d", res.Scanned)
 	}
 }
 
