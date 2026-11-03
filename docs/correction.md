@@ -41,12 +41,12 @@ sequenceDiagram
     A->>V: reinforce
   else wording or scope changed / old imprint wrong
     A->>A: SUPERSEDE
-    A->>V: supersede (inherit sources; trust-gap confidence)
+    A->>V: supersede (inherit sources, trust-gap confidence)
   else user says don't record / one-off
     A->>A: IGNORE or forget
   end
 
-  Note over A,V: find before coding; cite [r-id]; docs unchanged
+  Note over A,V: find before coding, cite [r-id], docs unchanged
 ```
 
 | Step | Who | What |
