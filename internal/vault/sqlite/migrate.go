@@ -92,11 +92,19 @@ func (s *Store) ensureMeta() error {
 	err := s.db.QueryRow(`SELECT value FROM meta WHERE key = 'schema_version'`).Scan(&current)
 	if err == sql.ErrNoRows {
 		// Fresh vault: schemaSQL above already created v2 structures.
+		// Concurrent Open calls may race here; ON CONFLICT preserves the first writer.
 		_, err = s.db.Exec(
-			`INSERT INTO meta(key, value) VALUES('schema_version', ?), ('created_at', ?)`,
+			`INSERT INTO meta(key, value) VALUES('schema_version', ?), ('created_at', ?)
+			 ON CONFLICT(key) DO NOTHING`,
 			schemaVersion, now,
 		)
-		return err
+		if err != nil {
+			return err
+		}
+		err = s.db.QueryRow(`SELECT value FROM meta WHERE key = 'schema_version'`).Scan(&current)
+	}
+	if err == sql.ErrNoRows {
+		return fmt.Errorf("initialize vault meta: schema_version missing after seed")
 	}
 	if err != nil {
 		return err
